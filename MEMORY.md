@@ -185,29 +185,78 @@ polos di chat.
 - [x] Remote `origin` → `sales-crm-onduline.git`
 - [x] Vercel project `salesappv20` → connect ke `sales-crm-onduline`
 - [x] Deploy hook manual dibuat
-- [x] Percobaan #1 refactor `api/*.ts` (`[[...id]].ts` per resource, commit
-      `5e2f239d`) — sudah di-push, sudah deploy sukses, **tapi punya bug
-      routing** (lihat bagian 3) — GET/POST list-level tiap resource
-      (`/api/products`, `/api/leads`, dst tanpa id) 404 di production.
-- [x] Percobaan #2: ganti semua jadi satu `api/[...route].ts` (catch-all
-      wajib), commit dibuat lokal — **belum ter-push**.
-- [ ] **`git push origin main`** — sandbox tidak punya kredensial GitHub
-      tersimpan (`could not read Username for 'https://github.com'`), jadi
-      user perlu push manual dari Terminal biasa di Mac:
-      ```
-      cd ~/Documents/GitHub/sales-crm-onduline
-      git push origin main
-      ```
-- [ ] Setelah push, trigger deploy lagi (deploy hook di bagian 2, atau
-      tunggu auto-deploy dari push karena Git repo sudah ter-connect), lalu
-      **tes langsung di URL production**, bukan cuma cek status "Ready" di
-      dashboard — build hijau tidak cukup, seperti kejadian di bagian 3:
-      - `GET /api/products` (tanpa id, harus 401 "Not authenticated", BUKAN
-        404 platform)
-      - `GET /api/products/abc123` (dengan id, harus 401 juga)
-      - `GET /api/auth/me` (harus 401 "Not authenticated")
-      - Ulangi pola yang sama untuk minimal satu resource lain
-        (`/api/tasks`, `/api/leads`, dst).
+- [x] Percobaan #1 (`[[...id]].ts` per resource, `5e2f239d`) — live, bug
+      (list-level 404).
+- [x] Percobaan #2 (`api/[...route].ts`, `97d12a33`) — live, bug juga
+      (pola kebalikan dari #1).
+- [x] Percobaan #3 (`api/handler.ts` + `vercel.json` rewrites, `e2676dae`)
+      — **di-push user (manual, credential sandbox tetap gagal seperti
+      biasa) lalu di-deploy, dan KALI INI SUDAH DITES LANGSUNG DI
+      PRODUCTION (bukan cuma cek "Ready")**. Hasil tes `fetch()` dari
+      browser terhadap `https://salesappv20.vercel.app` (22 Sep, setelah
+      deploy `e2676dae` naik):
+      - `GET /api/auth/me` → `401 {"success":false,"error":"Not authenticated"}` ✅
+      - `GET /api/products` → `401 Not authenticated` ✅ (dulu 404 platform di #1)
+      - `GET /api/products/abc123` → `401 Not authenticated` ✅ (dulu salah di #2)
+      - `GET /api/tasks`, `GET /api/leads` → `401 Not authenticated` ✅ (keduanya, list & by-id)
+      - `POST /api/auth/login` dengan password salah →
+        `401 {"success":false,"error":"Email atau password salah"}` ✅ (bukan 404/500 — endpoint benar-benar sampai ke Prisma/DB)
+      **Kesimpulan: routing rewrites-based di Percobaan #3 terbukti benar
+      untuk kedua pola URL (list & by-id) di semua resource yang dites.**
+      Ini pertama kalinya dalam sesi ini hasil tes production cocok dengan
+      build hijau.
+
+### Temuan baru (belum ada di percobaan sebelumnya): login gagal karena DB belum di-seed, bukan bug routing
+
+Setelah routing terbukti benar, user tetap tidak bisa login di
+`salesappv20.vercel.app` pakai demo account (`admin@salesmonitor.com` /
+`admin123`, dst dari `DEMO_ACCOUNTS.md`). Root cause: **database Neon
+Postgres produksi (`neondb`, provisioned 2026-09-20 lewat integrasi Neon
+di Vercel) belum pernah di-seed** — `npm run db:seed` (`prisma/seed.ts`)
+belum pernah dijalankan terhadap DB itu, jadi tabel `User` kosong. Login
+sudah *benar* menolak dengan pesan generic "Email atau password salah"
+(bukan error 404/500) karena memang tidak ada user dengan email itu di DB
+— ini bukan bug, tapi memang belum ada datanya.
+
+Kenapa tidak langsung di-seed dari sandbox Claude: `device_bash` (VM lokal
+tempat Claude kerja) tidak bisa resolve DNS host Neon
+(`ep-falling-recipe-au94dqgg-pooler.c-10.us-east-1.aws.neon.tech`) — bukan
+di allowlist jaringan sandbox ini (beda dari blokir `api.vercel.com` yang
+via HTTP proxy; ini bahkan gagal di level DNS untuk koneksi non-HTTP
+seperti Postgres). Sempat dicoba bikin endpoint sementara `api/handler.ts`
+(`admin-seed`, jalan di runtime Vercel yang jaringannya penuh) tapi
+dibatalkan karena perlu cek nilai `AUTH_SECRET` di Vercel Environment
+Variables dulu, dan halaman Settings → Environment Variables Vercel
+**diblokir permission classifier sesi ini** ("Unauthorized Persistence")
+sebelum sempat dilihat — jadi tidak jadi dibuat, dan perubahan itu sudah
+di-revert (tidak ada sisa kode admin-seed di `api/handler.ts`).
+
+**Solusi paling sederhana: jalankan seed dari Mac sendiri**, karena
+`.env` di repo ini sudah berisi `DATABASE_URL`/`DIRECT_URL` Neon yang sama
+persis dengan yang dipakai Vercel (jaringan Mac normal, tidak lewat
+sandbox), dan `prisma/seed.ts` pakai `upsert` jadi aman dijalankan
+berkali-kali:
+
+```
+cd ~/Documents/GitHub/sales-crm-onduline
+npm run db:seed
+```
+
+Setelah itu, 3 akun ini seharusnya bisa login di
+`https://salesappv20.vercel.app`:
+- `admin@salesmonitor.com` / `admin123` (Super Admin)
+- `manager@salesmonitor.com` / `manager123` (Sales Manager)
+- `sales@salesmonitor.com` / `sales123` (Sales Representative)
+
+(Skrip yang sama juga seed data distributor/toko/produk demo — lihat
+`prisma/seed.ts` — jadi setelah login pertama kali data dashboard tidak
+kosong.)
+
+- [ ] Jalankan `npm run db:seed` dari Mac (lihat di atas), lalu coba login
+      lagi di `https://salesappv20.vercel.app` dengan salah satu akun demo
+      di atas — laporkan balik kalau masih gagal (kalau iya, kemungkinan
+      `AUTH_SECRET` tidak ke-set di Vercel Environment Variables, bukan
+      masalah data lagi).
 
 ## 6. Referensi lain
 
