@@ -19,15 +19,24 @@ const demoUsers: Array<{ email: string; password: string; name: string; role: Ro
   { email: 'admin@salesmonitor.com', password: 'admin123', name: 'Admin Utama', role: Role.SUPER_ADMIN },
   { email: 'manager@salesmonitor.com', password: 'manager123', name: 'Budi Santoso', role: Role.SALES_MANAGER },
   { email: 'sales@salesmonitor.com', password: 'sales123', name: 'Siti Nurhaliza', role: Role.SALES_REPRESENTATIVE },
-];
 
-// Deliberately NOT seeding the personal accounts from Login.tsx's
-// demoAccounts (rivelino.hasugian@gmail.com, nikky@gmail.com, etc.) —
-// those carry what look like real leaked passwords, and copying them
-// into a new file would just re-create the exact Fase 0 problem this
-// plan flags, in a second place. Add real accounts for those people
-// through this script (or an admin UI once one exists) with fresh
-// passwords they choose themselves, not by porting the old ones.
+  // Fase 0 (22 Sep 2026, explicit product decision): these 5 were the
+  // personal accounts hardcoded in Login.tsx's demoAccounts/Quick Login
+  // (real names/emails, plaintext passwords shipped to the browser bundle
+  // -- see MEMORY.md's P0 finding). Product owner asked to keep these
+  // people able to log in with the SAME password rather than rotating it,
+  // so they're seeded here with the password hashed server-side instead
+  // of shipped in plaintext. This does not fix the underlying risk if any
+  // of these 5 reuse this password elsewhere -- only that this app no
+  // longer displays it in DevTools. Login.tsx's demoAccounts/
+  // handleQuickLogin are removed in the same change; these people now log
+  // in through the normal email/password form like anyone else.
+  { email: 'rivelino.hasugian@gmail.com', password: 'R1vel1n0777!', name: 'Rivelino Hasugian', role: Role.SALES_MANAGER },
+  { email: 'nikky@gmail.com', password: 'N1kky', name: 'Nikky', role: Role.SALES_REPRESENTATIVE },
+  { email: 'bari@gmail.com', password: 'Bar1', name: 'Bari', role: Role.SALES_EXECUTIVE },
+  { email: 'andiko@gmail.com', password: 'Andik0', name: 'Andiko', role: Role.SALES_REPRESENTATIVE },
+  { email: 'pipi@gmail.com', password: 'estehmanis', name: 'Pipi', role: Role.SALES_REPRESENTATIVE },
+];
 
 // Bab 12: 30 dummy points (11 Distributor + 19 Toko) for the Bab 11 map
 // menu demo, seeded pre-approved (APPROVED) since they exist to be

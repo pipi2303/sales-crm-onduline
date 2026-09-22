@@ -1,88 +1,11 @@
 import React, { useState } from 'react';
-import { Lock, Mail, Eye, EyeOff, Mic, User, Shield, Users, LogIn } from 'lucide-react';
+import { Lock, Mail, Eye, EyeOff, LogIn } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { VoiceInput } from '@/app/components/VoiceInput';
-import { toast } from 'sonner';
 
 interface LoginProps {
   onLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
 }
-
-// Demo accounts matching the user management data
-const demoAccounts = [
-  {
-    email: 'admin@salesmonitor.com',
-    password: 'admin123',
-    name: 'Admin Utama',
-    role: 'Super Admin',
-    icon: Shield,
-    color: 'from-[#013E37] to-[#025C52]',
-    description: 'Full system access'
-  },
-  {
-    email: 'manager@salesmonitor.com',
-    password: 'manager123',
-    name: 'Budi Santoso',
-    role: 'Sales Manager',
-    icon: Users,
-    color: 'from-blue-500 to-cyan-600',
-    description: 'Team management access'
-  },
-  {
-    email: 'sales@salesmonitor.com',
-    password: 'sales123',
-    name: 'Siti Nurhaliza',
-    role: 'Sales Representative',
-    icon: User,
-    color: 'from-[#013E37] to-[#025C52]',
-    description: 'Sales operations access'
-  },
-  {
-    email: 'rivelino.hasugian@gmail.com',
-    password: 'R1vel1n0777!',
-    name: 'Rivelino Hasugian',
-    role: 'Sales Manager',
-    icon: Users,
-    color: 'from-[#013E37] to-[#025C52]',
-    description: 'Team management access'
-  },
-  {
-    email: 'nikky@gmail.com',
-    password: 'N1kky',
-    name: 'Nikky',
-    role: 'Sales Representative',
-    icon: User,
-    color: 'from-pink-500 to-rose-600',
-    description: 'Sales operations access'
-  },
-  {
-    email: 'bari@gmail.com',
-    password: 'Bar1',
-    name: 'Bari',
-    role: 'Sales Executive',
-    icon: User,
-    color: 'from-amber-500 to-orange-600',
-    description: 'Sales operations access'
-  },
-  {
-    email: 'andiko@gmail.com',
-    password: 'Andik0',
-    name: 'Andiko',
-    role: 'Sales Representative',
-    icon: User,
-    color: 'from-emerald-500 to-green-600',
-    description: 'Sales operations access'
-  },
-  {
-    email: 'pipi@gmail.com',
-    password: 'estehmanis',
-    name: 'Pipi',
-    role: 'Sales Representative',
-    icon: User,
-    color: 'from-sky-500 to-blue-600',
-    description: 'Sales operations access'
-  }
-];
 
 export function Login({ onLogin }: LoginProps) {
   const [email, setEmail] = useState('');
@@ -91,28 +14,17 @@ export function Login({ onLogin }: LoginProps) {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Fase 1 item 3: real server-side check via POST /api/auth/login
-  // (see AuthContext.loginWithCredentials) instead of matching against
-  // the client-side demoAccounts list below. demoAccounts is left as-is
-  // for now — the Login.tsx / demo-credentials cleanup is tracked
-  // separately as Fase 0, deliberately deferred.
+  // Fase 0 (22 Sep 2026): Quick Login and the hardcoded demoAccounts list
+  // (including 5 personal accounts with plaintext passwords shipped to
+  // the browser bundle -- the P0 finding in MEMORY.md) have been removed.
+  // Those 5 people are now seeded as real, server-hashed accounts
+  // (prisma/seed.ts) and log in through this same form like anyone else.
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
 
     const result = await onLogin(email, password);
-    if (!result.success) {
-      setError(result.error ?? 'Email atau password salah.');
-      setIsLoading(false);
-    }
-  };
-
-  const handleQuickLogin = async (account: typeof demoAccounts[0]) => {
-    setIsLoading(true);
-    setError('');
-
-    const result = await onLogin(account.email, account.password);
     if (!result.success) {
       setError(result.error ?? 'Email atau password salah.');
       setIsLoading(false);
