@@ -17,7 +17,7 @@ import { contracts as dummyContracts, Contract as ContractType } from '@/app/dat
 import { menuItems, getVisibleMenuGroups, isMenuItemVisibleToRole } from '@/app/config/menuConfig';
 
 function AppContent() {
-  const { user, logout, login, loginWithCredentials, isAuthenticated } = useAuth();
+  const { user, logout, loginWithCredentials, isAuthenticated } = useAuth();
   const [activeMenu, setActiveMenu] = useState('home');
   const [isSidebarOpen, setIsSidebarOpen] = useState(
     () => typeof window === 'undefined' || window.innerWidth >= 768

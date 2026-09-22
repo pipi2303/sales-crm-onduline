@@ -10,7 +10,6 @@ export interface AuthUser {
 
 interface AuthContextType {
   user: AuthUser | null;
-  login: (email: string, role: string, name: string) => void;
   loginWithCredentials: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
@@ -36,19 +35,23 @@ function toDisplayRole(role: string): string {
   return ROLE_LABELS[role] ?? role;
 }
 
-// A token minted by the old client-only demo login (AuthContext.login,
-// still used for quick-access flows). Never send these to the real API.
-function isDemoToken(token: string | undefined): boolean {
-  return !token || token.startsWith('demo-access-token-');
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [session, setSession] = useState<any | null>(null);
 
-  // Load user from localStorage on mount, then confirm real (non-demo)
-  // sessions are still valid server-side — item 3's "session divalidasi
-  // backend", rather than just trusting whatever's cached locally.
+  // Load user from localStorage on mount, then confirm the session is
+  // still valid server-side (Fase 1 item 3, "session divalidasi backend")
+  // rather than trusting whatever's cached locally.
+  //
+  // Fase 0 (23 Sep 2026): this used to special-case tokens shaped like
+  // 'demo-access-token-*' and trust them without a backend check, because
+  // AuthContext used to expose a client-only `login(email, role, name)`
+  // that minted those tokens for Login.tsx's now-removed Quick Login
+  // buttons. That function is gone and nothing mints demo tokens anymore,
+  // so any such token left over in a browser's localStorage from before
+  // this fix is now just an invalid token like any other -- it fails the
+  // /api/auth/me check below and the user is signed out and sent back to
+  // the real login form, which is the correct outcome.
   useEffect(() => {
     const savedUser = localStorage.getItem('salesMonitorUser');
     if (!savedUser) return;
@@ -59,11 +62,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Error loading user from localStorage:', error);
       localStorage.removeItem('salesMonitorUser');
-      return;
-    }
-
-    if (isDemoToken(parsed.accessToken)) {
-      setUser(parsed);
       return;
     }
 
@@ -81,30 +79,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
       })
       .catch(() => {
-        // Expired/revoked/invalid — don't leave a dead session sitting in
-        // localStorage pretending to still be logged in.
+        // Expired/revoked/invalid (including a stale pre-Fase-0 demo
+        // token) -- don't leave a dead session sitting in localStorage
+        // pretending to still be logged in.
         localStorage.removeItem('salesMonitorUser');
         setUser(null);
       });
   }, []);
 
-  // Demo login (for quick access buttons) — unchanged, still fully mock.
-  const login = (email: string, role: string, name: string) => {
-    const mockAccessToken = 'demo-access-token-' + Date.now();
-    const userData = {
-      email,
-      name,
-      role,
-      id: 'user-' + Date.now(),
-      accessToken: mockAccessToken
-    };
-    setUser(userData);
-    localStorage.setItem('salesMonitorUser', JSON.stringify(userData));
-  };
-
-  // Real login against the Fase 1 backend (POST /api/auth/login) —
+  // Real login against the Fase 1 backend (POST /api/auth/login) --
   // server-hashed password check + a backend-issued, revocable session
-  // token. Replaces the old client-side loginWithSupabase stub.
+  // token. Replaces the old client-side loginWithSupabase stub, and (as of
+  // the Fase 0 cleanup above) the only way to create a session at all.
   const loginWithCredentials = async (
     email: string,
     password: string
@@ -140,10 +126,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Logout — revokes the session server-side when it's a real one (a demo
-  // token has nothing on the backend to revoke).
+  // Logout -- revokes the session server-side.
   const logout = async () => {
-    if (user?.accessToken && !isDemoToken(user.accessToken)) {
+    if (user?.accessToken) {
       try {
         await fetch('/api/auth/logout', {
           method: 'POST',
@@ -164,7 +149,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
-        login,
         loginWithCredentials,
         logout,
         isAuthenticated: !!user,
