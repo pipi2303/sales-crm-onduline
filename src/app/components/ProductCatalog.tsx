@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, Package, DollarSign, Edit, Trash2, Star, AlertCircle, Check, RefreshCw } from 'lucide-react';
+import { Plus, Search, Filter, Package, DollarSign, Edit, Trash2, Star, AlertCircle, Check, RefreshCw, LayoutGrid, List as ListIcon, FileText } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { useConfirm } from '@/app/components/ui/confirm-dialog';
 import { Input } from '@/app/components/ui/input';
 import { Badge } from '@/app/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/app/components/ui/tabs';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/app/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/app/components/ui/tooltip';
 import { toast } from 'sonner';
 import { useAuth } from '@/app/contexts/AuthContext';
@@ -30,6 +31,20 @@ export function ProductCatalog() {
   const [showForm, setShowForm] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
+    if (typeof window === 'undefined') return 'grid';
+    return (localStorage.getItem('productCatalog.viewMode') as 'grid' | 'list') || 'grid';
+  });
+
+  const handleViewModeChange = (mode: 'grid' | 'list') => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem('productCatalog.viewMode', mode);
+    } catch {
+      // Persistence is a nicety (remember the last view across visits) —
+      // the toggle itself keeps working from in-memory state either way.
+    }
+  };
   
   // Proposal state
   const [proposalItems, setProposalItems] = useState<ProposalItem[]>([]);
@@ -356,22 +371,48 @@ export function ProductCatalog() {
           </h1>
           <p className="text-gray-600 mt-1">Jelajahi dan kelola semua produk & layanan</p>
         </div>
-        <div className="flex gap-2">
-          <Button 
-            onClick={handlePopulateData}
-            variant="outline"
-            className="gap-2"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Load 12 Data Baru
-          </Button>
-          <Button 
-            onClick={handleAdd}
-            className="bg-[#013E37] hover:bg-[#025C52] text-white gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            Tambah Product
-          </Button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center rounded-lg border border-gray-200 bg-gray-50 p-1" role="group" aria-label="Mode tampilan produk">
+            <button
+              type="button"
+              onClick={() => handleViewModeChange('grid')}
+              aria-pressed={viewMode === 'grid'}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
+                viewMode === 'grid' ? 'bg-white text-[#013E37] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              Grid
+            </button>
+            <button
+              type="button"
+              onClick={() => handleViewModeChange('list')}
+              aria-pressed={viewMode === 'list'}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
+                viewMode === 'list' ? 'bg-white text-[#013E37] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <ListIcon className="h-3.5 w-3.5" />
+              List
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <Button 
+              onClick={handlePopulateData}
+              variant="outline"
+              className="gap-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Load 12 Data Baru
+            </Button>
+            <Button 
+              onClick={handleAdd}
+              className="bg-[#013E37] hover:bg-[#025C52] text-white gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Tambah Product
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -518,6 +559,16 @@ export function ProductCatalog() {
                   </div>
                 </CardContent>
               </Card>
+            ) : viewMode === 'list' ? (
+              <ProductListView
+                products={filteredProducts}
+                proposalItems={proposalItems}
+                deleteLoading={deleteLoading}
+                onAddToProposalTeknis={handleAddToProposalTeknis}
+                onAddToProposal={handleAddToProposal}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredProducts.map((product) => (
@@ -716,6 +767,170 @@ export function ProductCatalog() {
         onClick={() => setShowProposal(true)}
       />
     </div>
+  );
+}
+
+// List view for the product catalog — same data and actions as the card
+// grid above (see the `viewMode` toggle in ProductCatalog), just laid out
+// as a dense, scannable table. Kept in this file since it only exists to
+// serve ProductCatalog's own state/handlers, not as a reusable component.
+interface ProductListViewProps {
+  products: Product[];
+  proposalItems: ProposalItem[];
+  deleteLoading: string | null;
+  onAddToProposalTeknis: (product: Product) => void;
+  onAddToProposal: (product: Product) => void;
+  onEdit: (product: Product) => void;
+  onDelete: (product: Product) => void;
+}
+
+function ProductListView({
+  products,
+  proposalItems,
+  deleteLoading,
+  onAddToProposalTeknis,
+  onAddToProposal,
+  onEdit,
+  onDelete,
+}: ProductListViewProps) {
+  return (
+    <TooltipProvider>
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-gray-50/80">
+                <TableHead className="min-w-[240px]">Produk</TableHead>
+                <TableHead>Kategori</TableHead>
+                <TableHead>Tipe</TableHead>
+                <TableHead className="text-right">Harga</TableHead>
+                <TableHead className="text-right">Stock</TableHead>
+                <TableHead className="text-right">Terjual</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right min-w-[220px]">Aksi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {products.map((product) => {
+                const inTeknis = proposalItems.some(
+                  (item) => item.id === product.id && item.proposalType === 'teknis'
+                );
+                const inProposal = proposalItems.some(
+                  (item) => item.id === product.id && !item.proposalType
+                );
+                return (
+                  <TableRow key={product.id} className="align-top">
+                    <TableCell>
+                      <div className="flex items-start gap-3">
+                        <div className="h-9 w-9 rounded-md bg-[#013E37] flex items-center justify-center flex-shrink-0">
+                          <Package className="h-4 w-4 text-white" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-gray-900 line-clamp-1">{product.name}</p>
+                          <p className="text-xs text-gray-500 line-clamp-1">{product.sku}</p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className="bg-[#EEF7F5] text-[#013E37] whitespace-nowrap">{product.category}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={
+                          product.productType === 'software'
+                            ? 'border-blue-200 text-blue-700 bg-blue-50'
+                            : 'border-amber-200 text-amber-700 bg-amber-50'
+                        }
+                      >
+                        {product.productType === 'software' ? 'Software' : 'Fisik'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-semibold text-[#013E37] whitespace-nowrap">
+                      {formatCurrency(product.price)}
+                    </TableCell>
+                    <TableCell className="text-right whitespace-nowrap">{product.stock || 0}</TableCell>
+                    <TableCell className="text-right whitespace-nowrap">{product.sold || 0}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={
+                          product.status === 'active'
+                            ? 'border-green-200 text-green-700 bg-green-50'
+                            : 'border-gray-300 text-gray-500 bg-gray-50'
+                        }
+                      >
+                        {product.status === 'active' ? 'Aktif' : 'Discontinued'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              className={`text-white text-xs h-8 px-2 ${
+                                inTeknis ? 'bg-gray-400 cursor-not-allowed opacity-60' : 'bg-[#013E37] hover:bg-[#025C52]'
+                              }`}
+                              onClick={() => onAddToProposalTeknis(product)}
+                              disabled={inTeknis}
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>{inTeknis ? 'Sudah di Proposal Teknis' : 'Tambah ke Proposal Teknis'}</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              className={`text-white text-xs h-8 px-2 ${
+                                inProposal ? 'bg-gray-400 cursor-not-allowed opacity-60' : 'bg-[#013E37] hover:bg-[#025C52]'
+                              }`}
+                              onClick={() => onAddToProposal(product)}
+                              disabled={inProposal}
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>{inProposal ? 'Sudah di Proposal' : 'Tambah ke Proposal'}</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button variant="outline" size="sm" className="h-8 px-2" onClick={() => onEdit(product)}>
+                              <Edit className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Edit</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => onDelete(product)}
+                              disabled={deleteLoading === product.id}
+                            >
+                              {deleteLoading === product.id ? (
+                                <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-red-600"></div>
+                              ) : (
+                                <Trash2 className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Hapus</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      </Card>
+    </TooltipProvider>
   );
 }
 
