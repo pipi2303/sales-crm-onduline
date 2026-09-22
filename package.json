@@ -8,6 +8,7 @@
     "build": "prisma generate && vite build",
     "preview": "vite preview",
     "db:seed": "tsx prisma/seed.ts",
+    "db:remove-user": "tsx prisma/scripts/remove-user.ts",
     "start": "tsx server.ts"
   },
   "dependencies": {

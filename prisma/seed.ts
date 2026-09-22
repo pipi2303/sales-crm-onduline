@@ -20,20 +20,24 @@ const demoUsers: Array<{ email: string; password: string; name: string; role: Ro
   { email: 'manager@salesmonitor.com', password: 'manager123', name: 'Budi Santoso', role: Role.SALES_MANAGER },
   { email: 'sales@salesmonitor.com', password: 'sales123', name: 'Siti Nurhaliza', role: Role.SALES_REPRESENTATIVE },
 
-  // Fase 0 (22 Sep 2026, explicit product decision): these 5 were the
-  // personal accounts hardcoded in Login.tsx's demoAccounts/Quick Login
-  // (real names/emails, plaintext passwords shipped to the browser bundle
-  // -- see MEMORY.md's P0 finding). Product owner asked to keep these
+  // Fase 0 (22 Sep 2026, explicit product decision): these were personal
+  // accounts hardcoded in Login.tsx's demoAccounts/Quick Login (real
+  // names/emails, plaintext passwords shipped to the browser bundle --
+  // see MEMORY.md's P0 finding). Product owner asked to keep these
   // people able to log in with the SAME password rather than rotating it,
   // so they're seeded here with the password hashed server-side instead
   // of shipped in plaintext. This does not fix the underlying risk if any
-  // of these 5 reuse this password elsewhere -- only that this app no
+  // of these reuse this password elsewhere -- only that this app no
   // longer displays it in DevTools. Login.tsx's demoAccounts/
   // handleQuickLogin are removed in the same change; these people now log
   // in through the normal email/password form like anyone else.
+  //
+  // bari@gmail.com deliberately excluded (22 Sep 2026, explicit request)
+  // -- not seeded here, and removed from the database by
+  // prisma/scripts/remove-user.ts if it was already created by an
+  // earlier run of this seed.
   { email: 'rivelino.hasugian@gmail.com', password: 'R1vel1n0777!', name: 'Rivelino Hasugian', role: Role.SALES_MANAGER },
   { email: 'nikky@gmail.com', password: 'N1kky', name: 'Nikky', role: Role.SALES_REPRESENTATIVE },
-  { email: 'bari@gmail.com', password: 'Bar1', name: 'Bari', role: Role.SALES_EXECUTIVE },
   { email: 'andiko@gmail.com', password: 'Andik0', name: 'Andiko', role: Role.SALES_REPRESENTATIVE },
   { email: 'pipi@gmail.com', password: 'estehmanis', name: 'Pipi', role: Role.SALES_REPRESENTATIVE },
 ];
