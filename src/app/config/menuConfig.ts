@@ -111,7 +111,14 @@ export const menuGroups: MenuGroup[] = [
     items: [
       { id: 'integration-hub', name: 'Integration Hub', icon: Plug, component: IntegrationHub },
       { id: 'knowledge-base', name: 'Knowledge Base', icon: Book, component: KnowledgeBase },
-      { id: 'admin', name: 'Admin System', icon: Settings, component: AdminSystem },
+      // Fase 1 item 4 / insight doc Bab 10: user management (role
+      // assignment) shouldn't be self-service for non-admins. This is
+      // the one menu item this pass restricts -- the clearest, least
+      // ambiguous case. Other modules (Commission Calculator, Discount
+      // Approval, Integration Hub's connection settings, ...) may also
+      // warrant restricting later, but that needs an actual per-module
+      // policy decision, not a guess made here.
+      { id: 'admin', name: 'Admin System', icon: Settings, component: AdminSystem, roles: ['Super Admin'] },
     ],
   },
 ];
@@ -120,3 +127,25 @@ export const menuGroups: MenuGroup[] = [
 // findActiveComponent/findActiveMenuName so they don't need their own
 // group-traversal logic.
 export const menuItems = menuGroups.flatMap(group => group.items);
+
+// Fase 1 item 4 (UI half): true if `role` (the display label from
+// AuthUser.role, e.g. 'Super Admin') is allowed to see/navigate to this
+// item. An item with no `roles` list is visible to every authenticated
+// role -- restricting a menu is opt-in per item, not the default.
+export function isMenuItemVisibleToRole(item: { roles?: string[] }, role: string | undefined): boolean {
+  if (!item.roles) return true;
+  if (!role) return false;
+  return item.roles.includes(role);
+}
+
+// Sidebar-ready menu tree with items the current role can't see removed,
+// and any group left with zero items dropped entirely (an empty group
+// header with nothing under it would be confusing, not just redundant).
+export function getVisibleMenuGroups(role: string | undefined): MenuGroup[] {
+  return menuGroups
+    .map(group => ({
+      ...group,
+      items: group.items.filter(item => isMenuItemVisibleToRole(item, role)),
+    }))
+    .filter(group => group.items.length > 0);
+}

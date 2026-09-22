@@ -14,7 +14,7 @@ import { initializeAllData } from '@/utils/initializeAllData';
 import '@/utils/demoDebug'; // Load debug utilities
 import { toast } from 'sonner';
 import { contracts as dummyContracts, Contract as ContractType } from '@/app/data/dummyData';
-import { menuGroups, menuItems } from '@/app/config/menuConfig';
+import { menuItems, getVisibleMenuGroups, isMenuItemVisibleToRole } from '@/app/config/menuConfig';
 
 function AppContent() {
   const { user, logout, login, loginWithCredentials, isAuthenticated } = useAuth();
@@ -132,9 +132,13 @@ function AppContent() {
     );
   }
 
-  // Find active component from menu items or submenus
+  // Find active component from menu items or submenus. Sub-menus have no
+  // `roles` of their own (see types/menu.ts) -- only their parent item can
+  // be role-gated, so this only needs to check `isMenuItemVisibleToRole`
+  // on the top-level item, not on subItem.
   const findActiveComponent = (): React.ComponentType => {
     for (const item of menuItems) {
+      if (!isMenuItemVisibleToRole(item, user?.role)) continue;
       if (item.id === activeMenu && item.component) {
         return item.component;
       }
@@ -151,6 +155,7 @@ function AppContent() {
   // Find active menu name
   const findActiveMenuName = (): string => {
     for (const item of menuItems) {
+      if (!isMenuItemVisibleToRole(item, user?.role)) continue;
       if (item.id === activeMenu) {
         return item.name;
       }
@@ -163,6 +168,12 @@ function AppContent() {
     }
     return 'Home';
   };
+
+  // Fase 1 item 4 (UI half, insight doc Bab 2/10): menu items the current
+  // role isn't allowed to see are filtered out before Sidebar ever renders
+  // them -- previously every role saw every menu regardless of what the
+  // backend would actually let them do once clicked.
+  const visibleMenuGroups = getVisibleMenuGroups(user?.role);
 
   const ActiveComponent = findActiveComponent();
   const activeMenuName = findActiveMenuName();
@@ -190,7 +201,7 @@ function AppContent() {
       {/* Sidebar + main content, side by side, below the full-width header */}
       <div className="flex-1 flex overflow-hidden">
         <Sidebar
-          menuGroups={menuGroups}
+          menuGroups={visibleMenuGroups}
           activeMenu={activeMenu}
           setActiveMenu={setActiveMenu}
           expandedGroups={expandedGroups}
