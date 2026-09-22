@@ -263,3 +263,130 @@ kosong.)
 - Deploy production yang **sebenarnya** dipakai sehari-hari tetap lewat
   VPS + Portainer + GHCR, lihat `DEPLOY.md` — jalur Vercel ini sifatnya
   opsional/paralel, bukan pengganti.
+
+## 7. Fase 0 (hapus Quick Login) & Fase 1 item 4 (RBAC sisi UI) — 22-23 Sep 2026
+
+Kerja ini mengikuti dokumen `Sales CRM Onduline — Plan & Insight.docx`
+(16 bab, ditulis 18 Sep 2026) yang di-upload user. Urutan commit di
+`main` (terbaru di atas):
+
+```
+683a22d2 fix(auth): remove dead fake-login bypass and demo-token trust (Fase 0)
+1eba95b9 feat(rbac): filter sidebar menu by role (Fase 1 item 4, UI half)
+f2451453 fix(security): make remove-user.ts detach linked records instead of failing on them
+518092db fix(security): drop bari@gmail.com from seed, add script to remove it if already created
+6be8df02 fix(security): remove Quick Login/hardcoded credentials, migrate to real hashed accounts (Fase 0)
+```
+(`6be8df02` dan `518092db` sudah ada di `origin/main` sebelum sesi ini
+lanjut; tiga commit teratas — `f2451453`, `1eba95b9`, `683a22d2` — masih
+menunggu `git push origin main` dari Mac, karena `device_bash` tidak
+punya kredensial GitHub tersimpan, hanya bisa `fetch`, tidak bisa `push`.)
+
+### Apa yang terjadi
+
+1. **Product Catalog**: ditambahkan toggle Grid ⇄ List di semua tab
+   kategori produk (state `viewMode`, persisted ke
+   `localStorage['productCatalog.viewMode']`), plus komponen
+   `ProductListView` (tabel) dengan 4 aksi yang sama seperti card view.
+   Sekaligus dihapus tombol "Load 12 Data Baru" (`handlePopulateData`)
+   yang nulis 12 produk dummy HMS (SKU seperti `HMS-ENT-001`) ke DB
+   produksi — bukan data Onduline, dan sudah dicek langsung ke
+   `/api/products` di production: persis 29 produk, semua kategori
+   Onduline asli, tidak ada sisa data HMS yang perlu dibersihkan.
+
+2. **Deep analysis** terhadap dokumen 16-bab: banyak item Fase 1 sudah
+   *lebih* selesai dari yang diasumsikan dokumen (yang ditulis 4 hari
+   sebelumnya), tapi ditemukan satu isu P0 yang masih hidup saat itu:
+   `Login.tsx` masih punya tombol Quick Login dengan 5 akun personal
+   asli (nama, email, password) hardcoded plaintext, ikut ter-bundle ke
+   `dist/` produksi.
+
+3. **Fase 0 — migrasi akun, bukan hapus akses**: 5 akun personal
+   dipindah dari kode ke `prisma/seed.ts` (`demoUsers`), password TIDAK
+   dirotasi (permintaan eksplisit user: "agar bisa login kembali"),
+   tapi sekarang di-hash lewat `bcryptjs` di database, bukan lagi
+   plaintext di kode yang ter-bundle. Tombol Quick Login,
+   `handleQuickLogin`, dan array `demoAccounts` di `Login.tsx` dihapus
+   total. Diverifikasi: `grep` string password/nama di `dist/` setelah
+   `vite build` → nihil.
+
+4. **Bari dikecualikan**: atas permintaan user, `bari@gmail.com` TIDAK
+   dimasukkan ke `demoUsers`. Karena ada kemungkinan baris ini sudah
+   pernah tercipta di database sebelum instruksi ini (kalau
+   `db:seed` sempat jalan), dibuatkan `prisma/scripts/remove-user.ts`
+   (`npm run db:remove-user -- bari@gmail.com`) — bukan langsung
+   `DELETE`, tapi men-detach dulu (`updateMany(..., null)` dalam satu
+   `$transaction`) semua record yang mereferensikan user itu
+   (Distributor/Store submittedBy & decidedBy, Opportunity/Task owner,
+   AuditLogEntry actor — 6 relasi yang memang tidak `onDelete: Cascade`
+   di schema) sebelum `user.delete()`, supaya tidak gagal kalau akun
+   itu sudah pernah dipakai untuk approve/reject/assign sesuatu. Session
+   milik user itu sendiri aman terhapus otomatis (`Session.userId` MEMANG
+   `onDelete: Cascade` — sempat salah diasumsikan sebaliknya di draft
+   pertama skrip ini, sudah dikoreksi).
+
+5. **Fase 1 item 4 (separuh UI)**: sidebar menu sebelumnya menampilkan
+   semua item ke semua role yang sudah login — filtering role cuma ada
+   di backend (`lib/rbac.ts`, `requireRole`), bukan di UI. Ditambahkan
+   field opsional `roles?: string[]` di tipe `MenuItem`
+   (`src/types/menu.ts`) dan dua fungsi di `menuConfig.ts`:
+   `isMenuItemVisibleToRole` + `getVisibleMenuGroups`. Baru SATU item
+   yang benar-benar dibatasi: `Admin System` → `roles: ['Super Admin']`
+   saja. Item lain yang berpotensi perlu dibatasi (Commission
+   Calculator, Discount Approval, Integration Hub) SENGAJA belum
+   disentuh — itu butuh keputusan bisnis dari user (siapa yang boleh
+   lihat apa), bukan sesuatu yang bisa saya asumsikan sendiri.
+   **Penting: ini cuma "UX nicety."** Backend `requireRole()` di
+   `lib/rbac.ts` tetap satu-satunya lapisan keamanan yang sesungguhnya;
+   menyembunyikan menu di UI tidak mencegah orang memanggil API-nya
+   langsung.
+
+6. **Sisa Fase 0 (sesi ini)**: dicek apakah ada bypass login lain yang
+   setipe dengan Quick Login. Ditemukan `AuthContext.tsx` masih punya
+   fungsi `login(email, role, name)` yang bikin sesi palsu
+   (`demo-access-token-*`) tanpa validasi backend sama sekali — sama
+   kategorinya dengan Quick Login yang baru dihapus. Dicek semua
+   pemanggilnya: cuma di-destructure di `App.tsx` tapi **tidak pernah
+   benar-benar dipanggil** (yang dipakai `onLogin` di `<Login>` adalah
+   `loginWithCredentials`, bukan `login`) — jadi ini dead code, bukan
+   bypass yang masih hidup. Tetap dihapus (fungsi, entry di
+   `AuthContextType`, destructuring di `App.tsx`) sekaligus dengan
+   `isDemoToken()` — cabang kode di `useEffect` mount yang percaya
+   begitu saja token berformat `demo-access-token-*` yang mungkin masih
+   tersimpan di `localStorage` browser seseorang dari SEBELUM Quick
+   Login dihapus, tanpa cek ke `/api/auth/me`. Sekarang setiap sesi,
+   termasuk sisa token demo lama, wajib divalidasi ke backend — kalau
+   tidak valid, otomatis di-logout dan diarahkan ke form login asli.
+   Diverifikasi: `tsc` terhadap `AuthContext.tsx`/`App.tsx` tidak nambah
+   error baru (±60 error type pre-existing di file-file lain, sudah ada
+   sebelum sesi ini, tidak terkait), `vite build` sukses, dan
+   `dist/` tidak mengandung string `demo-access-token` maupun
+   `isDemoToken`.
+
+### Yang MASIH belum bisa dieksekusi dari kode (bukan bug, tapi butuh aksi di luar repo)
+
+Dokumen plan menyebut 3 aksi darurat untuk Fase 0. Baru #1 yang selesai
+di level kode (lihat poin 3-6 di atas). Dua sisanya di luar apa yang
+bisa saya lakukan dari sandbox/codebase:
+
+- [ ] **Rotasi password** — untuk ke-4 orang (Rivelino, Nikky, Andiko,
+      Pipi) yang password-nya sempat ter-bundle plaintext ke production
+      selama ini: sebaiknya mereka ganti password itu di sini DAN di
+      layanan lain kalau mereka memakai password yang sama di tempat
+      lain (kebiasaan re-use password). Ini keputusan personal per
+      orang, bukan sesuatu yang bisa saya jalankan.
+- [ ] **Batasi akses publik ke domain production** — `salesappv20.vercel.app`
+      saat ini bisa diakses siapa saja yang tahu URL-nya (login sendiri
+      sudah aman, tapi halaman login pun terlihat publik). Opsi:
+      Vercel Password Protection (butuh plan Pro, tidak tersedia di
+      Hobby), atau VPN/IP allowlist di level hosting. Ini keputusan
+      infrastruktur/billing, bukan perubahan kode.
+
+Kalau kedua ini dianggap "selesai" secara kebijakan (misal: 4 orang itu
+sudah diberi tahu manual, dan domain tetap publik karena risikonya
+diterima), maka **Fase 0 sudah closed** dari sisi saya. Kalau user ingin
+saya susun langkah konkret untuk salah satu dari dua ini (tanpa saya
+eksekusi sendiri), tinggal bilang.
+
+- [ ] `git push origin main` dari Mac untuk 3 commit yang masih tertinggal
+      di atas (`f2451453`, `1eba95b9`, `683a22d2`).
