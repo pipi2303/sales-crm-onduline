@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { formatCurrency } from '@/utils/formatters';
 import { productsRepository } from '@/services/productsRepository';
-import type { Product, NewProduct } from '@/types/product';
+import type { Product } from '@/types/product';
 import { ProductFormModal } from '@/app/components/forms/ProductForm';
 import { ProposalBuilder, ProposalFloatingButton } from '@/app/components/ProposalBuilder';
 import type { ProposalItem } from '@/types/proposal';
@@ -71,154 +71,6 @@ export function ProductCatalog() {
     } catch (error: any) {
       console.error('❌ Error fetching products:', error);
       console.error('Error details:', error.message);
-      toast.error(`Error: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePopulateData = async () => {
-    try {
-      setLoading(true);
-      toast.info('Memuat data dummy...');
-
-      // Dummy catalog data — all software products (Hospital Management System
-      // and related modules), matching what this catalog has always shipped
-      // with as sample/demo data. Now goes through productsRepository so each
-      // row is validated and given a real productType/sku instead of a loose
-      // untyped object written straight to localStorage.
-      const dummyProducts: NewProduct[] = [
-        {
-          sku: 'HMS-ENT-001', name: 'HMS Enterprise', category: 'Hospital Management System',
-          description: 'Sistem manajemen rumah sakit komprehensif dengan fitur telemedicine, EMR, radiologi, dan laboratorium.',
-          price: 500000000, currency: 'IDR', status: 'active',
-          stock: 100, sold: 15,
-          features: ['Telemedicine', 'EMR', 'Radiologi', 'Laboratorium', 'PACS', 'LIS', 'Billing System', 'Pharmacy System'],
-          productType: 'software', licenseTier: 'Enterprise', billingCycle: 'yearly',
-          modules: ['Telemedicine', 'EMR', 'Radiologi', 'Laboratorium', 'PACS', 'LIS', 'Billing System', 'Pharmacy System'],
-        },
-        {
-          sku: 'HMS-PRO-002', name: 'HMS Professional', category: 'Hospital Management System',
-          description: 'Sistem manajemen rumah sakit profesional dengan fitur EMR, PACS, dan LIS untuk RS tipe B dan C.',
-          price: 300000000, currency: 'IDR', status: 'active',
-          stock: 150, sold: 23,
-          features: ['EMR', 'PACS', 'LIS', 'Billing System', 'Inventory Management', 'Reporting Dashboard'],
-          productType: 'software', licenseTier: 'Professional', billingCycle: 'yearly',
-          modules: ['EMR', 'PACS', 'LIS', 'Billing System', 'Inventory Management', 'Reporting Dashboard'],
-        },
-        {
-          sku: 'DOC-PRO-003', name: 'Intradoc Pro', category: 'Document Management',
-          description: 'Sistem manajemen dokumen profesional untuk manajemen dokumen medis dan administrasi rumah sakit.',
-          price: 100000000, currency: 'IDR', status: 'active',
-          stock: 200, sold: 34,
-          features: ['Manajemen Dokumen Medis', 'Manajemen Dokumen Administrasi', 'E-Signature', 'Audit Trail', 'Version Control'],
-          productType: 'software', licenseTier: 'Professional', billingCycle: 'yearly',
-          modules: ['Manajemen Dokumen Medis', 'Manajemen Dokumen Administrasi', 'E-Signature', 'Audit Trail', 'Version Control'],
-        },
-        {
-          sku: 'TLM-MOD-004', name: 'Telemedicine Module', category: 'Telemedicine',
-          description: 'Sistem telemedicine untuk konsultasi jarak jauh antara dokter dan pasien dengan video call HD.',
-          price: 50000000, currency: 'IDR', status: 'active',
-          stock: 250, sold: 42,
-          features: ['Video Call HD', 'Chat Dokter-Pasien', 'Resep Digital', 'Monitoring Pasien', 'Payment Gateway'],
-          productType: 'software', licenseTier: 'Standard', billingCycle: 'monthly',
-          modules: ['Video Call HD', 'Chat Dokter-Pasien', 'Resep Digital', 'Monitoring Pasien', 'Payment Gateway'],
-        },
-        {
-          sku: 'EMR-STD-005', name: 'EMR Standalone', category: 'Electronic Medical Record',
-          description: 'Sistem catatan medis elektronik standalone untuk manajemen data pasien dan rekam medis.',
-          price: 150000000, currency: 'IDR', status: 'active',
-          stock: 180, sold: 28,
-          features: ['Manajemen Data Pasien', 'Rekam Medis Digital', 'SOAP Notes', 'ICD-10 Integration', 'CPPT'],
-          productType: 'software', licenseTier: 'Standard', billingCycle: 'yearly',
-          modules: ['Manajemen Data Pasien', 'Rekam Medis Digital', 'SOAP Notes', 'ICD-10 Integration', 'CPPT'],
-        },
-        {
-          sku: 'RAD-PACS-006', name: 'Radiologi PACS', category: 'Radiology',
-          description: 'Sistem PACS untuk manajemen dan analisis gambar radiologi dengan DICOM viewer.',
-          price: 200000000, currency: 'IDR', status: 'active',
-          stock: 120, sold: 18,
-          features: ['DICOM Viewer', 'Image Storage', 'Worklist Management', '3D Reconstruction', 'Teleradiology'],
-          productType: 'software', licenseTier: 'Professional', billingCycle: 'yearly',
-          modules: ['DICOM Viewer', 'Image Storage', 'Worklist Management', '3D Reconstruction', 'Teleradiology'],
-        },
-        {
-          sku: 'LAB-LIS-007', name: 'Laboratory LIS', category: 'Laboratory',
-          description: 'Sistem informasi laboratorium untuk manajemen pemeriksaan dan hasil lab dengan auto-interface.',
-          price: 100000000, currency: 'IDR', status: 'active',
-          stock: 160, sold: 31,
-          features: ['Order Management', 'Result Entry', 'Auto-Interface', 'Quality Control', 'Report Generation'],
-          productType: 'software', licenseTier: 'Standard', billingCycle: 'yearly',
-          modules: ['Order Management', 'Result Entry', 'Auto-Interface', 'Quality Control', 'Report Generation'],
-        },
-        {
-          sku: 'PHM-MOD-008', name: 'Pharmacy Module', category: 'Pharmacy Management',
-          description: 'Sistem manajemen farmasi untuk inventory obat, dispensing, dan interaksi obat.',
-          price: 80000000, currency: 'IDR', status: 'active',
-          stock: 190, sold: 26,
-          features: ['Inventory Management', 'Dispensing', 'Drug Interaction Check', 'Expired Date Alert', 'Stock Opname'],
-          productType: 'software', licenseTier: 'Standard', billingCycle: 'yearly',
-          modules: ['Inventory Management', 'Dispensing', 'Drug Interaction Check', 'Expired Date Alert', 'Stock Opname'],
-        },
-        {
-          sku: 'BIL-SYS-009', name: 'Billing System', category: 'Finance & Billing',
-          description: 'Sistem billing komprehensif dengan integrasi BPJS, asuransi, dan payment gateway.',
-          price: 120000000, currency: 'IDR', status: 'active',
-          stock: 140, sold: 37,
-          features: ['BPJS Integration', 'Insurance Claims', 'Payment Gateway', 'Invoice Generation', 'Financial Reports'],
-          productType: 'software', licenseTier: 'Professional', billingCycle: 'yearly',
-          modules: ['BPJS Integration', 'Insurance Claims', 'Payment Gateway', 'Invoice Generation', 'Financial Reports'],
-        },
-        {
-          sku: 'MOB-HMS-010', name: 'Mobile App HMS', category: 'Mobile Application',
-          description: 'Aplikasi mobile untuk pasien: jadwal dokter, booking appointment, dan telemedicine.',
-          price: 75000000, currency: 'IDR', status: 'active',
-          stock: 220, sold: 45,
-          features: ['Jadwal Dokter', 'Online Booking', 'Telemedicine', 'Medical Records', 'Push Notifications'],
-          productType: 'software', licenseTier: 'Standard', billingCycle: 'yearly',
-          modules: ['Jadwal Dokter', 'Online Booking', 'Telemedicine', 'Medical Records', 'Push Notifications'],
-        },
-        {
-          sku: 'NUR-STA-011', name: 'Nurse Station Module', category: 'Nursing Management',
-          description: 'Sistem untuk nurse station: vital signs monitoring, medication administration, dan care plan.',
-          price: 90000000, currency: 'IDR', status: 'active',
-          stock: 170, sold: 22,
-          features: ['Vital Signs Entry', 'Medication Administration', 'Care Plan', 'Nursing Notes', 'Handover Report'],
-          productType: 'software', licenseTier: 'Standard', billingCycle: 'yearly',
-          modules: ['Vital Signs Entry', 'Medication Administration', 'Care Plan', 'Nursing Notes', 'Handover Report'],
-        },
-        {
-          sku: 'INV-MGT-012', name: 'Inventory Management', category: 'Inventory & Supply Chain',
-          description: 'Sistem manajemen inventory untuk medical supplies, alkes, dan asset management.',
-          price: 85000000, currency: 'IDR', status: 'active',
-          stock: 130, sold: 19,
-          features: ['Stock Management', 'Purchase Order', 'Vendor Management', 'Asset Tracking', 'Reorder Point Alert'],
-          productType: 'software', licenseTier: 'Standard', billingCycle: 'yearly',
-          modules: ['Stock Management', 'Purchase Order', 'Vendor Management', 'Asset Tracking', 'Reorder Point Alert'],
-        },
-      ];
-
-      let createdCount = 0;
-      for (const p of dummyProducts) {
-        const result = await productsRepository.create(p);
-        if (result.success) {
-          createdCount++;
-        } else {
-          console.error(`❌ Gagal membuat produk ${p.name}:`, result.error);
-        }
-      }
-
-      console.log(`✅ Populated ${createdCount}/${dummyProducts.length} products via productsRepository`);
-      if (createdCount > 0) {
-        toast.success(`Berhasil populate ${createdCount} produk healthcare!`);
-      } else {
-        toast.error('Gagal populate data (mungkin SKU sudah ada). Cek console untuk detail.');
-      }
-
-      // Refresh products list
-      await fetchProducts();
-    } catch (error: any) {
-      console.error('❌ Error populating data:', error);
       toast.error(`Error: ${error.message}`);
     } finally {
       setLoading(false);
@@ -397,14 +249,6 @@ export function ProductCatalog() {
             </button>
           </div>
           <div className="flex gap-2">
-            <Button 
-              onClick={handlePopulateData}
-              variant="outline"
-              className="gap-2"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Load 12 Data Baru
-            </Button>
             <Button 
               onClick={handleAdd}
               className="bg-[#013E37] hover:bg-[#025C52] text-white gap-2"
