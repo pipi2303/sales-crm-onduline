@@ -1,7 +1,17 @@
-// GET/PUT/DELETE /api/tasks/:id, plus POST for check-in (Bab 8 gap 2:
-// GPS + "foto toko bertanggal") — kept on this route rather than a
-// separate file since it always acts on one task, same convention as
-// api/opportunities/[id].ts's activity-log POST.
+// GET/POST /api/tasks, GET/PUT/POST/DELETE /api/tasks/:id — combined into
+// one optional-catch-all route (api/tasks/[[...id]].ts) so this resource
+// counts as a single Vercel serverless function instead of two, which
+// matters on the Hobby plan's 12-function limit. The two branches below
+// are the unchanged bodies of the former api/tasks/index.ts (no id) and
+// api/tasks/[id].ts (id present, including its check-in POST); URLs are
+// unaffected since [[...id]].ts still matches both /api/tasks and
+// /api/tasks/:id.
+//
+// Task module, wired to a real backend for the first time (previously
+// schema-only groundwork for Bab 8 gap 2's check-in feature; see the
+// modeling note on the Task model in schema.prisma). Any authenticated
+// role can list and create tasks, matching the same "any sales role
+// creates" convention already used for api/leads and api/opportunities.
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { prisma } from '../../lib/prisma.js';
 import { getUserFromToken, extractBearerToken } from '../../lib/auth.js';
@@ -26,14 +36,55 @@ function getId(req: ApiRequest): string | undefined {
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   const id = getId(req);
-  if (!id) {
-    res.status(400).json({ success: false, error: 'Missing task id' });
-    return;
-  }
 
   try {
     const user = await getUserFromToken(extractBearerToken(req.headers.authorization));
 
+    if (!id) {
+      // GET/POST /api/tasks
+      requireAuth(user);
+
+      if (req.method === 'GET') {
+        const tasks = await prisma.task.findMany({
+          orderBy: { createdAt: 'desc' },
+        });
+        res.status(200).json({ success: true, data: tasks });
+        return;
+      }
+
+      if (req.method === 'POST') {
+        const body = (req.body ?? {}) as Record<string, unknown>;
+        if (!body.title) {
+          res.status(400).json({ success: false, error: 'title wajib diisi' });
+          return;
+        }
+        const task = await prisma.task.create({
+          data: {
+            title: body.title as string,
+            description: (body.description as string) ?? null,
+            status: (body.status as 'TODO' | 'IN_PROGRESS' | 'COMPLETED') ?? 'TODO',
+            priority: (body.priority as 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT') ?? 'MEDIUM',
+            type: (body.type as 'VISIT' | 'CALL' | 'EMAIL' | 'OTHER') ?? 'OTHER',
+            category: (body.category as string) ?? null,
+            dueDate: body.dueDate ? new Date(body.dueDate as string) : null,
+            assignedTo: (body.assignedTo as string) ?? null,
+            createdBy: (body.createdBy as string) ?? user.name,
+            opportunityId: (body.opportunityId as string) ?? null,
+            storeId: (body.storeId as string) ?? null,
+            ownerId: (body.ownerId as string) ?? user.id,
+            extra: (body.extra as object) ?? undefined,
+          },
+        });
+        res.status(201).json({ success: true, data: task });
+        return;
+      }
+
+      res.status(405).json({ success: false, error: 'Method not allowed' });
+      return;
+    }
+
+    // GET/PUT/POST/DELETE /api/tasks/:id — POST is check-in (Bab 8 gap 2:
+    // GPS + "foto toko bertanggal").
     if (req.method === 'GET') {
       requireAuth(user);
       const task = await prisma.task.findUnique({ where: { id } });
@@ -124,7 +175,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       res.status(404).json({ success: false, error: 'Task not found' });
       return;
     }
-    console.error('[api/tasks/[id]] unexpected error:', err);
+    console.error('[api/tasks] unexpected error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 }

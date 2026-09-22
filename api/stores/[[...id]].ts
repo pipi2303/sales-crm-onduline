@@ -1,5 +1,13 @@
-// GET/PUT/DELETE /api/stores/:id — same pattern as
-// api/distributors/[id].ts.
+// GET/POST /api/stores, GET/PUT/DELETE /api/stores/:id — combined into
+// one optional-catch-all route (api/stores/[[...id]].ts) so this resource
+// counts as a single Vercel serverless function instead of two, which
+// matters on the Hobby plan's 12-function limit. The two branches below
+// are the unchanged bodies of the former api/stores/index.ts (no id) and
+// api/stores/[id].ts (id present); URLs are unaffected since
+// [[...id]].ts still matches both /api/stores and /api/stores/:id.
+//
+// Same pattern as api/distributors, one level down the Bab 5 hierarchy (a
+// Store optionally belongs to a Distributor).
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { prisma } from '../../lib/prisma.js';
 import { getUserFromToken, extractBearerToken } from '../../lib/auth.js';
@@ -26,14 +34,52 @@ const APPROVER_ROLES: Role[] = ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADM
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   const id = getId(req);
-  if (!id) {
-    res.status(400).json({ success: false, error: 'Missing store id' });
-    return;
-  }
 
   try {
     const user = await getUserFromToken(extractBearerToken(req.headers.authorization));
 
+    if (!id) {
+      // GET/POST /api/stores
+      requireAuth(user);
+
+      if (req.method === 'GET') {
+        const stores = await prisma.store.findMany({
+          include: { distributor: true },
+          orderBy: { createdAt: 'desc' },
+        });
+        res.status(200).json({ success: true, data: stores });
+        return;
+      }
+
+      if (req.method === 'POST') {
+        const body = (req.body ?? {}) as Record<string, unknown>;
+        if (!body.code || !body.name) {
+          res.status(400).json({ success: false, error: 'code dan name wajib diisi' });
+          return;
+        }
+        const store = await prisma.store.create({
+          data: {
+            code: body.code as string,
+            name: body.name as string,
+            distributorId: (body.distributorId as string) ?? null,
+            address: (body.address as string) ?? null,
+            gpsLat: (body.gpsLat as number) ?? null,
+            gpsLng: (body.gpsLng as number) ?? null,
+            status: 'PENDING',
+            submittedById: user.id,
+            submittedAt: new Date(),
+          },
+        });
+        res.status(201).json({ success: true, data: store });
+        return;
+      }
+
+      res.status(405).json({ success: false, error: 'Method not allowed' });
+      return;
+    }
+
+    // GET/PUT/DELETE /api/stores/:id — same pattern as
+    // api/distributors/[[...id]].ts.
     if (req.method === 'GET') {
       requireAuth(user);
       const store = await prisma.store.findUnique({
@@ -93,11 +139,15 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       res.status(err.status).json({ success: false, error: err.message });
       return;
     }
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2002') {
+      res.status(409).json({ success: false, error: 'Kode toko sudah dipakai' });
+      return;
+    }
     if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2025') {
       res.status(404).json({ success: false, error: 'Store not found' });
       return;
     }
-    console.error('[api/stores/[id]] unexpected error:', err);
+    console.error('[api/stores] unexpected error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 }
