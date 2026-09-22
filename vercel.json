@@ -3,5 +3,9 @@
   "outputDirectory": "dist",
   "devCommand": "npm run dev",
   "installCommand": "npm install",
-  "framework": "vite"
+  "framework": "vite",
+  "rewrites": [
+    { "source": "/api/:resource/:id", "destination": "/api/handler?resource=:resource&id=:id" },
+    { "source": "/api/:resource", "destination": "/api/handler?resource=:resource" }
+  ]
 }

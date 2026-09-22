@@ -80,43 +80,75 @@ regresi diam-diam yang baru kelihatan kalau dites manual, bukan dari log
 build. Pelajaran: build sukses ≠ routing benar untuk pola dynamic-segment
 yang framework-spesifik.
 
-### Percobaan #2 (final) — satu catch-all wajib untuk seluruh `api/`
+### Percobaan #2 (`5e2f239d` → `97d12a33`) — catch-all wajib, TERNYATA JUGA GAGAL
 
-Diganti total dengan **satu file**, `api/[...route].ts`, catch-all wajib
-(single bracket, bukan double) yang menangani semua resource sekaligus:
+Diganti dengan **satu file**, `api/[...route].ts`, catch-all wajib (single
+bracket, bukan double) yang menangani semua resource sekaligus lewat
+`req.query.route` (array hasil pecah path per `/`), dispatch berdasarkan
+elemen pertama.
 
-- `req.query.route` adalah path dipecah per `/`: `/api/products` →
-  `['products']`, `/api/products/abc` → `['products','abc']`,
-  `/api/auth/login` → `['auth','login']`.
-- Elemen pertama = nama resource, dispatch ke fungsi handler yang sesuai
-  (`handleAuth`, `handleDistributors`, `handleLeads`, `handleOpportunities`,
-  `handleProducts`, `handleStores`, `handleTasks`) — isi tiap handler = isi
-  gabungan `index.ts` + `[id].ts` (atau `login/logout/me.ts`) yang sama
-  seperti Percobaan #1, cuma id/action sekarang parameter fungsi, bukan
-  dibaca dari `req.query.id`/`req.query.action` langsung.
-- Karena catch-all **wajib** (bukan optional) hanya butuh ≥1 segmen, dan
-  setiap request nyata ke `/api/...` memang selalu punya ≥1 segmen (nama
-  resource-nya), pola ini dijamin cocok di Vercel Functions apa pun
-  framework-nya — tidak bergantung pada fitur khusus Next.js.
-- Sudah dites langsung di production URL deployment (bukan cuma alias):
-  `GET /api/auth/me` dan `GET /api/products/abc` sama-sama sampai ke
-  function dengan benar. (`GET /api/products` tanpa id perlu dites ulang
-  setelah deploy berikutnya — lihat bagian 5.)
+Ini **juga gagal di production**, dan dengan pola yang berbeda lagi dari
+Percobaan #1 — bukan cuma "tidak konsisten", tapi **terbalik**:
+- `GET /api/products` (1 segmen, tanpa id) → sampai ke function, tapi
+  `resource` yang terbaca tidak cocok dengan `'products'` → jatuh ke
+  `default` handler kita sendiri (`{"success":false,"error":"Not found"}`).
+- `GET /api/products/abc123` (2 segmen, dengan id) → **404 dari platform
+  Vercel**, tidak sampai ke function sama sekali.
 
-Efek samping bagus: 15 function → **1 function total**, jauh di bawah
-limit 12, dan tidak akan kena limit ini lagi kecuali project tumbuh sangat
-besar.
+Dites di URL deployment unik (bukan alias `salesappv20.vercel.app`, jadi
+bukan soal service worker/cache PWA) — hasilnya konsisten sama. Kesimpulan:
+build non-Next.js ("framework": "vite") di Vercel ini **tidak reliable
+sama sekali** untuk dynamic segment multi-bagian dalam bentuk apa pun —
+baik optional catch-all (`[[...x]]`, Percobaan #1) maupun catch-all wajib
+(`[...x]`, Percobaan #2) berperilaku tidak sesuai dokumentasi Vercel untuk
+Next.js. Yang terbukti reliable cuma dynamic segment **tunggal, satu
+folder tetap** (`api/auth/[action].ts` yang cocok `/api/auth/:action` —
+persis seperti `[id].ts` asli yang sudah production-proven berbulan-bulan
+sebelum sesi ini).
 
-URL endpoint **tidak berubah sama sekali** dari awal (baik di Percobaan #1
-maupun #2) — `src/services/*Repository.ts` di frontend tidak perlu
-disentuh.
+### Percobaan #3 (final, terbukti) — satu file literal + `vercel.json` rewrites
+
+Alih-alih mengandalkan dynamic segment di nama file sama sekali, dipakai
+`vercel.json` → `rewrites` (fitur URL-level Vercel yang stabil dan
+framework-agnostic, dievaluasi SEBELUM resolusi function/static, jadi
+tidak kena ambiguitas file-routing yang dua percobaan sebelumnya alami):
+
+```json
+"rewrites": [
+  { "source": "/api/:resource/:id", "destination": "/api/handler?resource=:resource&id=:id" },
+  { "source": "/api/:resource", "destination": "/api/handler?resource=:resource" }
+]
+```
+
+Semua request `/api/**` di-rewrite ke **satu file literal**,
+`api/handler.ts` (tanpa dynamic segment apa pun di nama filenya sendiri —
+kasus paling sederhana, sama seperti `index.ts` asli yang sudah terbukti
+selalu benar), dengan `resource`/`id` dikirim sebagai query string biasa.
+`/api/auth/login` pun cocok pola yang sama (`resource=auth`, `id=login`) —
+`handleAuth` di dalam `handler.ts` memperlakukan `id` itu sebagai `action`.
+
+Isi tiap `handleX()` (auth, distributors, leads, opportunities, products,
+stores, tasks) = isi gabungan `index.ts` + `[id].ts` yang sama seperti dua
+percobaan sebelumnya, cuma sumber `id`/`action` sekarang dari
+`req.query.resource` / `req.query.id` (di-rewrite oleh Vercel), bukan dari
+dynamic-segment file routing.
+
+Hasil: **1 function total** (dari 15 awal), dan tidak lagi bergantung pada
+fitur dynamic-segment Vercel yang ternyata tidak reliable di setup project
+ini. **Belum sempat dites ulang di production setelah perubahan ini** —
+lihat checklist wajib di bagian 5, jangan anggap selesai sebelum semua
+item itu dicek manual.
+
+URL endpoint yang dipanggil frontend **tidak berubah sama sekali** di
+ketiga percobaan — `src/services/*Repository.ts` tidak perlu disentuh.
 
 Commit:
-- `5e2f239d` — percobaan #1 (`[[...id]].ts` per resource) — **sudah di-push
-  dan sempat live**, tapi punya bug routing di atas.
-- (commit baru setelah ini) — percobaan #2, mengganti semua
-  `[[...id]].ts`/`[action].ts` dengan satu `api/[...route].ts` — **perlu
-  di-push** (lihat bagian 5).
+- `5e2f239d` — percobaan #1 (`[[...id]].ts` per resource) — sudah live,
+  ternyata bug (list-level 404).
+- `97d12a33` — percobaan #2 (`api/[...route].ts`, catch-all wajib tunggal)
+  — sudah live, **ternyata bug juga**, pola beda dari #1.
+- (commit baru setelah ini) — percobaan #3 (`api/handler.ts` + rewrites di
+  `vercel.json`) — **perlu di-push** (lihat bagian 5).
 
 Catatan tambahan: `npx prisma generate` gagal dijalankan lokal di sandbox
 ini karena `binaries.prisma.sh` diblokir kebijakan jaringan (403), jadi
@@ -125,7 +157,9 @@ diverifikasi palsu** (`status` di `Task.create`, `checkInAccuracy` di
 `Task.update`) — cuma karena Prisma Client lokal basi, bukan bug kode;
 field-field itu memang ada di `prisma/schema.prisma`. Build asli di Vercel
 (yang menjalankan `prisma generate` sendiri dengan jaringan penuh) sudah
-dua kali terbukti sukses, jadi risikonya rendah.
+tiga kali terbukti sukses secara build; yang gagal berulang kali justru
+routing runtime-nya, bukan build-nya — makanya **build hijau/"Ready" TIDAK
+BOLEH dianggap bukti cukup** untuk perubahan routing api/ di project ini.
 
 ## 4. Kenapa semua ini lewat browser, bukan CLI
 
@@ -151,7 +185,12 @@ polos di chat.
 - [x] Remote `origin` → `sales-crm-onduline.git`
 - [x] Vercel project `salesappv20` → connect ke `sales-crm-onduline`
 - [x] Deploy hook manual dibuat
-- [x] Refactor `api/*.ts` (15 → 7 function), commit `5e2f239d` dibuat lokal
+- [x] Percobaan #1 refactor `api/*.ts` (`[[...id]].ts` per resource, commit
+      `5e2f239d`) — sudah di-push, sudah deploy sukses, **tapi punya bug
+      routing** (lihat bagian 3) — GET/POST list-level tiap resource
+      (`/api/products`, `/api/leads`, dst tanpa id) 404 di production.
+- [x] Percobaan #2: ganti semua jadi satu `api/[...route].ts` (catch-all
+      wajib), commit dibuat lokal — **belum ter-push**.
 - [ ] **`git push origin main`** — sandbox tidak punya kredensial GitHub
       tersimpan (`could not read Username for 'https://github.com'`), jadi
       user perlu push manual dari Terminal biasa di Mac:
@@ -159,9 +198,16 @@ polos di chat.
       cd ~/Documents/GitHub/sales-crm-onduline
       git push origin main
       ```
-- [ ] Setelah push, trigger deploy lagi (deploy hook di atas, atau tunggu
-      auto-deploy dari push karena Git repo sudah ter-connect) dan cek hasil
-      build di Vercel Dashboard → project `salesappv20` → Deployments.
+- [ ] Setelah push, trigger deploy lagi (deploy hook di bagian 2, atau
+      tunggu auto-deploy dari push karena Git repo sudah ter-connect), lalu
+      **tes langsung di URL production**, bukan cuma cek status "Ready" di
+      dashboard — build hijau tidak cukup, seperti kejadian di bagian 3:
+      - `GET /api/products` (tanpa id, harus 401 "Not authenticated", BUKAN
+        404 platform)
+      - `GET /api/products/abc123` (dengan id, harus 401 juga)
+      - `GET /api/auth/me` (harus 401 "Not authenticated")
+      - Ulangi pola yang sama untuk minimal satu resource lain
+        (`/api/tasks`, `/api/leads`, dst).
 
 ## 6. Referensi lain
 

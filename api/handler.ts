@@ -1,26 +1,28 @@
-// Single catch-all Vercel Function for the whole api/ surface
-// (api/[...route].ts).
+// Single Vercel Function for the whole api/ surface (api/handler.ts),
+// reached through vercel.json's `rewrites` rather than file-system
+// dynamic segments.
 //
-// Why this exists (see MEMORY.md for the full story): the previous fix
-// merged each resource's index.ts + [id].ts into a per-resource
-// [[...id]].ts (Next.js-style OPTIONAL catch-all, double brackets) to get
-// under the Hobby plan's 12-function cap. That deployed and built fine,
-// but in production /api/products/abc worked while bare /api/products
-// 404'd at the routing layer -- this project's build ("framework": "vite"
-// in vercel.json, not Next.js) uses Vercel's generic file-system function
-// routing, which does NOT understand Next.js's "optional catch-all"
-// semantics; it only recognizes plain REQUIRED catch-alls ([...x].ts,
-// single bracket, matches one-or-more segments). Every real route under
-// /api/ has at least one segment (the resource name, e.g. /api/products
-// or /api/auth/login), so a required catch-all covers everything and
-// collapses the entire api/ surface into ONE Serverless Function --
-// simpler than the per-resource split and immune to the 12-function
-// limit for the foreseeable future.
+// Why this exists (see MEMORY.md for the full incident writeup): two
+// earlier attempts at collapsing api/*.ts under the Hobby plan's
+// 12-function cap both relied on Vercel's file-system dynamic-segment
+// conventions ([[...id]].ts, then [...route].ts) and both broke silently
+// in production -- builds were green, but real requests 404'd depending
+// on how many path segments they had (bare /api/products vs.
+// /api/products/:id behaved inconsistently across both attempts, and not
+// the same way each time). This project's build ("framework": "vite" in
+// vercel.json, not Next.js) does not reliably support multi-segment
+// dynamic file routing at all, in either direction.
 //
-// req.query.route is the path split on '/':
-//   /api/products        -> ['products']
-//   /api/products/abc123 -> ['products', 'abc123']
-//   /api/auth/login       -> ['auth', 'login']
+// The fix: don't route through the filesystem. `vercel.json` rewrites
+// every /api/:resource and /api/:resource/:id request to this one literal
+// file (`/api/handler`, no dynamic segment in its own path -- the most
+// basic, unambiguous case, exactly how the original index.ts files
+// already worked correctly), passing `resource` and `id` as ordinary
+// query-string parameters instead. Rewrites are a stable, framework-
+// agnostic Vercel primitive evaluated before any function/static
+// resolution, so this sidesteps the file-routing ambiguity entirely.
+// (/api/auth/login etc. also match the same rewrite -- resource="auth",
+// id="login" -- handleAuth below just treats that `id` as the action.)
 //
 // Every handler function below is the unchanged body of the
 // corresponding former api/<resource>/index.ts + [id].ts (or
@@ -67,10 +69,9 @@ interface ActivityInput {
   createdAt?: string;
 }
 
-function getRoute(req: ApiRequest): string[] {
-  const raw = req.query?.route;
-  if (raw === undefined) return [];
-  return Array.isArray(raw) ? raw : [raw];
+function getParam(req: ApiRequest, name: string): string | undefined {
+  const raw = req.query?.[name];
+  return Array.isArray(raw) ? raw[0] : raw;
 }
 
 // ---------------------------------------------------------------------
@@ -1130,8 +1131,8 @@ async function handleTasks(id: string | undefined, req: ApiRequest, res: ApiResp
 // ---------------------------------------------------------------------
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
-  const route = getRoute(req);
-  const [resource, sub] = route;
+  const resource = getParam(req, 'resource');
+  const sub = getParam(req, 'id'); // for resource === 'auth', this is the action
 
   switch (resource) {
     case 'auth':
