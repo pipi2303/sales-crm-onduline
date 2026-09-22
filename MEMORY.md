@@ -52,42 +52,80 @@ function terpisah oleh Vercel. Struktur lama ada **15 file**:
 - `api/{distributors,leads,opportunities,products,stores,tasks}/index.ts`
   + `[id].ts` (2 file × 6 resource = 12 file)
 
-### Perubahan
+### Percobaan #1 (commit `5e2f239d`) — gagal diam-diam di production
 
-Digabung jadi **7 file**, tanpa mengubah URL endpoint sama sekali (jadi
-frontend/`src/services/*Repository.ts` tidak perlu diubah):
+Digabung jadi 7 file: `api/auth/[action].ts` (dispatch dari
+`req.query.action`) + satu `api/<resource>/[[...id]].ts` per resource
+(pola *optional catch-all* Next.js, double bracket — idenya: tanpa id →
+cabang list/create seperti `index.ts` lama, dengan id → cabang
+single-record seperti `[id].ts` lama).
 
-| Lama | Baru |
-| --- | --- |
-| `api/auth/login.ts` + `logout.ts` + `me.ts` | `api/auth/[action].ts` (dispatch berdasarkan `req.query.action`: `login`/`logout`/`me`) |
-| `api/distributors/index.ts` + `[id].ts` | `api/distributors/[[...id]].ts` |
-| `api/leads/index.ts` + `[id].ts` | `api/leads/[[...id]].ts` |
-| `api/opportunities/index.ts` + `[id].ts` | `api/opportunities/[[...id]].ts` |
-| `api/products/index.ts` + `[id].ts` | `api/products/[[...id]].ts` |
-| `api/stores/index.ts` + `[id].ts` | `api/stores/[[...id]].ts` |
-| `api/tasks/index.ts` + `[id].ts` | `api/tasks/[[...id]].ts` |
+Deploy-nya **build sukses dan "Ready"**, tapi setelah dites langsung di
+production ternyata ada bug routing yang tidak ketahuan dari build log:
+- `GET /api/products/abc` → benar, sampai ke function (`{"success":false,"error":"Not authenticated"}`).
+- `GET /api/products` (tanpa id) → **404 NOT_FOUND dari Vercel platform**,
+  bukan dari kode kita — request-nya tidak pernah sampai ke function.
 
-Pola `[[...id]].ts` (optional catch-all Vercel) tetap cocok untuk
-`/api/<resource>` (tanpa id → cabang "list/create", sama seperti isi
-`index.ts` lama) maupun `/api/<resource>/:id` (dengan id → cabang
-"single-record", sama seperti isi `[id].ts` lama). Semua logic RBAC, query
-Prisma, dan error handling di masing-masing cabang **tidak diubah**, cuma
-dipindah ke satu file. Hasilnya: 15 function → 7 function, jauh di bawah
-limit 12 dan masih ada ruang untuk endpoint baru ke depannya.
+Root cause: `[[...id]].ts` (optional catch-all, double bracket) adalah
+konvensi router **Next.js**, bukan konvensi generic file-system routing
+Vercel Functions yang dipakai project ini (`"framework": "vite"` di
+`vercel.json`, bukan Next.js). Di luar Next.js, Vercel hanya mengenal
+catch-all **wajib** (`[...x].ts`, satu segmen atau lebih) — jadi
+`[[...id]].ts` di sini diperlakukan seperti catch-all wajib biasa (perlu
+≥1 segmen) dan tidak pernah cocok untuk path resource yang telanjang.
 
-Commit: `5e2f239d` — `refactor(api): merge index.ts + [id].ts routes to fit
-Vercel Hobby's function limit` (dibuat lokal, **belum ter-push** — lihat
-bagian 5).
+Ini berarti setiap resource yang pakai pola ini akan **kehilangan
+GET list dan POST create**-nya di production meskipun build hijau —
+regresi diam-diam yang baru kelihatan kalau dites manual, bukan dari log
+build. Pelajaran: build sukses ≠ routing benar untuk pola dynamic-segment
+yang framework-spesifik.
+
+### Percobaan #2 (final) — satu catch-all wajib untuk seluruh `api/`
+
+Diganti total dengan **satu file**, `api/[...route].ts`, catch-all wajib
+(single bracket, bukan double) yang menangani semua resource sekaligus:
+
+- `req.query.route` adalah path dipecah per `/`: `/api/products` →
+  `['products']`, `/api/products/abc` → `['products','abc']`,
+  `/api/auth/login` → `['auth','login']`.
+- Elemen pertama = nama resource, dispatch ke fungsi handler yang sesuai
+  (`handleAuth`, `handleDistributors`, `handleLeads`, `handleOpportunities`,
+  `handleProducts`, `handleStores`, `handleTasks`) — isi tiap handler = isi
+  gabungan `index.ts` + `[id].ts` (atau `login/logout/me.ts`) yang sama
+  seperti Percobaan #1, cuma id/action sekarang parameter fungsi, bukan
+  dibaca dari `req.query.id`/`req.query.action` langsung.
+- Karena catch-all **wajib** (bukan optional) hanya butuh ≥1 segmen, dan
+  setiap request nyata ke `/api/...` memang selalu punya ≥1 segmen (nama
+  resource-nya), pola ini dijamin cocok di Vercel Functions apa pun
+  framework-nya — tidak bergantung pada fitur khusus Next.js.
+- Sudah dites langsung di production URL deployment (bukan cuma alias):
+  `GET /api/auth/me` dan `GET /api/products/abc` sama-sama sampai ke
+  function dengan benar. (`GET /api/products` tanpa id perlu dites ulang
+  setelah deploy berikutnya — lihat bagian 5.)
+
+Efek samping bagus: 15 function → **1 function total**, jauh di bawah
+limit 12, dan tidak akan kena limit ini lagi kecuali project tumbuh sangat
+besar.
+
+URL endpoint **tidak berubah sama sekali** dari awal (baik di Percobaan #1
+maupun #2) — `src/services/*Repository.ts` di frontend tidak perlu
+disentuh.
+
+Commit:
+- `5e2f239d` — percobaan #1 (`[[...id]].ts` per resource) — **sudah di-push
+  dan sempat live**, tapi punya bug routing di atas.
+- (commit baru setelah ini) — percobaan #2, mengganti semua
+  `[[...id]].ts`/`[action].ts` dengan satu `api/[...route].ts` — **perlu
+  di-push** (lihat bagian 5).
 
 Catatan tambahan: `npx prisma generate` gagal dijalankan lokal di sandbox
 ini karena `binaries.prisma.sh` diblokir kebijakan jaringan (403), jadi
-type-check lokal (`tsc --noEmit`) sempat menampilkan 2 error palsu
-(`status` di `Task.create`, `checkInAccuracy` di `Task.update`) yang
-ternyata cuma karena Prisma Client lokal basi, bukan bug kode — field-field
-itu memang ada di `prisma/schema.prisma`. Build asli di Vercel (yang
-menjalankan `prisma generate` sendiri dengan jaringan penuh) sudah terbukti
-sukses sebelum refactor ini, jadi risikonya rendah, tapi tetap perlu
-dicek lagi di build berikutnya setelah push.
+type-check lokal (`tsc --noEmit`) menampilkan 2 error yang **sudah
+diverifikasi palsu** (`status` di `Task.create`, `checkInAccuracy` di
+`Task.update`) — cuma karena Prisma Client lokal basi, bukan bug kode;
+field-field itu memang ada di `prisma/schema.prisma`. Build asli di Vercel
+(yang menjalankan `prisma generate` sendiri dengan jaringan penuh) sudah
+dua kali terbukti sukses, jadi risikonya rendah.
 
 ## 4. Kenapa semua ini lewat browser, bukan CLI
 
