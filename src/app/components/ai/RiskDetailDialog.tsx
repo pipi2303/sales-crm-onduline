@@ -206,10 +206,10 @@ export function RiskDetailDialog({ open, onClose, risk }: RiskDetailDialogProps)
             lastEngagement: '18 days ago'
           },
           {
-            name: 'Klinik Sehat Bersama',
+            name: 'PT Kontraktor Bangun Persada',
             arr: 32000000,
             healthScore: 48,
-            churnSignals: ['Payment delays', 'Contract renewal approaching'],
+            churnSignals: ['Keterlambatan pembayaran', 'Kontrak mendekati masa perpanjangan'],
             lastEngagement: '8 days ago'
           }
         ],

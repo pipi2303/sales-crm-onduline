@@ -1,6 +1,17 @@
 /**
  * Populate CRM Dummy Data to LocalStorage
- * This creates realistic dummy data for Sales Representative, Clients, Partners, Products, and Contracts
+ * This creates realistic dummy data for Sales Representative, Clients, and Partners.
+ *
+ * Fase 1 (23 Sep 2026): this used to also seed a `productsDummyData` array
+ * into 'sales_monitoring_products' -- leftover from before Products was
+ * migrated to the real Postgres-backed catalog (see productsRepository.ts /
+ * ProductCatalog.tsx). Nothing reads that key anymore, so it was removed
+ * rather than reworded. Employees/Clients/Partners/Contracts below stay
+ * localStorage-backed for now (Fase 1 item 2 is still migrating them one
+ * module at a time), so their content was rewritten to match Onduline's
+ * actual business (roofing, waterproofing, solar, green roof, accessories)
+ * instead of the leftover hospital/HMS-software dummy data this template
+ * shipped with.
  */
 
 // LocalStorage Keys
@@ -8,9 +19,8 @@ const LS_KEYS = {
   EMPLOYEES: 'sales_monitoring_employees',
   CLIENTS: 'sales_monitoring_clients',
   PARTNERS: 'sales_monitoring_partners',
-  PRODUCTS: 'sales_monitoring_products',
   CONTRACTS: 'sales_monitoring_contracts',
-  DEMOS: 'sales_monitoring_demos',
+  // Demos have their own, separately-owned initializer -- see initializeDemos.ts.
 };
 
 // Helper function to generate ID
@@ -54,7 +64,7 @@ const salesRepresentativeDummyData = [
     nama_bank: 'BCA',
     bpjs_ketenagakerjaan: '12345678901',
     bpjs_kesehatan: '0001234567890',
-    email_kantor: 'budi.santoso@intramedika.com',
+    email_kantor: 'budi.santoso@onduline.co.id',
     nda_signed: true,
     tanggal_nda: '2020-01-10',
     level_akses: 'Sales Executive',
@@ -81,7 +91,7 @@ const salesRepresentativeDummyData = [
     nama_bank: 'Mandiri',
     bpjs_ketenagakerjaan: '12345678902',
     bpjs_kesehatan: '0001234567891',
-    email_kantor: 'siti.nurhaliza@intramedika.com',
+    email_kantor: 'siti.nurhaliza@onduline.co.id',
     nda_signed: true,
     tanggal_nda: '2021-03-05',
     level_akses: 'Sales Executive',
@@ -108,7 +118,7 @@ const salesRepresentativeDummyData = [
     nama_bank: 'BCA',
     bpjs_ketenagakerjaan: '12345678903',
     bpjs_kesehatan: '0001234567892',
-    email_kantor: 'andi.wijaya@intramedika.com',
+    email_kantor: 'andi.wijaya@onduline.co.id',
     nda_signed: true,
     tanggal_nda: '2018-05-25',
     level_akses: 'Manager',
@@ -135,7 +145,7 @@ const salesRepresentativeDummyData = [
     nama_bank: 'BNI',
     bpjs_ketenagakerjaan: '12345678904',
     bpjs_kesehatan: '0001234567893',
-    email_kantor: 'dewi.lestari@intramedika.com',
+    email_kantor: 'dewi.lestari@onduline.co.id',
     nda_signed: true,
     tanggal_nda: '2024-01-10',
     level_akses: 'Sales Executive',
@@ -162,7 +172,7 @@ const salesRepresentativeDummyData = [
     nama_bank: 'BCA',
     bpjs_ketenagakerjaan: '12345678905',
     bpjs_kesehatan: '0001234567894',
-    email_kantor: 'rudi.hartono@intramedika.com',
+    email_kantor: 'rudi.hartono@onduline.co.id',
     nda_signed: true,
     tanggal_nda: '2019-08-25',
     level_akses: 'Sales Executive',
@@ -171,53 +181,61 @@ const salesRepresentativeDummyData = [
 ];
 
 // ===== CLIENTS DUMMY DATA =====
+// Fase 1 (23 Sep 2026): rewritten from the original hospital/klinik template
+// data to Onduline's real customer segments (toko bahan bangunan, developer
+// properti, kontraktor proyek, hotel/resort, pertanian/perkebunan). Fields
+// that only make sense for a healthcare facility (Satu Sehat ID, faskes
+// BPJS ID, akreditasi, jumlah tempat tidur, volume pasien) are kept on the
+// object -- the Client model/type still has them (Fase 1 item 5, unifying
+// the data model, hasn't happened yet) -- but set to '-' since they don't
+// apply to a building-materials customer.
 const clientsDummyData = [
   {
     id: generateId(),
     id_customer: generateCustomerId(1),
-    nama_entitas: 'RS Harapan Sehat Jakarta',
-    kategori_client: 'Rumah Sakit',
-    alamat_lengkap: 'Jl. Gatot Subroto No. 45, Jakarta Selatan, DKI Jakarta 12950',
-    koordinat_gps: '-6.2297, 106.8261',
-    nomor_telepon: '021-5551234',
-    email_resmi: 'info@rsharapansehat.co.id',
-    id_satusehat: 'SS-1234567890',
-    id_faskes_bpjs: 'BPJS-RS-001234',
-    status_akreditasi: 'Paripurna',
-    sistem_lama: 'Custom In-House System',
-    volume_pasien: '500-1000 pasien/bulan',
-    jumlah_tempat_tidur: '250 bed',
-    nama_pic: 'Dr. Ahmad Fauzi',
-    jabatan_pic: 'Direktur RS',
+    nama_entitas: 'Toko Bangunan Makmur Jaya',
+    kategori_client: 'Toko Bahan Bangunan',
+    alamat_lengkap: 'Jl. Raya Bogor No. 45, Jakarta Timur, DKI Jakarta 13750',
+    koordinat_gps: '-6.3729, 106.8798',
+    nomor_telepon: '021-8701234',
+    email_resmi: 'info@makmurjayabangunan.co.id',
+    id_satusehat: '-',
+    id_faskes_bpjs: '-',
+    status_akreditasi: '-',
+    sistem_lama: 'Pemesanan manual via telepon/WhatsApp ke sales lama',
+    volume_pasien: '-',
+    jumlah_tempat_tidur: '-',
+    nama_pic: 'Bapak Hendra Wijaya',
+    jabatan_pic: 'Pemilik Toko',
     whatsapp_pic: '081234567800',
     status_hubungan: 'Active Client',
-    paket_aktif: 'HMS Enterprise + Intradoc Pro',
-    modul_tambahan: 'Telemedicine, EMR, Radiologi, Lab',
+    paket_aktif: 'Onduline Classic + Aksesoris Pemasangan',
+    modul_tambahan: 'Stok reguler bulanan, display produk',
     status_kontrak: 'Active',
     tanggal_mulai_langganan: '2023-01-15',
     tanggal_habis_kontrak: '2026-01-14',
-    total_nilai_kontrak: 'Rp 2.500.000.000',
-    file_kontrak_digital: 'kontrak_rs_harapan_sehat_2023.pdf',
+    total_nilai_kontrak: 'Rp 850.000.000',
+    file_kontrak_digital: 'kontrak_toko_makmur_jaya_2023.pdf',
     status_esign: 'Signed',
     npwp_faskes: '01.234.567.8-901.000',
   },
   {
     id: generateId(),
     id_customer: generateCustomerId(2),
-    nama_entitas: 'Klinik Sehat Bersama',
-    kategori_client: 'Klinik',
-    alamat_lengkap: 'Jl. Sudirman No. 123, Bandung, Jawa Barat 40123',
+    nama_entitas: 'Toko Material Sumber Rejeki',
+    kategori_client: 'Toko Bahan Bangunan',
+    alamat_lengkap: 'Jl. Ahmad Yani No. 12, Bandung, Jawa Barat 40123',
     koordinat_gps: '-6.9175, 107.6191',
     nomor_telepon: '022-5551234',
-    email_resmi: 'info@kliniksehatbersama.co.id',
-    id_satusehat: 'SS-2345678901',
-    id_faskes_bpjs: 'BPJS-KL-002345',
-    status_akreditasi: 'Dasar',
-    sistem_lama: 'Manual (Spreadsheet)',
-    volume_pasien: '100-200 pasien/bulan',
-    jumlah_tempat_tidur: 'N/A',
-    nama_pic: 'dr. Siti Rahmawati',
-    jabatan_pic: 'Kepala Klinik',
+    email_resmi: 'sumberrejeki.material@gmail.com',
+    id_satusehat: '-',
+    id_faskes_bpjs: '-',
+    status_akreditasi: '-',
+    sistem_lama: 'Excel/spreadsheet internal',
+    volume_pasien: '-',
+    jumlah_tempat_tidur: '-',
+    nama_pic: 'Ibu Ratna Kartika',
+    jabatan_pic: 'Kepala Toko',
     whatsapp_pic: '081234567801',
     status_hubungan: 'Hot',
     paket_aktif: '-',
@@ -225,7 +243,7 @@ const clientsDummyData = [
     status_kontrak: 'Proposal Sent',
     tanggal_mulai_langganan: '-',
     tanggal_habis_kontrak: '-',
-    total_nilai_kontrak: 'Rp 150.000.000 (Proposal)',
+    total_nilai_kontrak: 'Rp 120.000.000 (Proposal)',
     file_kontrak_digital: '-',
     status_esign: 'Pending',
     npwp_faskes: '02.345.678.9-012.000',
@@ -233,49 +251,49 @@ const clientsDummyData = [
   {
     id: generateId(),
     id_customer: generateCustomerId(3),
-    nama_entitas: 'RS Mitra Keluarga Surabaya',
-    kategori_client: 'Rumah Sakit',
+    nama_entitas: 'PT Kontraktor Bangun Persada',
+    kategori_client: 'Kontraktor Proyek',
     alamat_lengkap: 'Jl. Ahmad Yani No. 88, Surabaya, Jawa Timur 60234',
     koordinat_gps: '-7.2575, 112.7521',
     nomor_telepon: '031-5551234',
-    email_resmi: 'info@rsmitrakeluarga-sby.co.id',
-    id_satusehat: 'SS-3456789012',
-    id_faskes_bpjs: 'BPJS-RS-003456',
-    status_akreditasi: 'Paripurna',
-    sistem_lama: 'Competitor A (SIM RS XYZ)',
-    volume_pasien: '800-1200 pasien/bulan',
-    jumlah_tempat_tidur: '350 bed',
-    nama_pic: 'Dr. Bambang Sutrisno, Sp.PD',
-    jabatan_pic: 'Wakil Direktur Medis',
+    email_resmi: 'procurement@bangunpersada.co.id',
+    id_satusehat: '-',
+    id_faskes_bpjs: '-',
+    status_akreditasi: '-',
+    sistem_lama: 'Kompetitor (distributor atap lain)',
+    volume_pasien: '-',
+    jumlah_tempat_tidur: '-',
+    nama_pic: 'Bambang Sutrisno, S.T.',
+    jabatan_pic: 'Project Manager',
     whatsapp_pic: '081234567802',
     status_hubungan: 'Active Client',
-    paket_aktif: 'HMS Professional',
-    modul_tambahan: 'EMR, PACS, LIS',
+    paket_aktif: 'Onduline Bitumen + Ondugreen Roof System',
+    modul_tambahan: 'Pengiriman proyek bertahap, konsultasi teknis on-site',
     status_kontrak: 'Active',
     tanggal_mulai_langganan: '2022-06-01',
     tanggal_habis_kontrak: '2025-05-31',
     total_nilai_kontrak: 'Rp 3.200.000.000',
-    file_kontrak_digital: 'kontrak_rs_mitra_keluarga_2022.pdf',
+    file_kontrak_digital: 'kontrak_bangun_persada_2022.pdf',
     status_esign: 'Signed',
     npwp_faskes: '03.456.789.0-123.000',
   },
   {
     id: generateId(),
     id_customer: generateCustomerId(4),
-    nama_entitas: 'Puskesmas Cibinong',
-    kategori_client: 'Puskesmas',
+    nama_entitas: 'PT Agro Lestari Nusantara',
+    kategori_client: 'Pertanian & Perkebunan',
     alamat_lengkap: 'Jl. Raya Cibinong No. 1, Bogor, Jawa Barat 16914',
     koordinat_gps: '-6.4817, 106.8542',
     nomor_telepon: '021-5559876',
-    email_resmi: 'puskesmas.cibinong@kemkes.go.id',
-    id_satusehat: 'SS-4567890123',
-    id_faskes_bpjs: 'BPJS-PK-004567',
-    status_akreditasi: 'Madya',
-    sistem_lama: 'P-CARE BPJS + Excel',
-    volume_pasien: '300-500 pasien/bulan',
-    jumlah_tempat_tidur: '10 bed',
-    nama_pic: 'dr. Hendra Gunawan',
-    jabatan_pic: 'Kepala Puskesmas',
+    email_resmi: 'facility@agrolestari.co.id',
+    id_satusehat: '-',
+    id_faskes_bpjs: '-',
+    status_akreditasi: '-',
+    sistem_lama: 'Belum ada distributor tetap',
+    volume_pasien: '-',
+    jumlah_tempat_tidur: '-',
+    nama_pic: 'Hendra Gunawan',
+    jabatan_pic: 'Manajer Fasilitas',
     whatsapp_pic: '081234567803',
     status_hubungan: 'Warm',
     paket_aktif: '-',
@@ -283,7 +301,7 @@ const clientsDummyData = [
     status_kontrak: 'Demo Scheduled',
     tanggal_mulai_langganan: '-',
     tanggal_habis_kontrak: '-',
-    total_nilai_kontrak: 'Rp 85.000.000 (Estimate)',
+    total_nilai_kontrak: 'Rp 210.000.000 (Estimate)',
     file_kontrak_digital: '-',
     status_esign: 'Pending',
     npwp_faskes: '04.567.890.1-234.000',
@@ -291,20 +309,20 @@ const clientsDummyData = [
   {
     id: generateId(),
     id_customer: generateCustomerId(5),
-    nama_entitas: 'Praktek Bersama Dokter Keluarga',
-    kategori_client: 'Praktek Dokter Pribadi',
+    nama_entitas: 'CV Rumah Idaman Bersama',
+    kategori_client: 'Kontraktor Perumahan',
     alamat_lengkap: 'Jl. Kebon Jeruk Raya No. 27, Jakarta Barat, DKI Jakarta 11530',
     koordinat_gps: '-6.1895, 106.7826',
     nomor_telepon: '021-5554321',
-    email_resmi: 'info@dokterpraktek.com',
-    id_satusehat: 'SS-5678901234',
-    id_faskes_bpjs: 'BPJS-PP-005678',
-    status_akreditasi: 'N/A',
+    email_resmi: 'info@rumahidamanbersama.com',
+    id_satusehat: '-',
+    id_faskes_bpjs: '-',
+    status_akreditasi: '-',
     sistem_lama: 'Manual',
-    volume_pasien: '50-100 pasien/bulan',
-    jumlah_tempat_tidur: 'N/A',
-    nama_pic: 'dr. Lisa Permata Sari',
-    jabatan_pic: 'Dokter Pemilik',
+    volume_pasien: '-',
+    jumlah_tempat_tidur: '-',
+    nama_pic: 'Lisa Permata Sari',
+    jabatan_pic: 'Pemilik Usaha',
     whatsapp_pic: '081234567804',
     status_hubungan: 'Cold',
     paket_aktif: '-',
@@ -312,7 +330,7 @@ const clientsDummyData = [
     status_kontrak: 'Initial Contact',
     tanggal_mulai_langganan: '-',
     tanggal_habis_kontrak: '-',
-    total_nilai_kontrak: 'Rp 35.000.000 (Estimate)',
+    total_nilai_kontrak: 'Rp 65.000.000 (Estimate)',
     file_kontrak_digital: '-',
     status_esign: 'Pending',
     npwp_faskes: '05.678.901.2-345.000',
@@ -320,20 +338,20 @@ const clientsDummyData = [
   {
     id: generateId(),
     id_customer: generateCustomerId(6),
-    nama_entitas: 'RS Premier Bintaro',
-    kategori_client: 'Rumah Sakit',
+    nama_entitas: 'Resort & Villa Ciwidey',
+    kategori_client: 'Hotel & Resort',
     alamat_lengkap: 'Jl. Bintaro Utama No. 1, Tangerang Selatan, Banten 15224',
     koordinat_gps: '-6.2684, 106.7376',
     nomor_telepon: '021-7456789',
-    email_resmi: 'info@premierbintaro.co.id',
-    id_satusehat: 'SS-6789012345',
-    id_faskes_bpjs: 'BPJS-RS-006789',
-    status_akreditasi: 'Paripurna',
-    sistem_lama: 'Competitor B (HMS ABC)',
-    volume_pasien: '1000-1500 pasien/bulan',
-    jumlah_tempat_tidur: '400 bed',
-    nama_pic: 'Dr. Ir. Johanes Surya',
-    jabatan_pic: 'CEO',
+    email_resmi: 'facility@villaciwidey.co.id',
+    id_satusehat: '-',
+    id_faskes_bpjs: '-',
+    status_akreditasi: '-',
+    sistem_lama: 'Kompetitor (HMS ABC Roofing)',
+    volume_pasien: '-',
+    jumlah_tempat_tidur: '-',
+    nama_pic: 'Ir. Johanes Surya',
+    jabatan_pic: 'General Manager',
     whatsapp_pic: '081234567805',
     status_hubungan: 'Hot',
     paket_aktif: '-',
@@ -341,7 +359,7 @@ const clientsDummyData = [
     status_kontrak: 'Negotiation',
     tanggal_mulai_langganan: '-',
     tanggal_habis_kontrak: '-',
-    total_nilai_kontrak: 'Rp 5.800.000.000 (Proposal)',
+    total_nilai_kontrak: 'Rp 1.800.000.000 (Proposal)',
     file_kontrak_digital: '-',
     status_esign: 'Pending',
     npwp_faskes: '06.789.012.3-456.000',
@@ -349,13 +367,16 @@ const clientsDummyData = [
 ];
 
 // ===== PARTNERS DUMMY DATA =====
+// Fase 1 (23 Sep 2026): rewritten to Onduline's actual partner ecosystem
+// (distributor regional, aplikator/installer, konsultan konstruksi, vendor
+// aksesoris) instead of the original healthcare-IT-reseller template data.
 const partnersDummyData = [
   {
     id: generateId(),
     id_customer: generateCustomerId(101),
-    nama_perusahaan: 'PT Solusi Digital Nusantara',
+    nama_perusahaan: 'PT Distribusi Bangunan Nusantara',
     tipe_partner: 'Reseller',
-    spesialisasi: 'Healthcare IT Solutions',
+    spesialisasi: 'Distribusi Material Atap & Waterproofing Regional',
     account_manager_internal: 'Rudi Hartono',
     pic_partner: 'Hendra Kusuma',
     kontak_darurat: '081234567900',
@@ -363,23 +384,23 @@ const partnersDummyData = [
     status_kemitraan: 'Active',
     masa_berlaku_mou_start: '2023-01-01',
     masa_berlaku_mou_end: '2026-12-31',
-    file_mou_nda: 'mou_pt_solusi_digital_2023.pdf',
+    file_mou_nda: 'mou_distribusi_bangunan_nusantara_2023.pdf',
     tingkat_kemitraan: 'Platinum',
-    api_endpoint: 'https://api.solusidigitnusantara.com/v1',
-    api_key_reference: 'SDK-API-2023-XXXXX',
-    sla_requirement: '99.5% uptime, Response < 2 hours',
+    api_endpoint: 'https://api.distribusibangunan.com/v1',
+    api_key_reference: 'DBN-API-2023-XXXXX',
+    sla_requirement: 'Pengiriman < 7 hari, respons klaim < 2 jam',
     status_integrasi: 'Integrated',
     skema_komisi: '15% per deal closed',
     total_leads_generated: '45',
     total_revenue_contribution: 'Rp 1.250.000.000',
-    rekening_pembayaran: 'BCA 1234567890 a/n PT Solusi Digital Nusantara',
+    rekening_pembayaran: 'BCA 1234567890 a/n PT Distribusi Bangunan Nusantara',
   },
   {
     id: generateId(),
     id_customer: generateCustomerId(102),
-    nama_perusahaan: 'CV Teknologi Medis Indonesia',
+    nama_perusahaan: 'CV Aplikator Atap Profesional',
     tipe_partner: 'Integrator',
-    spesialisasi: 'Medical Equipment Integration',
+    spesialisasi: 'Jasa Pemasangan Atap & Waterproofing',
     account_manager_internal: 'Budi Santoso',
     pic_partner: 'Ir. Suryanto, M.T.',
     kontak_darurat: '081234567901',
@@ -387,47 +408,47 @@ const partnersDummyData = [
     status_kemitraan: 'Active',
     masa_berlaku_mou_start: '2022-06-01',
     masa_berlaku_mou_end: '2025-05-31',
-    file_mou_nda: 'mou_cv_teknologi_medis_2022.pdf',
+    file_mou_nda: 'mou_aplikator_atap_profesional_2022.pdf',
     tingkat_kemitraan: 'Gold',
-    api_endpoint: 'https://api.teknomedis.id/integration',
-    api_key_reference: 'TMI-API-2022-XXXXX',
-    sla_requirement: '98% uptime, Response < 4 hours',
+    api_endpoint: 'https://api.aplikatoratap.id/integration',
+    api_key_reference: 'AAP-API-2022-XXXXX',
+    sla_requirement: 'Pemasangan selesai < 14 hari, garansi 2 tahun',
     status_integrasi: 'Integrated',
-    skema_komisi: '10% per integration project',
+    skema_komisi: '10% per proyek pemasangan',
     total_leads_generated: '28',
     total_revenue_contribution: 'Rp 850.000.000',
-    rekening_pembayaran: 'Mandiri 9876543210 a/n CV Teknologi Medis Indonesia',
+    rekening_pembayaran: 'Mandiri 9876543210 a/n CV Aplikator Atap Profesional',
   },
   {
     id: generateId(),
     id_customer: generateCustomerId(103),
-    nama_perusahaan: 'PT Konsultan Kesehatan Prima',
+    nama_perusahaan: 'PT Konsultan Konstruksi Prima',
     tipe_partner: 'Consultant',
-    spesialisasi: 'Hospital Management Consulting',
+    spesialisasi: 'Konsultasi Struktur & Konstruksi Atap',
     account_manager_internal: 'Andi Wijaya',
-    pic_partner: 'Dr. Maria Susanti, MARS',
+    pic_partner: 'Dr. Ir. Maria Susanti',
     kontak_darurat: '081234567902',
     alamat_kantor: 'Jl. Thamrin No. 56, Jakarta Pusat, DKI Jakarta 10350',
     status_kemitraan: 'Active',
     masa_berlaku_mou_start: '2023-03-01',
     masa_berlaku_mou_end: '2026-02-28',
-    file_mou_nda: 'mou_pt_konsultan_kesehatan_2023.pdf',
+    file_mou_nda: 'mou_konsultan_konstruksi_prima_2023.pdf',
     tingkat_kemitraan: 'Gold',
     api_endpoint: '-',
     api_key_reference: '-',
-    sla_requirement: 'Project-based SLA',
+    sla_requirement: 'SLA berbasis proyek',
     status_integrasi: 'N/A',
-    skema_komisi: '12% per consulting project',
+    skema_komisi: '12% per proyek konsultasi',
     total_leads_generated: '18',
     total_revenue_contribution: 'Rp 620.000.000',
-    rekening_pembayaran: 'BNI 5432109876 a/n PT Konsultan Kesehatan Prima',
+    rekening_pembayaran: 'BNI 5432109876 a/n PT Konsultan Konstruksi Prima',
   },
   {
     id: generateId(),
     id_customer: generateCustomerId(104),
-    nama_perusahaan: 'PT Hardware Medical Supplies',
+    nama_perusahaan: 'PT Aksesoris Bangunan Sejahtera',
     tipe_partner: 'Vendor',
-    spesialisasi: 'Medical Hardware & Server Solutions',
+    spesialisasi: 'Aksesoris Pemasangan & Perlengkapan Atap',
     account_manager_internal: 'Siti Nurhaliza',
     pic_partner: 'Bambang Prasetyo',
     kontak_darurat: '081234567903',
@@ -435,762 +456,204 @@ const partnersDummyData = [
     status_kemitraan: 'Active',
     masa_berlaku_mou_start: '2021-09-01',
     masa_berlaku_mou_end: '2024-08-31',
-    file_mou_nda: 'mou_pt_hardware_medical_2021.pdf',
+    file_mou_nda: 'mou_aksesoris_bangunan_sejahtera_2021.pdf',
     tingkat_kemitraan: 'Silver',
-    api_endpoint: 'https://api.hwmedical.co.id/catalog',
-    api_key_reference: 'HMS-API-2021-XXXXX',
-    sla_requirement: 'Delivery < 14 days, Warranty 2 years',
+    api_endpoint: 'https://api.aksesorisbangunan.co.id/catalog',
+    api_key_reference: 'ABS-API-2021-XXXXX',
+    sla_requirement: 'Pengiriman < 14 hari, garansi 2 tahun',
     status_integrasi: 'Pending',
-    skema_komisi: '8% per hardware sale',
+    skema_komisi: '8% per penjualan aksesoris',
     total_leads_generated: '12',
     total_revenue_contribution: 'Rp 450.000.000',
-    rekening_pembayaran: 'BCA 7890123456 a/n PT Hardware Medical Supplies',
+    rekening_pembayaran: 'BCA 7890123456 a/n PT Aksesoris Bangunan Sejahtera',
   },
   {
     id: generateId(),
     id_customer: generateCustomerId(105),
-    nama_perusahaan: 'CV Pelatihan Kesehatan Profesional',
+    nama_perusahaan: 'CV Pelatihan Aplikator Profesional',
     tipe_partner: 'Consultant',
-    spesialisasi: 'Healthcare Staff Training & Development',
+    spesialisasi: 'Pelatihan Teknik Pemasangan Aplikator',
     account_manager_internal: 'Dewi Lestari',
-    pic_partner: 'Prof. Dr. Ahmad Rizki, Sp.KJ',
+    pic_partner: 'Prof. Dr. Ahmad Rizki',
     kontak_darurat: '081234567904',
     alamat_kantor: 'Jl. Diponegoro No. 78, Yogyakarta, DIY 55221',
     status_kemitraan: 'Pending',
     masa_berlaku_mou_start: '2024-01-01',
     masa_berlaku_mou_end: '2027-12-31',
-    file_mou_nda: 'draft_mou_cv_pelatihan_kesehatan_2024.pdf',
+    file_mou_nda: 'draft_mou_pelatihan_aplikator_2024.pdf',
     tingkat_kemitraan: 'Bronze',
     api_endpoint: '-',
     api_key_reference: '-',
-    sla_requirement: 'Training delivery < 30 days notice',
+    sla_requirement: 'Pelatihan terjadwal < 30 hari notice',
     status_integrasi: 'N/A',
-    skema_komisi: '10% per training package',
+    skema_komisi: '10% per paket pelatihan',
     total_leads_generated: '5',
     total_revenue_contribution: 'Rp 180.000.000',
-    rekening_pembayaran: 'Mandiri 3456789012 a/n CV Pelatihan Kesehatan Profesional',
-  },
-];
-
-// ===== PRODUCTS DUMMY DATA =====
-const productsDummyData = [
-  {
-    id: generateId(),
-    name: 'HMS Enterprise',
-    category: 'Hospital Management System',
-    description: 'Sistem manajemen rumah sakit komprehensif dengan fitur telemedicine, EMR, radiologi, dan laboratorium.',
-    price: 500000000,
-    stock: 100,
-    sold: 15,
-    features: ['Telemedicine', 'EMR', 'Radiologi', 'Laboratorium', 'PACS', 'LIS', 'Billing System', 'Pharmacy System'],
-  },
-  {
-    id: generateId(),
-    name: 'HMS Professional',
-    category: 'Hospital Management System',
-    description: 'Sistem manajemen rumah sakit profesional dengan fitur EMR, PACS, dan LIS untuk RS tipe B dan C.',
-    price: 300000000,
-    stock: 150,
-    sold: 23,
-    features: ['EMR', 'PACS', 'LIS', 'Billing System', 'Inventory Management', 'Reporting Dashboard'],
-  },
-  {
-    id: generateId(),
-    name: 'Intradoc Pro',
-    category: 'Document Management',
-    description: 'Sistem manajemen dokumen profesional untuk manajemen dokumen medis dan administrasi rumah sakit.',
-    price: 100000000,
-    stock: 200,
-    sold: 34,
-    features: ['Manajemen Dokumen Medis', 'Manajemen Dokumen Administrasi', 'E-Signature', 'Audit Trail', 'Version Control'],
-  },
-  {
-    id: generateId(),
-    name: 'Telemedicine Module',
-    category: 'Telemedicine',
-    description: 'Sistem telemedicine untuk konsultasi jarak jauh antara dokter dan pasien dengan video call HD.',
-    price: 50000000,
-    stock: 250,
-    sold: 42,
-    features: ['Video Call HD', 'Chat Dokter-Pasien', 'Resep Digital', 'Monitoring Pasien', 'Payment Gateway'],
-  },
-  {
-    id: generateId(),
-    name: 'EMR Standalone',
-    category: 'Electronic Medical Record',
-    description: 'Sistem catatan medis elektronik standalone untuk manajemen data pasien dan rekam medis.',
-    price: 150000000,
-    stock: 180,
-    sold: 28,
-    features: ['Manajemen Data Pasien', 'Rekam Medis Digital', 'SOAP Notes', 'ICD-10 Integration', 'CPPT'],
-  },
-  {
-    id: generateId(),
-    name: 'Radiologi PACS',
-    category: 'Radiology',
-    description: 'Sistem PACS untuk manajemen dan analisis gambar radiologi dengan DICOM viewer.',
-    price: 200000000,
-    stock: 120,
-    sold: 18,
-    features: ['DICOM Viewer', 'Image Storage', 'Worklist Management', '3D Reconstruction', 'Teleradiology'],
-  },
-  {
-    id: generateId(),
-    name: 'Laboratory LIS',
-    category: 'Laboratory',
-    description: 'Sistem informasi laboratorium untuk manajemen pemeriksaan dan hasil lab dengan auto-interface.',
-    price: 100000000,
-    stock: 160,
-    sold: 31,
-    features: ['Order Management', 'Result Entry', 'Auto-Interface', 'Quality Control', 'Report Generation'],
-  },
-  {
-    id: generateId(),
-    name: 'Pharmacy Module',
-    category: 'Pharmacy Management',
-    description: 'Sistem manajemen farmasi untuk inventory obat, dispensing, dan interaksi obat.',
-    price: 80000000,
-    stock: 190,
-    sold: 26,
-    features: ['Inventory Management', 'Dispensing', 'Drug Interaction Check', 'Expired Date Alert', 'Stock Opname'],
-  },
-  {
-    id: generateId(),
-    name: 'Billing System',
-    category: 'Finance & Billing',
-    description: 'Sistem billing komprehensif dengan integrasi BPJS, asuransi, dan payment gateway.',
-    price: 120000000,
-    stock: 140,
-    sold: 37,
-    features: ['BPJS Integration', 'Insurance Claims', 'Payment Gateway', 'Invoice Generation', 'Financial Reports'],
-  },
-  {
-    id: generateId(),
-    name: 'Mobile App HMS',
-    category: 'Mobile Application',
-    description: 'Aplikasi mobile untuk pasien: jadwal dokter, booking appointment, dan telemedicine.',
-    price: 75000000,
-    stock: 220,
-    sold: 45,
-    features: ['Jadwal Dokter', 'Online Booking', 'Telemedicine', 'Medical Records', 'Push Notifications'],
-  },
-  {
-    id: generateId(),
-    name: 'Nurse Station Module',
-    category: 'Nursing Management',
-    description: 'Sistem untuk nurse station: vital signs monitoring, medication administration, dan care plan.',
-    price: 90000000,
-    stock: 170,
-    sold: 22,
-    features: ['Vital Signs Entry', 'Medication Administration', 'Care Plan', 'Nursing Notes', 'Handover Report'],
-  },
-  {
-    id: generateId(),
-    name: 'Inventory Management',
-    category: 'Inventory & Supply Chain',
-    description: 'Sistem manajemen inventory untuk medical supplies, alkes, dan asset management.',
-    price: 85000000,
-    stock: 130,
-    sold: 19,
-    features: ['Stock Management', 'Purchase Order', 'Vendor Management', 'Asset Tracking', 'Reorder Point Alert'],
+    rekening_pembayaran: 'Mandiri 3456789012 a/n CV Pelatihan Aplikator Profesional',
   },
 ];
 
 // ===== CONTRACTS DUMMY DATA =====
+// Fase 1 (23 Sep 2026): rewritten to roofing/waterproofing/solar supply
+// agreements against the clients above, instead of the original HMS
+// software-subscription template contracts.
 const contractsDummyData = [
   {
     id: generateId(),
     contractNumber: generateContractNumber(1),
-    clientName: 'RS Harapan Sehat Jakarta',
-    company: 'PT Intramedika Solusindo',
-    product: 'HMS Enterprise + Intradoc Pro',
-    value: 2500000000,
+    clientName: 'Toko Bangunan Makmur Jaya',
+    company: 'PT Onduline Indonesia',
+    product: 'Onduline Classic + Aksesoris Pemasangan',
+    value: 850000000,
     startDate: new Date('2023-01-15'),
     endDate: new Date('2026-01-14'),
     status: 'active' as const,
-    signedBy: 'Dr. Ahmad Fauzi',
+    signedBy: 'Hendra Wijaya',
     salesPerson: 'Budi Santoso',
   },
   {
     id: generateId(),
     contractNumber: generateContractNumber(2),
-    clientName: 'RS Mitra Keluarga Surabaya',
-    company: 'PT Intramedika Solusindo',
-    product: 'HMS Professional',
+    clientName: 'PT Kontraktor Bangun Persada',
+    company: 'PT Onduline Indonesia',
+    product: 'Onduline Bitumen + Ondugreen Roof System',
     value: 3200000000,
     startDate: new Date('2022-06-01'),
     endDate: new Date('2025-05-31'),
     status: 'active' as const,
-    signedBy: 'Dr. Bambang Sutrisno, Sp.PD',
+    signedBy: 'Bambang Sutrisno, S.T.',
     salesPerson: 'Rudi Hartono',
   },
   {
     id: generateId(),
     contractNumber: generateContractNumber(3),
-    clientName: 'Klinik Sehat Bersama',
-    company: 'PT Intramedika Solusindo',
-    product: 'HMS Professional + Telemedicine Module',
-    value: 150000000,
+    clientName: 'Toko Material Sumber Rejeki',
+    company: 'PT Onduline Indonesia',
+    product: 'Onduline Classic + Waterproofing Membrane',
+    value: 120000000,
     startDate: new Date('2026-03-01'),
     endDate: new Date('2029-02-28'),
     status: 'pending' as const,
-    signedBy: 'dr. Siti Rahmawati',
+    signedBy: 'Ratna Kartika',
     salesPerson: 'Siti Nurhaliza',
   },
   {
     id: generateId(),
     contractNumber: generateContractNumber(4),
-    clientName: 'RS Premier Bintaro',
-    company: 'PT Intramedika Solusindo',
-    product: 'HMS Enterprise + EMR Standalone + Radiologi PACS',
-    value: 5800000000,
+    clientName: 'Resort & Villa Ciwidey',
+    company: 'PT Onduline Indonesia',
+    product: 'Onduline Bitumen + Ondusolar Panel Kit + Ondugreen',
+    value: 1800000000,
     startDate: new Date('2026-02-15'),
     endDate: new Date('2029-02-14'),
     status: 'pending' as const,
-    signedBy: 'Dr. Ir. Johanes Surya',
+    signedBy: 'Ir. Johanes Surya',
     salesPerson: 'Andi Wijaya',
   },
   {
     id: generateId(),
     contractNumber: generateContractNumber(5),
-    clientName: 'Puskesmas Cibinong',
-    company: 'PT Intramedika Solusindo',
-    product: 'EMR Standalone + Billing System',
-    value: 85000000,
+    clientName: 'PT Agro Lestari Nusantara',
+    company: 'PT Onduline Indonesia',
+    product: 'Ondugreen Roof System + Aksesoris Pemasangan',
+    value: 210000000,
     startDate: new Date('2025-09-01'),
     endDate: new Date('2028-08-31'),
     status: 'draft' as const,
-    signedBy: 'dr. Hendra Gunawan',
+    signedBy: 'Hendra Gunawan',
     salesPerson: 'Dewi Lestari',
   },
   {
     id: generateId(),
     contractNumber: generateContractNumber(6),
-    clientName: 'RS Siloam Hospitals Jakarta',
-    company: 'PT Intramedika Solusindo',
-    product: 'HMS Enterprise + Laboratory LIS + Pharmacy Module',
+    clientName: 'PT Graha Properti Sentosa',
+    company: 'PT Onduline Indonesia',
+    product: 'Onduline Bitumen + Waterproofing Membrane + Ondusolar',
     value: 4200000000,
     startDate: new Date('2021-03-01'),
     endDate: new Date('2024-02-29'),
     status: 'expired' as const,
-    signedBy: 'Dr. Caroline Riady',
+    signedBy: 'Caroline Halim',
     salesPerson: 'Budi Santoso',
   },
   {
     id: generateId(),
     contractNumber: generateContractNumber(7),
-    clientName: 'Klinik Kimia Farma Jakarta Pusat',
-    company: 'PT Intramedika Solusindo',
-    product: 'Telemedicine Module + Mobile App HMS',
+    clientName: 'Toko Bangunan Sumber Makmur Bekasi',
+    company: 'PT Onduline Indonesia',
+    product: 'Waterproofing Membrane + Aksesoris Pemasangan',
     value: 95000000,
     startDate: new Date('2024-06-01'),
     endDate: new Date('2026-05-31'),
     status: 'active' as const,
-    signedBy: 'dr. Rina Wijayanti',
+    signedBy: 'Rina Wijayanti',
     salesPerson: 'Siti Nurhaliza',
   },
   {
     id: generateId(),
     contractNumber: generateContractNumber(8),
-    clientName: 'RS Hermina Depok',
-    company: 'PT Intramedika Solusindo',
-    product: 'HMS Professional + Nurse Station Module',
+    clientName: 'PT Kontraktor Depok Sejahtera',
+    company: 'PT Onduline Indonesia',
+    product: 'Onduline Classic + Aksesoris Pemasangan',
     value: 1800000000,
     startDate: new Date('2023-10-01'),
     endDate: new Date('2026-09-30'),
     status: 'active' as const,
-    signedBy: 'Dr. Hadi Sutrisno',
+    signedBy: 'Hadi Sutrisno',
     salesPerson: 'Rudi Hartono',
   },
   {
     id: generateId(),
     contractNumber: generateContractNumber(9),
-    clientName: 'RS Pondok Indah',
-    company: 'PT Intramedika Solusindo',
-    product: 'HMS Enterprise Full Suite',
+    clientName: 'PT Properti Graha Mandiri',
+    company: 'PT Onduline Indonesia',
+    product: 'Onduline Full Suite (Atap + Waterproofing + Solar)',
     value: 7500000000,
     startDate: new Date('2024-01-01'),
     endDate: new Date('2027-12-31'),
     status: 'active' as const,
-    signedBy: 'Dr. Adib Khumaidi',
+    signedBy: 'Adib Khumaidi',
     salesPerson: 'Andi Wijaya',
   },
   {
     id: generateId(),
     contractNumber: generateContractNumber(10),
-    clientName: 'Klinik Pratama Medika',
-    company: 'PT Intramedika Solusindo',
-    product: 'EMR Standalone',
+    clientName: 'Toko Bangunan Pratama Mandiri',
+    company: 'PT Onduline Indonesia',
+    product: 'Waterproofing Membrane',
     value: 55000000,
     startDate: new Date('2022-04-15'),
     endDate: new Date('2025-04-14'),
     status: 'active' as const,
-    signedBy: 'dr. Rini Handayani',
+    signedBy: 'Rini Handayani',
     salesPerson: 'Dewi Lestari',
   },
   {
     id: generateId(),
     contractNumber: generateContractNumber(11),
-    clientName: 'RS Mayapada Hospital',
-    company: 'PT Intramedika Solusindo',
-    product: 'HMS Professional + Radiologi PACS + Laboratory LIS',
+    clientName: 'PT Mayapada Developer',
+    company: 'PT Onduline Indonesia',
+    product: 'Onduline Bitumen + Ondusolar Panel Kit + Waterproofing',
     value: 3800000000,
     startDate: new Date('2020-08-01'),
     endDate: new Date('2023-07-31'),
     status: 'terminated' as const,
-    signedBy: 'Dr. Jonathan Tahir',
+    signedBy: 'Jonathan Tahir',
     salesPerson: 'Budi Santoso',
   },
   {
     id: generateId(),
     contractNumber: generateContractNumber(12),
-    clientName: 'Praktek Bersama Dokter Keluarga',
-    company: 'PT Intramedika Solusindo',
-    product: 'Telemedicine Module + EMR Standalone',
-    value: 35000000,
+    clientName: 'CV Rumah Idaman Bersama',
+    company: 'PT Onduline Indonesia',
+    product: 'Ondusolar Panel Kit + Waterproofing Membrane',
+    value: 65000000,
     startDate: new Date('2025-12-01'),
     endDate: new Date('2028-11-30'),
     status: 'draft' as const,
-    signedBy: 'dr. Lisa Permata Sari',
+    signedBy: 'Lisa Permata Sari',
     salesPerson: 'Siti Nurhaliza',
   },
-];
-
-// ===== DEMOS DUMMY DATA =====
-const demosDummyData = [
-  {
-    id: 'D001',
-    title: 'Demo Enterprise Plan - RS Harapan Sehat',
-    leadName: 'Dr. Ahmad Fauzi',
-    company: 'RS Harapan Sehat Jakarta',
-    date: new Date(2026, 1, 10, 10, 0), // Feb 10, 2026, 10:00 AM
-    time: '10:00',
-    duration: 60,
-    presenter: 'Budi Santoso',
-    product: 'HMS Enterprise',
-    status: 'scheduled' as const,
-    meetingLink: 'https://meet.zoom.us/demo-e001',
-    notes: 'Fokus pada fitur analytics dan reporting untuk manajemen rumah sakit',
-    attendees: [
-      {
-        id: 'A001',
-        name: 'Dr. Ahmad Fauzi',
-        email: 'ahmad.fauzi@rsharapansehat.co.id',
-        type: 'external' as const,
-        rsvp: 'accepted' as const
-      },
-      {
-        id: 'A002',
-        name: 'dr. Siti Rahman',
-        email: 'siti.rahman@rsharapansehat.co.id',
-        type: 'external' as const,
-        rsvp: 'pending' as const
-      },
-      {
-        id: 'A003',
-        name: 'Budi Santoso',
-        email: 'budi.santoso@intramedika.com',
-        type: 'internal' as const,
-        rsvp: 'accepted' as const
-      }
-    ],
-    resources: [
-      {
-        id: 'R001',
-        name: 'Meeting Room A',
-        type: 'room' as const
-      },
-      {
-        id: 'R002',
-        name: 'Projector 4K',
-        type: 'equipment' as const
-      },
-      {
-        id: 'R003',
-        name: 'Zoom Premium',
-        type: 'software' as const
-      }
-    ],
-    bufferTime: {
-      before: 15,
-      after: 15
-    }
-  },
-  {
-    id: 'D002',
-    title: 'Demo Professional Plan - Klinik Sehat Bersama',
-    leadName: 'dr. Siti Rahmawati',
-    company: 'Klinik Sehat Bersama',
-    date: new Date(2026, 1, 12, 14, 0), // Feb 12, 2026, 2:00 PM
-    time: '14:00',
-    duration: 45,
-    presenter: 'Siti Nurhaliza',
-    product: 'HMS Professional',
-    status: 'scheduled' as const,
-    meetingLink: 'https://meet.zoom.us/demo-p001',
-    notes: 'Tunjukkan integrasi dengan existing system dan kemudahan onboarding',
-    attendees: [
-      {
-        id: 'A004',
-        name: 'dr. Siti Rahmawati',
-        email: 'siti@kliniksehatbersama.co.id',
-        type: 'external' as const,
-        rsvp: 'accepted' as const
-      },
-      {
-        id: 'A005',
-        name: 'Siti Nurhaliza',
-        email: 'siti.nurhaliza@intramedika.com',
-        type: 'internal' as const,
-        rsvp: 'accepted' as const
-      }
-    ],
-    resources: [
-      {
-        id: 'R004',
-        name: 'Meeting Room B',
-        type: 'room' as const
-      },
-      {
-        id: 'R005',
-        name: 'Google Meet',
-        type: 'software' as const
-      }
-    ],
-    bufferTime: {
-      before: 10,
-      after: 10
-    }
-  },
-  {
-    id: 'D003',
-    title: 'Demo EMR Standalone - Puskesmas Cibinong',
-    leadName: 'dr. Hendra Gunawan',
-    company: 'Puskesmas Cibinong',
-    date: new Date(2026, 1, 15, 11, 0), // Feb 15, 2026, 11:00 AM
-    time: '11:00',
-    duration: 30,
-    presenter: 'Dewi Lestari',
-    product: 'EMR Standalone',
-    status: 'scheduled' as const,
-    meetingLink: 'https://meet.zoom.us/demo-emr001',
-    notes: 'Demo basic features dan onboarding process untuk Puskesmas',
-    attendees: [
-      {
-        id: 'A006',
-        name: 'dr. Hendra Gunawan',
-        email: 'hendra@puskesmascibinong.go.id',
-        type: 'external' as const,
-        rsvp: 'pending' as const
-      },
-      {
-        id: 'A007',
-        name: 'Dewi Lestari',
-        email: 'dewi.lestari@intramedika.com',
-        type: 'internal' as const,
-        rsvp: 'accepted' as const
-      }
-    ],
-    resources: [
-      {
-        id: 'R006',
-        name: 'Microsoft Teams',
-        type: 'software' as const
-      }
-    ],
-    bufferTime: {
-      before: 5,
-      after: 10
-    }
-  },
-  {
-    id: 'D004',
-    title: 'Follow-up Demo Enterprise - RS Premier Bintaro',
-    leadName: 'Dr. Ir. Johanes Surya',
-    company: 'RS Premier Bintaro',
-    date: new Date(2026, 1, 5, 15, 0), // Feb 5, 2026, 3:00 PM (Past - Completed)
-    time: '15:00',
-    duration: 60,
-    presenter: 'Andi Wijaya',
-    product: 'HMS Enterprise',
-    status: 'completed' as const,
-    meetingLink: 'https://meet.zoom.us/demo-fb001',
-    notes: 'Demo berjalan lancar, siap untuk proposal. Client sangat tertarik dengan fitur PACS dan LIS.',
-    attendees: [
-      {
-        id: 'A008',
-        name: 'Dr. Ir. Johanes Surya',
-        email: 'johanes@premierbintaro.co.id',
-        type: 'external' as const,
-        rsvp: 'accepted' as const
-      },
-      {
-        id: 'A009',
-        name: 'Rina Finance Director',
-        email: 'rina@premierbintaro.co.id',
-        type: 'external' as const,
-        rsvp: 'accepted' as const
-      },
-      {
-        id: 'A010',
-        name: 'Andi Wijaya',
-        email: 'andi.wijaya@intramedika.com',
-        type: 'internal' as const,
-        rsvp: 'accepted' as const
-      }
-    ],
-    resources: [
-      {
-        id: 'R007',
-        name: 'Conference Room Executive',
-        type: 'room' as const
-      },
-      {
-        id: 'R008',
-        name: 'LED Display 65"',
-        type: 'equipment' as const
-      },
-      {
-        id: 'R009',
-        name: 'Zoom Enterprise',
-        type: 'software' as const
-      }
-    ],
-    bufferTime: {
-      before: 20,
-      after: 15
-    },
-    rating: 5,
-    reviewerName: 'Dr. Ir. Johanes Surya',
-    reviewDate: new Date(2026, 1, 5, 16, 30),
-    reviewText: 'Excellent demo presentation! The presenter was very knowledgeable and addressed all our concerns. The Enterprise Plan features, especially PACS and LIS integration, align perfectly with our hospital needs. The technical team was impressed with the system architecture. Highly recommend for enterprise-level hospital implementations.'
-  },
-  {
-    id: 'D005',
-    title: 'Demo Telemedicine Module - Klinik Kimia Farma',
-    leadName: 'dr. Rina Wijayanti',
-    company: 'Klinik Kimia Farma Jakarta Pusat',
-    date: new Date(2026, 1, 18, 13, 0), // Feb 18, 2026, 1:00 PM
-    time: '13:00',
-    duration: 45,
-    presenter: 'Rudi Hartono',
-    product: 'Telemedicine Module',
-    status: 'scheduled' as const,
-    meetingLink: 'https://meet.zoom.us/demo-tele001',
-    notes: 'Demo fokus pada fitur telemedicine dan mobile app untuk pasien',
-    attendees: [
-      {
-        id: 'A011',
-        name: 'dr. Rina Wijayanti',
-        email: 'rina@kimiafarma.co.id',
-        type: 'external' as const,
-        rsvp: 'accepted' as const
-      },
-      {
-        id: 'A012',
-        name: 'IT Manager',
-        email: 'it@kimiafarma.co.id',
-        type: 'external' as const,
-        rsvp: 'accepted' as const
-      },
-      {
-        id: 'A013',
-        name: 'Rudi Hartono',
-        email: 'rudi.hartono@intramedika.com',
-        type: 'internal' as const,
-        rsvp: 'accepted' as const
-      }
-    ],
-    resources: [
-      {
-        id: 'R010',
-        name: 'Meeting Room C',
-        type: 'room' as const
-      },
-      {
-        id: 'R011',
-        name: 'Tablet Demo Device',
-        type: 'equipment' as const
-      },
-      {
-        id: 'R012',
-        name: 'Google Meet',
-        type: 'software' as const
-      }
-    ],
-    bufferTime: {
-      before: 15,
-      after: 10
-    }
-  },
-  {
-    id: 'D006',
-    title: 'Demo HMS Professional - RS Hermina Depok',
-    leadName: 'Dr. Hadi Sutrisno',
-    company: 'RS Hermina Depok',
-    date: new Date(2026, 1, 3, 10, 0), // Feb 3, 2026 (Past - Completed)
-    time: '10:00',
-    duration: 60,
-    presenter: 'Budi Santoso',
-    product: 'HMS Professional',
-    status: 'completed' as const,
-    meetingLink: 'https://meet.zoom.us/demo-her001',
-    notes: 'Demo sukses, client tertarik dengan Nurse Station Module. Follow-up untuk proposal.',
-    attendees: [
-      {
-        id: 'A014',
-        name: 'Dr. Hadi Sutrisno',
-        email: 'hadi@hermina.co.id',
-        type: 'external' as const,
-        rsvp: 'accepted' as const
-      },
-      {
-        id: 'A015',
-        name: 'Head of IT',
-        email: 'it.head@hermina.co.id',
-        type: 'external' as const,
-        rsvp: 'accepted' as const
-      },
-      {
-        id: 'A016',
-        name: 'Budi Santoso',
-        email: 'budi.santoso@intramedika.com',
-        type: 'internal' as const,
-        rsvp: 'accepted' as const
-      }
-    ],
-    resources: [
-      {
-        id: 'R013',
-        name: 'Conference Room 1',
-        type: 'room' as const
-      },
-      {
-        id: 'R014',
-        name: 'Projector HD',
-        type: 'equipment' as const
-      },
-      {
-        id: 'R015',
-        name: 'Zoom Business',
-        type: 'software' as const
-      }
-    ],
-    bufferTime: {
-      before: 15,
-      after: 15
-    },
-    rating: 4,
-    reviewerName: 'Dr. Hadi Sutrisno',
-    reviewDate: new Date(2026, 1, 3, 11, 30),
-    reviewText: 'Good demo session. The Nurse Station Module features are impressive and will improve our nursing workflow significantly. The presenter explained the integration process clearly. We need more information about data migration from our current system, but overall we are very interested.'
-  },
-  {
-    id: 'D007',
-    title: 'Demo Billing System - Praktek Dokter Keluarga',
-    leadName: 'dr. Lisa Permata Sari',
-    company: 'Praktek Bersama Dokter Keluarga',
-    date: new Date(2026, 1, 20, 16, 0), // Feb 20, 2026, 4:00 PM
-    time: '16:00',
-    duration: 30,
-    presenter: 'Dewi Lestari',
-    product: 'Billing System + EMR Standalone',
-    status: 'scheduled' as const,
-    meetingLink: 'https://meet.zoom.us/demo-bil001',
-    notes: 'Demo untuk praktek dokter, fokus pada billing dan BPJS integration',
-    attendees: [
-      {
-        id: 'A017',
-        name: 'dr. Lisa Permata Sari',
-        email: 'lisa@dokterpraktek.com',
-        type: 'external' as const,
-        rsvp: 'pending' as const
-      },
-      {
-        id: 'A018',
-        name: 'Dewi Lestari',
-        email: 'dewi.lestari@intramedika.com',
-        type: 'internal' as const,
-        rsvp: 'accepted' as const
-      }
-    ],
-    resources: [
-      {
-        id: 'R016',
-        name: 'Google Meet',
-        type: 'software' as const
-      }
-    ],
-    bufferTime: {
-      before: 5,
-      after: 10
-    }
-  },
-  {
-    id: 'D008',
-    title: 'Demo Laboratory LIS - RS Mitra Keluarga',
-    leadName: 'Dr. Bambang Sutrisno',
-    company: 'RS Mitra Keluarga Surabaya',
-    date: new Date(2026, 1, 8, 9, 0), // Feb 8, 2026, 9:00 AM
-    time: '09:00',
-    duration: 90,
-    presenter: 'Andi Wijaya',
-    product: 'Laboratory LIS',
-    status: 'scheduled' as const,
-    meetingLink: 'https://meet.zoom.us/demo-lis001',
-    notes: 'Demo upgrade module LIS dengan auto-interface ke alat lab',
-    attendees: [
-      {
-        id: 'A019',
-        name: 'Dr. Bambang Sutrisno, Sp.PD',
-        email: 'bambang@rsmitrakeluarga-sby.co.id',
-        type: 'external' as const,
-        rsvp: 'accepted' as const
-      },
-      {
-        id: 'A020',
-        name: 'Lab Manager',
-        email: 'lab@rsmitrakeluarga-sby.co.id',
-        type: 'external' as const,
-        rsvp: 'accepted' as const
-      },
-      {
-        id: 'A021',
-        name: 'Andi Wijaya',
-        email: 'andi.wijaya@intramedika.com',
-        type: 'internal' as const,
-        rsvp: 'accepted' as const
-      },
-      {
-        id: 'A022',
-        name: 'Technical Support',
-        email: 'tech@intramedika.com',
-        type: 'internal' as const,
-        rsvp: 'accepted' as const
-      }
-    ],
-    resources: [
-      {
-        id: 'R017',
-        name: 'Innovation Lab',
-        type: 'room' as const
-      },
-      {
-        id: 'R018',
-        name: 'Lab Equipment Demo',
-        type: 'equipment' as const
-      },
-      {
-        id: 'R019',
-        name: 'LIS Sandbox Environment',
-        type: 'software' as const
-      }
-    ],
-    bufferTime: {
-      before: 30,
-      after: 20
-    }
-  }
 ];
 
 /**
@@ -1203,7 +666,6 @@ export function populateCRMToLocalStorage(): {
     employees: number;
     clients: number;
     partners: number;
-    products: number;
     contracts: number;
   };
 } {
@@ -1212,9 +674,7 @@ export function populateCRMToLocalStorage(): {
     localStorage.setItem(LS_KEYS.EMPLOYEES, JSON.stringify(salesRepresentativeDummyData));
     localStorage.setItem(LS_KEYS.CLIENTS, JSON.stringify(clientsDummyData));
     localStorage.setItem(LS_KEYS.PARTNERS, JSON.stringify(partnersDummyData));
-    localStorage.setItem(LS_KEYS.PRODUCTS, JSON.stringify(productsDummyData));
     localStorage.setItem(LS_KEYS.CONTRACTS, JSON.stringify(contractsDummyData));
-    localStorage.setItem(LS_KEYS.DEMOS, JSON.stringify(demosDummyData));
 
     console.log('✅ CRM Dummy Data populated successfully to localStorage');
     console.log(`📊 Employees: ${salesRepresentativeDummyData.length}`);
@@ -1226,7 +686,6 @@ export function populateCRMToLocalStorage(): {
         employees: salesRepresentativeDummyData.length,
         clients: clientsDummyData.length,
         partners: partnersDummyData.length,
-        products: productsDummyData.length,
         contracts: contractsDummyData.length,
       },
     };
@@ -1239,7 +698,6 @@ export function populateCRMToLocalStorage(): {
         employees: 0,
         clients: 0,
         partners: 0,
-        products: 0,
         contracts: 0,
       },
     };
@@ -1257,9 +715,7 @@ export function clearCRMFromLocalStorage(): {
     localStorage.removeItem(LS_KEYS.EMPLOYEES);
     localStorage.removeItem(LS_KEYS.CLIENTS);
     localStorage.removeItem(LS_KEYS.PARTNERS);
-    localStorage.removeItem(LS_KEYS.PRODUCTS);
     localStorage.removeItem(LS_KEYS.CONTRACTS);
-    localStorage.removeItem(LS_KEYS.DEMOS);
 
     console.log('🗑️ CRM data (including Contracts) cleared from localStorage');
 
@@ -1283,21 +739,18 @@ export function getCRMStatistics(): {
   employees: number;
   clients: number;
   partners: number;
-  products: number;
   contracts: number;
 } {
   try {
     const employees = JSON.parse(localStorage.getItem(LS_KEYS.EMPLOYEES) || '[]');
     const clients = JSON.parse(localStorage.getItem(LS_KEYS.CLIENTS) || '[]');
     const partners = JSON.parse(localStorage.getItem(LS_KEYS.PARTNERS) || '[]');
-    const products = JSON.parse(localStorage.getItem(LS_KEYS.PRODUCTS) || '[]');
     const contracts = JSON.parse(localStorage.getItem(LS_KEYS.CONTRACTS) || '[]');
 
     return {
       employees: employees.length,
       clients: clients.length,
       partners: partners.length,
-      products: products.length,
       contracts: contracts.length,
     };
   } catch (error) {
@@ -1306,7 +759,6 @@ export function getCRMStatistics(): {
       employees: 0,
       clients: 0,
       partners: 0,
-      products: 0,
       contracts: 0,
     };
   }

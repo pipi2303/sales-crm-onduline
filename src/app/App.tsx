@@ -10,7 +10,6 @@ import { Header } from '@/app/components/layout/Header';
 import { AuthProvider, useAuth } from '@/app/contexts/AuthContext';
 import { ModalPortalProvider } from '@/app/contexts/ModalPortalContext';
 import { ConfirmDialogProvider } from '@/app/components/ui/confirm-dialog';
-import { initializeAllData } from '@/utils/initializeAllData';
 import '@/utils/demoDebug'; // Load debug utilities
 import { toast } from 'sonner';
 import { contracts as dummyContracts, Contract as ContractType } from '@/app/data/dummyData';
@@ -43,9 +42,18 @@ function AppContent() {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    // Initialize all dummy data on app load
-    initializeAllData();
-    
+    // Fase 1 (23 Sep 2026): this useEffect used to call initializeAllData()
+    // unconditionally on every mount, which auto-seeded
+    // employees/clients/partners/contracts with dummy data into
+    // localStorage for any browser that didn't have it yet (new user,
+    // new device, cleared cache) -- with no explicit action from anyone.
+    // The dummy content itself has been fixed to match Onduline's business
+    // (see populateCRMData.ts), but auto-injecting sample records into a
+    // production dashboard without the user asking is still the wrong
+    // default. SalesTeam.tsx and SalesRepresentative.tsx keep an explicit
+    // "Load Dummy Data" button for reps who want sample records to explore
+    // the UI with; nothing auto-populates on load anymore.
+
     // Optimized loading - reduced from 1500ms to 500ms
     const timer = setTimeout(() => {
       setIsLoading(false);

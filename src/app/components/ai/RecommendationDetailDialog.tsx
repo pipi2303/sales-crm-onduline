@@ -195,13 +195,13 @@ export function RecommendationDetailDialog({ open, onClose, recommendation }: Re
         },
         targetClients: [
           {
-            name: 'RS Harapan Sehat',
+            name: 'Toko Bangunan Makmur Jaya',
             currentARR: 95000000,
             upsellValue: 48000000,
             healthScore: 87,
             tenure: '18 months',
-            modules: ['LIS Integration', 'Advanced Analytics'],
-            reason: 'High lab volume, manual processes'
+            modules: ['Program Loyalitas Distributor', 'Analitik Penjualan Lanjutan'],
+            reason: 'Volume order tinggi, masih proses manual'
           },
           {
             name: 'Klinik Bunda Care',

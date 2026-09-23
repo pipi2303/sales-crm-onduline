@@ -307,7 +307,7 @@ export function ProductFormModal({ product, onClose, onSuccess }: ProductFormPro
                     value={formData.name}
                     onChange={handleChange}
                     required
-                    placeholder="HMS Enterprise Edition"
+                    placeholder="Onduline Classic"
                     className="bg-white border-gray-300 focus:border-[#EEF7F5]0 focus:ring-[#EEF7F5]0"
                   />
                 </div>

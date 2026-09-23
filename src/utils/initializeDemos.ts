@@ -1,6 +1,12 @@
 /**
  * Initialize Demo Scheduler Data
- * This function loads demo data from populateCRMData.ts into localStorage
+ *
+ * Fase 1 (23 Sep 2026): demosDummyData used to be a copy of the same
+ * hospital/HMS-software demo schedule as populateCRMData.ts's old (now
+ * removed) demos block -- product demos to "RS Harapan Sehat", "Klinik
+ * Sehat Bersama", etc. for "HMS Enterprise"/"Telemedicine Module"/etc.
+ * Rewritten to Onduline product demo visits (roofing/waterproofing/solar)
+ * to the same kind of clients used in populateCRMData.ts's dummy dataset.
  */
 
 const LS_KEY_DEMOS = 'sales_monitoring_demos';
@@ -9,36 +15,36 @@ const LS_KEY_DEMOS = 'sales_monitoring_demos';
 const demosDummyData = [
   {
     id: 'D001',
-    title: 'Demo Enterprise Plan - RS Harapan Sehat',
-    leadName: 'Dr. Ahmad Fauzi',
-    company: 'RS Harapan Sehat Jakarta',
+    title: 'Demo Onduline Classic - Toko Bangunan Makmur Jaya',
+    leadName: 'Hendra Wijaya',
+    company: 'Toko Bangunan Makmur Jaya',
     date: new Date(2026, 1, 10, 10, 0), // Feb 10, 2026, 10:00 AM
     time: '10:00',
     duration: 60,
     presenter: 'Budi Santoso',
-    product: 'HMS Enterprise',
+    product: 'Onduline Classic',
     status: 'scheduled',
     meetingLink: 'https://meet.zoom.us/demo-e001',
-    notes: 'Fokus pada fitur analytics dan reporting untuk manajemen rumah sakit',
+    notes: 'Fokus pada ketahanan produk dan margin keuntungan untuk toko',
     attendees: [
       {
         id: 'A001',
-        name: 'Dr. Ahmad Fauzi',
-        email: 'ahmad.fauzi@rsharapansehat.co.id',
+        name: 'Hendra Wijaya',
+        email: 'hendra@makmurjayabangunan.co.id',
         type: 'external',
         rsvp: 'accepted'
       },
       {
         id: 'A002',
-        name: 'dr. Siti Rahman',
-        email: 'siti.rahman@rsharapansehat.co.id',
+        name: 'Ratna Kartika',
+        email: 'ratna@makmurjayabangunan.co.id',
         type: 'external',
         rsvp: 'pending'
       },
       {
         id: 'A003',
         name: 'Budi Santoso',
-        email: 'budi.santoso@intramedika.com',
+        email: 'budi.santoso@onduline.co.id',
         type: 'internal',
         rsvp: 'accepted'
       }
@@ -51,7 +57,7 @@ const demosDummyData = [
       },
       {
         id: 'R002',
-        name: 'Projector 4K',
+        name: 'Sample Board Onduline Classic',
         type: 'equipment'
       },
       {
@@ -67,29 +73,29 @@ const demosDummyData = [
   },
   {
     id: 'D002',
-    title: 'Demo Professional Plan - Klinik Sehat Bersama',
-    leadName: 'dr. Siti Rahmawati',
-    company: 'Klinik Sehat Bersama',
+    title: 'Demo Waterproofing Membrane - Toko Material Sumber Rejeki',
+    leadName: 'Ratna Kartika',
+    company: 'Toko Material Sumber Rejeki',
     date: new Date(2026, 1, 12, 14, 0), // Feb 12, 2026, 2:00 PM
     time: '14:00',
     duration: 45,
     presenter: 'Siti Nurhaliza',
-    product: 'HMS Professional',
+    product: 'Waterproofing Membrane',
     status: 'scheduled',
     meetingLink: 'https://meet.zoom.us/demo-p001',
-    notes: 'Tunjukkan integrasi dengan existing system dan kemudahan onboarding',
+    notes: 'Tunjukkan cara aplikasi membrane dan potensi margin reseller',
     attendees: [
       {
         id: 'A004',
-        name: 'dr. Siti Rahmawati',
-        email: 'siti@kliniksehatbersama.co.id',
+        name: 'Ratna Kartika',
+        email: 'sumberrejeki.material@gmail.com',
         type: 'external',
         rsvp: 'accepted'
       },
       {
         id: 'A005',
         name: 'Siti Nurhaliza',
-        email: 'siti.nurhaliza@intramedika.com',
+        email: 'siti.nurhaliza@onduline.co.id',
         type: 'internal',
         rsvp: 'accepted'
       }
@@ -113,29 +119,29 @@ const demosDummyData = [
   },
   {
     id: 'D003',
-    title: 'Demo EMR Standalone - Puskesmas Cibinong',
-    leadName: 'dr. Hendra Gunawan',
-    company: 'Puskesmas Cibinong',
+    title: 'Demo Ondugreen Roof System - PT Agro Lestari Nusantara',
+    leadName: 'Hendra Gunawan',
+    company: 'PT Agro Lestari Nusantara',
     date: new Date(2026, 1, 15, 11, 0), // Feb 15, 2026, 11:00 AM
     time: '11:00',
     duration: 30,
     presenter: 'Dewi Lestari',
-    product: 'EMR Standalone',
+    product: 'Ondugreen Roof System',
     status: 'scheduled',
     meetingLink: 'https://meet.zoom.us/demo-emr001',
-    notes: 'Demo basic features dan onboarding process untuk Puskesmas',
+    notes: 'Demo dasar sistem green roof untuk gudang dan fasilitas pertanian',
     attendees: [
       {
         id: 'A006',
-        name: 'dr. Hendra Gunawan',
-        email: 'hendra@puskesmascibinong.go.id',
+        name: 'Hendra Gunawan',
+        email: 'facility@agrolestari.co.id',
         type: 'external',
         rsvp: 'pending'
       },
       {
         id: 'A007',
         name: 'Dewi Lestari',
-        email: 'dewi.lestari@intramedika.com',
+        email: 'dewi.lestari@onduline.co.id',
         type: 'internal',
         rsvp: 'accepted'
       }
@@ -154,36 +160,36 @@ const demosDummyData = [
   },
   {
     id: 'D004',
-    title: 'Follow-up Demo Enterprise - RS Premier Bintaro',
-    leadName: 'Dr. Ir. Johanes Surya',
-    company: 'RS Premier Bintaro',
+    title: 'Follow-up Demo Onduline Bitumen - Resort & Villa Ciwidey',
+    leadName: 'Ir. Johanes Surya',
+    company: 'Resort & Villa Ciwidey',
     date: new Date(2026, 1, 5, 15, 0), // Feb 5, 2026, 3:00 PM (Past - Completed)
     time: '15:00',
     duration: 60,
     presenter: 'Andi Wijaya',
-    product: 'HMS Enterprise',
+    product: 'Onduline Bitumen',
     status: 'completed',
     meetingLink: 'https://meet.zoom.us/demo-fb001',
-    notes: 'Demo berjalan lancar, siap untuk proposal. Client sangat tertarik dengan fitur PACS dan LIS.',
+    notes: 'Demo berjalan lancar, siap untuk proposal. Client sangat tertarik dengan kombinasi atap bitumen dan Ondusolar.',
     attendees: [
       {
         id: 'A008',
-        name: 'Dr. Ir. Johanes Surya',
-        email: 'johanes@premierbintaro.co.id',
+        name: 'Ir. Johanes Surya',
+        email: 'facility@villaciwidey.co.id',
         type: 'external',
         rsvp: 'accepted'
       },
       {
         id: 'A009',
         name: 'Rina Finance Director',
-        email: 'rina@premierbintaro.co.id',
+        email: 'rina@villaciwidey.co.id',
         type: 'external',
         rsvp: 'accepted'
       },
       {
         id: 'A010',
         name: 'Andi Wijaya',
-        email: 'andi.wijaya@intramedika.com',
+        email: 'andi.wijaya@onduline.co.id',
         type: 'internal',
         rsvp: 'accepted'
       }
@@ -210,42 +216,42 @@ const demosDummyData = [
       after: 15
     },
     rating: 5,
-    reviewerName: 'Dr. Ir. Johanes Surya',
+    reviewerName: 'Ir. Johanes Surya',
     reviewDate: new Date(2026, 1, 5, 16, 30),
-    reviewText: 'Excellent demo presentation! The presenter was very knowledgeable and addressed all our concerns. The Enterprise Plan features, especially PACS and LIS integration, align perfectly with our hospital needs. The technical team was impressed with the system architecture. Highly recommend for enterprise-level hospital implementations.'
+    reviewText: 'Presentasi demo yang sangat baik! Presenter menguasai produk dan menjawab semua pertanyaan kami. Kombinasi atap bitumen dan panel Ondusolar sangat sesuai kebutuhan resort kami. Tim teknis kami terkesan dengan detail pemasangannya. Sangat direkomendasikan untuk proyek resort skala besar.'
   },
   {
     id: 'D005',
-    title: 'Demo Telemedicine Module - Klinik Kimia Farma',
-    leadName: 'dr. Rina Wijayanti',
-    company: 'Klinik Kimia Farma Jakarta Pusat',
+    title: 'Demo Ondusolar Panel Kit - PT Graha Properti Sentosa',
+    leadName: 'Caroline Halim',
+    company: 'PT Graha Properti Sentosa',
     date: new Date(2026, 1, 18, 13, 0), // Feb 18, 2026, 1:00 PM
     time: '13:00',
     duration: 45,
     presenter: 'Rudi Hartono',
-    product: 'Telemedicine Module',
+    product: 'Ondusolar Panel Kit',
     status: 'scheduled',
     meetingLink: 'https://meet.zoom.us/demo-tele001',
-    notes: 'Demo fokus pada fitur telemedicine dan mobile app untuk pasien',
+    notes: 'Demo fokus pada efisiensi panel surya dan estimasi ROI untuk proyek properti',
     attendees: [
       {
         id: 'A011',
-        name: 'dr. Rina Wijayanti',
-        email: 'rina@kimiafarma.co.id',
+        name: 'Caroline Halim',
+        email: 'caroline@grahapropertisentosa.co.id',
         type: 'external',
         rsvp: 'accepted'
       },
       {
         id: 'A012',
-        name: 'IT Manager',
-        email: 'it@kimiafarma.co.id',
+        name: 'Procurement Manager',
+        email: 'procurement@grahapropertisentosa.co.id',
         type: 'external',
         rsvp: 'accepted'
       },
       {
         id: 'A013',
         name: 'Rudi Hartono',
-        email: 'rudi.hartono@intramedika.com',
+        email: 'rudi.hartono@onduline.co.id',
         type: 'internal',
         rsvp: 'accepted'
       }
@@ -258,7 +264,7 @@ const demosDummyData = [
       },
       {
         id: 'R011',
-        name: 'Tablet Demo Device',
+        name: 'Ondusolar Demo Kit',
         type: 'equipment'
       },
       {
@@ -274,36 +280,36 @@ const demosDummyData = [
   },
   {
     id: 'D006',
-    title: 'Demo HMS Professional - RS Hermina Depok',
-    leadName: 'Dr. Hadi Sutrisno',
-    company: 'RS Hermina Depok',
+    title: 'Demo Onduline Classic - PT Kontraktor Depok Sejahtera',
+    leadName: 'Hadi Sutrisno',
+    company: 'PT Kontraktor Depok Sejahtera',
     date: new Date(2026, 1, 3, 10, 0), // Feb 3, 2026 (Past - Completed)
     time: '10:00',
     duration: 60,
     presenter: 'Budi Santoso',
-    product: 'HMS Professional',
+    product: 'Onduline Classic',
     status: 'completed',
     meetingLink: 'https://meet.zoom.us/demo-her001',
-    notes: 'Demo sukses, client tertarik dengan Nurse Station Module. Follow-up untuk proposal.',
+    notes: 'Demo sukses, client tertarik dengan paket aksesoris pemasangan. Follow-up untuk proposal.',
     attendees: [
       {
         id: 'A014',
-        name: 'Dr. Hadi Sutrisno',
-        email: 'hadi@hermina.co.id',
+        name: 'Hadi Sutrisno',
+        email: 'hadi@kontraktordepok.co.id',
         type: 'external',
         rsvp: 'accepted'
       },
       {
         id: 'A015',
-        name: 'Head of IT',
-        email: 'it.head@hermina.co.id',
+        name: 'Head of Procurement',
+        email: 'procurement@kontraktordepok.co.id',
         type: 'external',
         rsvp: 'accepted'
       },
       {
         id: 'A016',
         name: 'Budi Santoso',
-        email: 'budi.santoso@intramedika.com',
+        email: 'budi.santoso@onduline.co.id',
         type: 'internal',
         rsvp: 'accepted'
       }
@@ -330,35 +336,35 @@ const demosDummyData = [
       after: 15
     },
     rating: 4,
-    reviewerName: 'Dr. Hadi Sutrisno',
+    reviewerName: 'Hadi Sutrisno',
     reviewDate: new Date(2026, 1, 3, 11, 30),
-    reviewText: 'Good demo session. The Nurse Station Module features are impressive and will improve our nursing workflow significantly. The presenter explained the integration process clearly. We need more information about data migration from our current system, but overall we are very interested.'
+    reviewText: 'Demo yang bagus. Paket aksesoris pemasangannya cukup lengkap dan akan meningkatkan efisiensi proyek kami. Presenter menjelaskan proses instalasi dengan jelas. Kami perlu info lebih lanjut soal jadwal pengiriman, tapi secara keseluruhan kami sangat tertarik.'
   },
   {
     id: 'D007',
-    title: 'Demo Billing System - Praktek Dokter Keluarga',
-    leadName: 'dr. Lisa Permata Sari',
-    company: 'Praktek Bersama Dokter Keluarga',
+    title: 'Demo Waterproofing Membrane - CV Rumah Idaman Bersama',
+    leadName: 'Lisa Permata Sari',
+    company: 'CV Rumah Idaman Bersama',
     date: new Date(2026, 1, 20, 16, 0), // Feb 20, 2026, 4:00 PM
     time: '16:00',
     duration: 30,
     presenter: 'Dewi Lestari',
-    product: 'Billing System + EMR Standalone',
+    product: 'Waterproofing Membrane + Aksesoris Pemasangan',
     status: 'scheduled',
     meetingLink: 'https://meet.zoom.us/demo-bil001',
-    notes: 'Demo untuk praktek dokter, fokus pada billing dan BPJS integration',
+    notes: 'Demo untuk kontraktor perumahan, fokus pada garansi dan kemudahan aplikasi',
     attendees: [
       {
         id: 'A017',
-        name: 'dr. Lisa Permata Sari',
-        email: 'lisa@dokterpraktek.com',
+        name: 'Lisa Permata Sari',
+        email: 'info@rumahidamanbersama.com',
         type: 'external',
         rsvp: 'pending'
       },
       {
         id: 'A018',
         name: 'Dewi Lestari',
-        email: 'dewi.lestari@intramedika.com',
+        email: 'dewi.lestari@onduline.co.id',
         type: 'internal',
         rsvp: 'accepted'
       }
@@ -377,43 +383,43 @@ const demosDummyData = [
   },
   {
     id: 'D008',
-    title: 'Demo Laboratory LIS - RS Mitra Keluarga',
-    leadName: 'Dr. Bambang Sutrisno',
-    company: 'RS Mitra Keluarga Surabaya',
+    title: 'Demo Ondugreen Roof System - PT Kontraktor Bangun Persada',
+    leadName: 'Bambang Sutrisno',
+    company: 'PT Kontraktor Bangun Persada',
     date: new Date(2026, 1, 8, 9, 0), // Feb 8, 2026, 9:00 AM
     time: '09:00',
     duration: 90,
     presenter: 'Andi Wijaya',
-    product: 'Laboratory LIS',
+    product: 'Ondugreen Roof System',
     status: 'scheduled',
     meetingLink: 'https://meet.zoom.us/demo-lis001',
-    notes: 'Demo upgrade module LIS dengan auto-interface ke alat lab',
+    notes: 'Demo sistem green roof untuk proyek gedung bertingkat',
     attendees: [
       {
         id: 'A019',
-        name: 'Dr. Bambang Sutrisno, Sp.PD',
-        email: 'bambang@rsmitrakeluarga-sby.co.id',
+        name: 'Bambang Sutrisno, S.T.',
+        email: 'procurement@bangunpersada.co.id',
         type: 'external',
         rsvp: 'accepted'
       },
       {
         id: 'A020',
-        name: 'Lab Manager',
-        email: 'lab@rsmitrakeluarga-sby.co.id',
+        name: 'Site Manager',
+        email: 'site@bangunpersada.co.id',
         type: 'external',
         rsvp: 'accepted'
       },
       {
         id: 'A021',
         name: 'Andi Wijaya',
-        email: 'andi.wijaya@intramedika.com',
+        email: 'andi.wijaya@onduline.co.id',
         type: 'internal',
         rsvp: 'accepted'
       },
       {
         id: 'A022',
         name: 'Technical Support',
-        email: 'tech@intramedika.com',
+        email: 'tech@onduline.co.id',
         type: 'internal',
         rsvp: 'accepted'
       }
@@ -426,12 +432,12 @@ const demosDummyData = [
       },
       {
         id: 'R018',
-        name: 'Lab Equipment Demo',
+        name: 'Ondugreen Sample Panel',
         type: 'equipment'
       },
       {
         id: 'R019',
-        name: 'LIS Sandbox Environment',
+        name: 'Product Sandbox Environment',
         type: 'software'
       }
     ],
@@ -441,6 +447,7 @@ const demosDummyData = [
     }
   }
 ];
+
 
 /**
  * Initialize demos data to localStorage
