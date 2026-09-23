@@ -2507,3 +2507,116 @@ Commit: `9610c15e`.
 - [ ] VPS/Portainer: TIDAK perlu redeploy urgent (dikonfirmasi tidak
       dipakai) -- fix `server.ts` ikut kebawa kalau suatu saat jalur ini
       dipakai lagi, tapi tidak actionable sekarang.
+
+## 27. Bab 16.5 -- Sentry (no-op sampai DSN diisi) & Vitest smoke test pertama -- 23 Sep 2026
+
+### Konteks
+
+Lanjutan langsung dari section 26 (Tier 2). User minta "lanjutkan
+semuanya" dari sisa checklist Fase 2-4, TAPI eksplisit minta triase 154
+error TypeScript pre-existing TIDAK dilanjutkan (kerja besar tersendiri,
+di luar scope sesi ini). Jadi dikerjakan: Sentry + Vitest saja.
+
+### Sentry (error monitoring)
+
+`src/utils/sentry.ts` (baru): `initSentry()` dipanggil sekali di
+`src/main.tsx` sebelum render, `reportError()` dipanggil dari
+`ErrorBoundary.componentDidCatch` (section 25) di samping
+`console.error` yang sudah ada. Keduanya SENGAJA no-op kalau
+`VITE_SENTRY_DSN` tidak di-set -- belum ada akun Sentry yang dibuat
+untuk project ini (sama seperti pola `GEMINI_API_KEY` sebelumnya: kode
+siap, aktivasi butuh akun/kredensial yang harus dibuat user sendiri,
+bukan sesuatu yang saya create/isi).
+
+Bonus temuan: project ini juga tidak punya `src/vite-env.d.ts` sama
+sekali (baru ketahuan karena `import.meta.env.VITE_SENTRY_DSN` bikin TS
+error `Property 'env' does not exist on type 'ImportMeta'` begitu
+`tsconfig.json` mulai jalan) -- ditambahkan, file standar Vite
+(`/// <reference types="vite/client" />`), bukan workaround khusus
+Sentry.
+
+Commit: `c4d84ae4`.
+
+### Vitest (test suite pertama)
+
+Project ini sebelumnya nol dependency testing. Ditambah sebagai
+devDependencies: `vitest@4.1.11` (BUKAN versi 5.x terbaru -- vitest 5
+butuh `vite ^6.4.0`, project ini masih `vite@6.3.5`; upgrade vite di
+luar scope), `@testing-library/react`, `@testing-library/jest-dom`,
+`jsdom`. Config di `vitest.config.ts` terpisah dari `vite.config.ts`
+(pola standar yang direkomendasikan Vitest), environment `jsdom`, alias
+`@/*` disamakan.
+
+11 test di 3 file, sengaja smoke test untuk bagian yang paling berisiko
+dari kerja Tier 1, bukan coverage penuh:
+- `ErrorBoundary.test.tsx` -- render normal, tangkap error & tampilkan
+  fallback, pesan default vs custom, tombol "Coba Lagi".
+- `initializeAllData.test.ts` -- `needsDataInitialization()` dengan
+  data hilang/korup/kosong/valid (regresi langsung untuk commit
+  `1cbc7ac4`).
+- `kpiPersistence.test.ts` -- `getKPITargets()` dengan data korup/
+  valid/kosong.
+
+Sengaja TIDAK bikin test untuk `AppNotifications.tsx` sendiri (padahal
+itu yang paling relevan dengan fix Tier 1) -- komponennya butuh
+`ConfirmDialogProvider` + context lain untuk bisa dirender, effort-nya
+tidak sepadan untuk satu smoke test; dua test JSON.parse-guard di atas
+sudah cukup mengunci pola yang sama.
+
+CI: step baru "Run tests" (`npm test`) di `deploy.yml`, setelah type
+check, sebelum Docker build. Ini **blocking** (beda dari step type
+check yang `continue-on-error: true`) karena test yang ditulis sendiri
+sudah diverifikasi hijau semua.
+
+### Dua catatan teknis dari proses instalasi (untuk referensi kalau terulang)
+
+1. **`npm install` biasa crash** di sandbox ini (npm 10.9.8): error
+   internal arborist `Cannot read properties of null (reading
+   'edgesOut')` saat resolve dependency graph untuk vitest. Dikonfirmasi
+   ini bug npm 10.x, hilang di npm 12.1.0 -- diakali dengan
+   `npx npm@12.1.0 install ...` (tidak perlu ganti npm sandbox). Lockfile
+   hasilnya sudah diverifikasi `npm ci` pakai npm 10.9.8 (versi yang
+   sama dipakai CI/Docker) tetap sukses bersih, jadi tidak ada risiko
+   ini terulang di CI/Docker beneran. Kalau user sendiri kena error yang
+   sama pas `npm install` di Mac-nya, solusinya sama: coba
+   `npx npm@latest install`.
+2. **Jumlah error `tsc --noEmit` turun dari 154 ke 146** setelah
+   dependency baru terpasang -- sudah dicek ini BUKAN ada file yang
+   diam-diam berhenti di-scan (tsc tetap lapor error di 28 file yang
+   sama luasnya, termasuk `api/handler.ts` & `AppNotifications.tsx`),
+   kemungkinan besar efek samping ambient type tambahan yang ikut
+   terpasang bareng devDependencies baru. Bukan regresi, tidak perlu
+   tindakan -- dicatat di sini supaya sesi berikutnya tidak bingung
+   kenapa angka baseline "154" di section 23-26 beda dengan yang
+   terlihat sekarang.
+
+Commit: `85aa3d9a`.
+
+### Status akhir checklist Fase 2-4 (dari section 25/26)
+
+- [x] Error Boundary
+- [x] Audit & guard `JSON.parse(localStorage)`
+- [x] Kompresi logo
+- [x] `tsconfig.json`
+- [x] CI type-check (non-blocking) + CI test run (blocking)
+- [x] Sentry (kode siap, butuh `VITE_SENTRY_DSN` dari user untuk aktif)
+- [x] Test suite dasar (Vitest, smoke test)
+- [ ] Triase 154 error TypeScript pre-existing -- **sengaja tidak
+      dilanjutkan** (permintaan user 23 Sep 2026, kerja besar tersendiri)
+- [ ] Dependency cleanup ("8 unused") -- belum diverifikasi `depcheck`
+- [ ] Memoization (useMemo/useCallback/React.memo) -- sengaja skip,
+      lihat insight section 25 (volume data kecil, risiko lebih besar
+      dari manfaatnya saat ini)
+- [ ] React Router untuk deep-link -- refactor besar, belum disentuh
+
+### PENTING -- langkah manual user
+
+- [ ] `git pull` ambil commit `c4d84ae4` s/d `85aa3d9a` (Sentry +
+      Vitest).
+- [ ] Kalau mau aktifkan Sentry: buat akun & project baru di
+      `sentry.io` (platform React), copy DSN-nya, set
+      `VITE_SENTRY_DSN` di Vercel Environment Variables, redeploy.
+      Tanpa ini, Sentry tetap no-op (tidak error, cuma belum
+      melaporkan apa-apa) -- tidak wajib segera.
+- [ ] `npm test` bisa dijalankan lokal kapan saja (`npm run test:watch`
+      untuk mode watch).
