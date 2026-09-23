@@ -30,6 +30,34 @@ jobs:
 
 
       # ==========================================
+      # 1.5. Type Check (Bab 16.5 Tier 2, 23 Sep 2026)
+      #
+      # Visibility, NOT a blocking gate yet: this repo has 154
+      # pre-existing TypeScript errors (never checked before -- there
+      # was no tsconfig.json at all until now) that are out of scope to
+      # fix here. `continue-on-error: true` means this step's result
+      # shows up clearly in the Actions run (red X on the step, green
+      # check on the job) without blocking the actual deploy below.
+      # Once the backlog is triaged/fixed, drop continue-on-error to
+      # make this a real gate.
+      # ==========================================
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Type check (non-blocking for now)
+        continue-on-error: true
+        run: npx tsc --noEmit
+
+
+      # ==========================================
       # 2. Docker Buildx
       # ==========================================
       - name: Set up Docker Buildx
