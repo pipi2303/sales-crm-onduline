@@ -240,7 +240,16 @@ function toPoints(distributors: Distributor[], stores: Store[]): MapPoint[] {
   return [...distributorPoints, ...storePoints];
 }
 
-export function DistributorStoreMap() {
+interface DistributorStoreMapProps {
+  // Bab 12 (unifikasi menu CRM, 23 Sep 2026): saat dipasang sebagai tab
+  // "Distributor" atau "Toko" di SalesTeam.tsx, kunci tampilan ke satu
+  // jenis saja -- selector Tipe disembunyikan, kartu ringkasan & antrean
+  // approval ikut difilter. undefined = perilaku lama (semua tipe
+  // sekaligus), dipertahankan untuk kompatibilitas.
+  fixedTypeFilter?: PointKind;
+}
+
+export function DistributorStoreMap({ fixedTypeFilter }: DistributorStoreMapProps = {}) {
   const { user } = useAuth();
   const isApprover = !!user?.role && APPROVER_ROLES.has(user.role);
 
@@ -249,7 +258,8 @@ export function DistributorStoreMap() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [typeFilter, setTypeFilter] = useState<'all' | PointKind>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | PointKind>(fixedTypeFilter ?? 'all');
+  const effectiveTypeFilter: 'all' | PointKind = fixedTypeFilter ?? typeFilter;
   const [searchText, setSearchText] = useState('');
   const [showPending, setShowPending] = useState(false); // approver-only, default off
   const [mapMode, setMapMode] = useState<MapMode>('approval');
@@ -322,7 +332,7 @@ export function DistributorStoreMap() {
     return allPoints.filter((p) => {
       if (p.status === 'rejected') return false;
       if (p.status === 'pending' && !(isApprover && showPending)) return false;
-      if (typeFilter !== 'all' && p.kind !== typeFilter) return false;
+      if (effectiveTypeFilter !== 'all' && p.kind !== effectiveTypeFilter) return false;
       if (searchText.trim()) {
         const q = searchText.trim().toLowerCase();
         const haystack = `${p.name} ${p.code} ${p.address}`.toLowerCase();
@@ -330,13 +340,14 @@ export function DistributorStoreMap() {
       }
       return true;
     });
-  }, [allPoints, isApprover, showPending, typeFilter, searchText]);
+  }, [allPoints, isApprover, showPending, effectiveTypeFilter, searchText]);
 
   const pendingWithNearby = useMemo(() => {
     return allPoints
       .filter((p) => p.status === 'pending')
+      .filter((p) => effectiveTypeFilter === 'all' || p.kind === effectiveTypeFilter)
       .map((p) => ({ point: p, nearby: findNearbyPoints(p, allPoints) }));
-  }, [allPoints]);
+  }, [allPoints, effectiveTypeFilter]);
 
   const mapCenter = useMemo((): [number, number] => {
     if (allPoints.length === 0) return DEFAULT_CENTER;
@@ -350,28 +361,32 @@ export function DistributorStoreMap() {
   const summary = useMemo(() => {
     const totalDistributor = distributors.length;
     const totalStore = stores.length;
-    const pendingCount = allPoints.filter((p) => p.status === 'pending').length;
-    const approvedCount = allPoints.filter((p) => p.status === 'approved').length;
+    const scopedPoints = effectiveTypeFilter === 'all' ? allPoints : allPoints.filter((p) => p.kind === effectiveTypeFilter);
+    const pendingCount = scopedPoints.filter((p) => p.status === 'pending').length;
+    const approvedCount = scopedPoints.filter((p) => p.status === 'approved').length;
 
     // Fase 2: dihitung dari toko yang approved saja (sesuai dengan yang
     // tampil di peta secara default) -- toko tanpa data GPS tidak dihitung
-    // karena memang tidak muncul di peta ini sama sekali.
-    const approvedStoreIds = stores.filter((s) => s.status === 'approved' && s.gpsLat !== null && s.gpsLng !== null).map((s) => s.id);
+    // karena memang tidak muncul di peta ini sama sekali. Dilewati total
+    // kalau tab ini dikunci ke Distributor saja (tidak relevan).
     let neverVisited = 0;
     let overdue = 0;
     let noPhotoRecent = 0; // dikunjungi, tapi check-in terakhir tanpa foto
-    for (const id of approvedStoreIds) {
-      const visit = storeVisits.get(id);
-      if (!visit) {
-        neverVisited += 1;
-      } else {
-        if (visit.bucket === 'overdue') overdue += 1;
-        if (!visit.hasPhoto) noPhotoRecent += 1;
+    if (effectiveTypeFilter !== 'distributor') {
+      const approvedStoreIds = stores.filter((s) => s.status === 'approved' && s.gpsLat !== null && s.gpsLng !== null).map((s) => s.id);
+      for (const id of approvedStoreIds) {
+        const visit = storeVisits.get(id);
+        if (!visit) {
+          neverVisited += 1;
+        } else {
+          if (visit.bucket === 'overdue') overdue += 1;
+          if (!visit.hasPhoto) noPhotoRecent += 1;
+        }
       }
     }
 
     return { totalDistributor, totalStore, pendingCount, approvedCount, neverVisited, overdue, noPhotoRecent };
-  }, [distributors, stores, allPoints, storeVisits]);
+  }, [distributors, stores, allPoints, storeVisits, effectiveTypeFilter]);
 
   function colorFor(p: MapPoint): string {
     if (mapMode === 'visit' && p.kind === 'store') {
@@ -513,50 +528,64 @@ export function DistributorStoreMap() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#013E37]">Peta Distributor & Toko</h1>
+          <h1 className="text-2xl font-bold text-[#013E37]">
+            {fixedTypeFilter === 'distributor' ? 'Distributor' : fixedTypeFilter === 'store' ? 'Toko' : 'Peta Distributor & Toko'}
+          </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Sebaran lokasi Distributor dan Toko berdasarkan koordinat GPS, beserta status approval (Bab 9) dan riwayat kunjungan (Bab 8).
+            {fixedTypeFilter === 'distributor'
+              ? 'Sebaran lokasi Distributor berdasarkan koordinat GPS, beserta status approval (Bab 9).'
+              : fixedTypeFilter === 'store'
+              ? 'Sebaran lokasi Toko berdasarkan koordinat GPS, beserta status approval (Bab 9) dan riwayat kunjungan (Bab 8).'
+              : 'Sebaran lokasi Distributor dan Toko berdasarkan koordinat GPS, beserta status approval (Bab 9) dan riwayat kunjungan (Bab 8).'}
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => openCreate('distributor')}>
-            <Plus className="w-4 h-4 mr-2" />
-            Distributor Baru
-          </Button>
-          <Button variant="outline" onClick={() => openCreate('store')}>
-            <Plus className="w-4 h-4 mr-2" />
-            Toko Baru
-          </Button>
+          {(!fixedTypeFilter || fixedTypeFilter === 'distributor') && (
+            <Button variant="outline" onClick={() => openCreate('distributor')}>
+              <Plus className="w-4 h-4 mr-2" />
+              Distributor Baru
+            </Button>
+          )}
+          {(!fixedTypeFilter || fixedTypeFilter === 'store') && (
+            <Button variant="outline" onClick={() => openCreate('store')}>
+              <Plus className="w-4 h-4 mr-2" />
+              Toko Baru
+            </Button>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-[#013E37]/10 flex items-center justify-center">
-                <Truck className="w-5 h-5 text-[#013E37]" />
+      <div className={fixedTypeFilter ? "grid grid-cols-1 md:grid-cols-3 gap-4" : "grid grid-cols-2 md:grid-cols-4 gap-4"}>
+        {(!fixedTypeFilter || fixedTypeFilter === 'distributor') && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-[#013E37]/10 flex items-center justify-center">
+                  <Truck className="w-5 h-5 text-[#013E37]" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{summary.totalDistributor}</p>
+                  <p className="text-xs text-muted-foreground">Total Distributor</p>
+                </div>
               </div>
-              <div>
-                <p className="text-2xl font-bold">{summary.totalDistributor}</p>
-                <p className="text-xs text-muted-foreground">Total Distributor</p>
+            </CardContent>
+          </Card>
+        )}
+        {(!fixedTypeFilter || fixedTypeFilter === 'store') && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-[#013E37]/10 flex items-center justify-center">
+                  <StoreIcon className="w-5 h-5 text-[#013E37]" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{summary.totalStore}</p>
+                  <p className="text-xs text-muted-foreground">Total Toko</p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-[#013E37]/10 flex items-center justify-center">
-                <StoreIcon className="w-5 h-5 text-[#013E37]" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{summary.totalStore}</p>
-                <p className="text-xs text-muted-foreground">Total Toko</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
@@ -585,6 +614,7 @@ export function DistributorStoreMap() {
         </Card>
       </div>
 
+      {effectiveTypeFilter !== 'distributor' && (
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <Card className={summary.neverVisited > 0 ? 'border-gray-300 bg-gray-50/50' : ''}>
           <CardContent className="pt-6">
@@ -626,13 +656,14 @@ export function DistributorStoreMap() {
           </CardContent>
         </Card>
       </div>
+      )}
 
       {isApprover && (
         <Card className={summary.pendingCount > 0 ? 'border-amber-300' : ''}>
           <CardHeader>
             <CardTitle className="text-base">Antrean Approval ({summary.pendingCount})</CardTitle>
             <CardDescription>
-              Distributor & Toko yang menunggu persetujuan Anda. (Hanya menampilkan pengajuan yang sudah
+              {fixedTypeFilter === 'distributor' ? 'Distributor' : fixedTypeFilter === 'store' ? 'Toko' : 'Distributor & Toko'} yang menunggu persetujuan Anda. (Hanya menampilkan pengajuan yang sudah
               punya koordinat GPS -- lihat catatan di kode.)
             </CardDescription>
           </CardHeader>
@@ -705,38 +736,55 @@ export function DistributorStoreMap() {
             <div>
               <CardTitle className="text-base">Peta Sebaran</CardTitle>
               <CardDescription>
-                Kotak = Distributor, lingkaran = Toko.{' '}
-                {mapMode === 'approval'
-                  ? 'Hijau = approved, kuning = pending.'
-                  : 'Warna Toko mengikuti kapan terakhir dikunjungi (hijau = baru, kuning = perlu kunjungan ulang, merah = terlambat, abu-abu = belum pernah). Distributor tetap warna status approval.'}
+                {fixedTypeFilter === 'distributor' && 'Kotak = Distributor. Hijau = approved, kuning = pending.'}
+                {fixedTypeFilter === 'store' && (
+                  <>
+                    Lingkaran = Toko.{' '}
+                    {mapMode === 'approval'
+                      ? 'Hijau = approved, kuning = pending.'
+                      : 'Warna mengikuti kapan terakhir dikunjungi (hijau = baru, kuning = perlu kunjungan ulang, merah = terlambat, abu-abu = belum pernah).'}
+                  </>
+                )}
+                {!fixedTypeFilter && (
+                  <>
+                    Kotak = Distributor, lingkaran = Toko.{' '}
+                    {mapMode === 'approval'
+                      ? 'Hijau = approved, kuning = pending.'
+                      : 'Warna Toko mengikuti kapan terakhir dikunjungi (hijau = baru, kuning = perlu kunjungan ulang, merah = terlambat, abu-abu = belum pernah). Distributor tetap warna status approval.'}
+                  </>
+                )}
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <Select value={mapMode} onValueChange={(v) => setMapMode(v as MapMode)}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Mode Peta" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="approval">Mode: Status Approval</SelectItem>
-                  <SelectItem value="visit">Mode: Kunjungan Toko</SelectItem>
-                </SelectContent>
-              </Select>
+              {effectiveTypeFilter !== 'distributor' && (
+                <Select value={mapMode} onValueChange={(v) => setMapMode(v as MapMode)}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Mode Peta" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="approval">Mode: Status Approval</SelectItem>
+                    <SelectItem value="visit">Mode: Kunjungan Toko</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
               <Input
                 placeholder="Cari nama, kode, atau alamat..."
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
                 className="w-56"
               />
-              <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as 'all' | PointKind)}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Tipe" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua Tipe</SelectItem>
-                  <SelectItem value="distributor">Distributor</SelectItem>
-                  <SelectItem value="store">Toko</SelectItem>
-                </SelectContent>
-              </Select>
+              {!fixedTypeFilter && (
+                <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as 'all' | PointKind)}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Tipe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Tipe</SelectItem>
+                    <SelectItem value="distributor">Distributor</SelectItem>
+                    <SelectItem value="store">Toko</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
               {isApprover && (
                 <div className="flex items-center gap-2">
                   <Switch id="show-pending" checked={showPending} onCheckedChange={setShowPending} />

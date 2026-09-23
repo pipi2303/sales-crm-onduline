@@ -6,7 +6,7 @@ import { lazy } from 'react';
 import {
   Home as HomeIcon, Users, Package, FileText, BarChart3, Settings,
   Target, TrendingUp, Percent, CheckSquare, Book, Clipboard, UserPlus,
-  MapPin, Mail, Plug, DollarSign, Navigation,
+  MapPin, Mail, Plug, DollarSign,
 } from 'lucide-react';
 import { Home } from '@/app/components/Home';
 import type { MenuGroup } from '@/types/menu';
@@ -31,7 +31,6 @@ const KnowledgeBase = lazy(() => import('@/app/components/KnowledgeBase').then(m
 const ConfigurePriceQuote = lazy(() => import('@/app/components/ConfigurePriceQuote').then(m => ({ default: m.ConfigurePriceQuote })));
 const LeadManagement = lazy(() => import('@/app/components/LeadManagement').then(m => ({ default: m.LeadManagement })));
 const TerritoryManagement = lazy(() => import('@/app/components/TerritoryManagement').then(m => ({ default: m.TerritoryManagement })));
-const DistributorStoreMap = lazy(() => import('@/app/components/DistributorStoreMap').then(m => ({ default: m.DistributorStoreMap })));
 const EmailCommunicationHub = lazy(() => import('@/app/components/EmailCommunicationHub').then(m => ({ default: m.EmailCommunicationHub })));
 const IntegrationHub = lazy(() => import('@/app/components/IntegrationHub').then(m => ({ default: m.IntegrationHub })));
 const CommissionCalculator = lazy(() => import('@/app/components/CommissionCalculator').then(m => ({ default: m.CommissionCalculator })));
@@ -66,7 +65,10 @@ export const menuGroups: MenuGroup[] = [
     items: [
       { id: 'products', name: 'Product Catalog', icon: Package, component: ProductCatalog },
       { id: 'territory', name: 'Territory Management', icon: MapPin, component: TerritoryManagement },
-      { id: 'distributor-store-map', name: 'Peta Distributor & Toko', icon: Navigation, component: DistributorStoreMap },
+      // Bab 12 (unifikasi menu CRM, 23 Sep 2026): "Peta Distributor & Toko"
+      // dipindah sepenuhnya ke menu CRM (SalesTeam.tsx, tab Distributor &
+      // Toko) -- lihat DistributorStoreMap.tsx. Tidak lagi jadi menu
+      // sidebar tersendiri di sini.
     ],
   },
   {
