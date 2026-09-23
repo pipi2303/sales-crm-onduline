@@ -1611,3 +1611,117 @@ tambahan sama sekali).
       sales rep berfungsi di produksi (sebelum itu, kolom `salesRepId`
       belum ada di DB & Prisma Client belum tahu field ini ada).
 - [ ] `git push origin main` untuk commit `160f0f28` dan `a8b67963`.
+
+## 18. Fase A (Bab 12-15 lanjutan) -- dummy data realistis Client + Opportunity + stock/sold per SKU -- 23 Sep 2026
+
+### Konteks
+
+Audit gap Bab 12-15 (diminta user via "apakah masih ada gap tersisa?" lalu klarifikasi
+atas analisis Bab 12-15 milik user sendiri) menyimpulkan:
+
+- 30 titik distributor/toko sudah sesuai dokumen (11 distributor + 19 toko) -- tidak
+  ada gap.
+- Dashboard Bab 13 (revenue MTD/YTD, win rate, kepatuhan visit) belum ada implementasi
+  sama sekali -- `Home.tsx` nol istilah MTD/YTD/win-rate, `AdvancedAnalytics.tsx` berisi
+  nilai KPI hardcoded literal ("Win Rate Tim" 72.4%, dst) tanpa satupun panggilan
+  repository/API/useEffect.
+- Fitur AI Bab 14 TIDAK nol seperti klaim awal user, tapi 10 file (~4.733 baris)
+  penamaan `AI*` yang murni rule-based/hardcoded di sisi klien -- nol `fetch`/`axios`/
+  `Repository.`/`/api/` call di manapun, tidak ada dependency AI/LLM di `package.json`.
+  Kosmetik "AI" (ikon Sparkles/Brain) tapi tidak terhubung ke backend atau LLM apapun.
+- Database Vercel (Bab 15) sudah lunas total di sesi-sesi sebelumnya (Neon Postgres +
+  Prisma).
+- Temuan kritis yang mendasari urutan kerja: **produksi punya 0 Client dan 0
+  Opportunity**. Ini memblokir Bab 13 (tidak ada data revenue untuk dihitung) dan Bab 14
+  (tidak ada data nyata untuk fitur AI yang nanti disambungkan). Stock/sold produk juga
+  masih flat seragam (200/5) di semua 29 SKU sejak seeding awal -- dilaporkan user
+  sebagai temuan gap dummy data tidak realistis.
+
+Rencana dipecah 3 fase (user bertanya "ada berapa fase?" lalu menginstruksikan "lanjut
+fase A"):
+
+- **Fase A** (sesi ini): bangun fondasi data -- Client + Opportunity + stock/sold
+  realistis. Prasyarat wajib sebelum Fase B/C bisa berarti apa-apa.
+- **Fase B** (belum dikerjakan): dashboard Bab 13, dihitung langsung dari data
+  Opportunity/Task hasil Fase A.
+- **Fase C** (belum dikerjakan, perlu keputusan bisnis dari user dulu): fitur AI Bab 14
+  -- pilihan antara menyambungkan rule-based yang sudah ada ke data nyata, vs
+  integrasi LLM sungguhan.
+
+### Yang dikerjakan (Fase A)
+
+- **`prisma/seedData/productCatalog.ts`**: tambah field `stock`/`sold` ke
+  `ProductInstanceSeed`, isi nilai realistis per SKU untuk semua 29 produk (bukan lagi
+  seragam). Contoh: `ONDC-BRN` (atap best-seller) stok 800 terjual 310; `OSFG-5KWP`
+  (panel surya besar) stok tipis 4 belum terjual; `OSCR-100` stok 900 terjual 340;
+  `BARD-GRY` stok 320 terjual 95.
+- **`prisma/seedData/clientsAndOpportunities.ts`** (baru, 482 baris): 12 Client + 24
+  Opportunity sintetis, seluruhnya terikat ke entitas produksi nyata yang sudah ada --
+  bukan data mengambang:
+  - Nama Territory nyata (lookup, bukan buat baru).
+  - Email User nyata (owner Opportunity, submittedBy Client).
+  - Kode Distributor/Store nyata (`DIST-JKT01`, `DIST-JBR01`, `DIST-JTM01`,
+    `TOKO-JBR02`, masing-masing dapat 3 Client).
+  - SKU produk asli dari `productCatalog.ts` untuk tiap `OpportunityProduct`.
+  - Distribusi status: 11 won, 5 lost, 8 open pipeline -> win rate ~68.75%. Tanggal
+    tersebar Jan-Sep 2026 untuk deal closed, Agt-Sep 2026 (createdDate) dengan
+    closeDate masa depan Okt-Des 2026 untuk pipeline terbuka.
+- **`prisma/seed.ts`**:
+  - Tambah `seedClients()` dan `seedOpportunities()`, keduanya upsert-safe dan
+    validasi ketat: throw error eksplisit (bukan diam-diam membuat data baru) jika
+    email User, kode Distributor/Store, nama Territory, atau SKU produk yang
+    direferensikan tidak ditemukan di DB.
+  - **Perbaikan penting**: `seedProductInstances()`'s blok `update:` sebelumnya TIDAK
+    menulis `stock`/`sold` (hanya ada di blok `create:`), sehingga menjalankan ulang
+    seed tidak pernah memperbaiki data produksi yang sudah telanjur flat. Sekarang
+    blok `update:` juga menulis `stock: p.stock, sold: p.sold`.
+  - `main()` diperluas: `seedDistributorsAndStores()` -> `seedProductCatalog()` ->
+    `seedProductInstances()` -> `seedClients()` -> `seedOpportunities()`.
+
+### Keputusan desain
+
+- **`PerformanceTarget.actual` sengaja TIDAK di-seed.** Field ini adalah proses bisnis
+  manual, diisi lewat form di `TerritoryManagement.tsx` (`actual: newTerritory.revenue
+  || 0`), bukan hasil agregasi otomatis dari Opportunity di manapun di aplikasi saat
+  ini. Men-seed nilai di sini berisiko konflik dengan alur bisnis manual yang sudah
+  ada. Perhitungan Revenue MTD/YTD untuk Fase B akan dihitung langsung dari data
+  Opportunity (hasil Fase A ini), bukan dari `PerformanceTarget`.
+- **Territory tetap tidak pernah di-seed** (konsisten dengan keputusan sebelumnya) --
+  `seedOpportunities()` melakukan `findFirst` by nama dan throw jika tidak ketemu,
+  bukan membuat Territory baru.
+- Field `is_demo` yang disebut dalam analisis awal user (untuk menandai data dummy)
+  sengaja TIDAK ditambahkan di Fase A ini -- keputusan sepihak saya untuk tidak
+  memblokir eksekusi pada pertanyaan kedua, dinyatakan sebagai asumsi eksplisit.
+  Perlu didiskusikan lagi kalau user menganggap ini penting.
+
+### Verifikasi
+
+Isolated `tsc --noEmit` (tsconfig sementara, strict mode, mencakup `prisma/**/*.ts`
+selain `src/`+`api/` seperti biasa) menghasilkan 100 error yang **identik byte-for-byte**
+dengan baseline sebelum perubahan Fase A ini (dikonfirmasi via `git stash` + `diff`).
+Nol error baru dari ketiga file yang diubah. Dicek juga secara terpisah dengan
+kompilasi eksplisit hanya ketiga file (`seed.ts`, `clientsAndOpportunities.ts`,
+`productCatalog.ts`) -- nol error.
+
+Commit: `a699fd98`.
+
+### PENTING -- langkah manual yang wajib dijalankan user
+
+- [ ] Sandbox ini tidak bisa menjangkau Neon Postgres. Jalankan `npx prisma db seed`
+      di mesin lokal (pastikan `DATABASE_URL` sudah di-set) agar 12 Client, 24
+      Opportunity, dan stock/sold baru untuk 29 produk benar-benar masuk ke database
+      produksi.
+- [ ] Setelah seed berhasil, verifikasi cepat: cek jumlah Client & Opportunity di
+      produksi tidak lagi 0, dan spot-check beberapa produk (mis. `OSFG-5KWP`) punya
+      stock/sold yang bervariasi, bukan 200/5 seragam.
+- [ ] Migration `salesRepId` dari section 17 (`160f0f28`) masih belum dijalankan
+      manual -- pastikan `npx prisma migrate deploy && npx prisma generate` juga
+      dijalankan kalau belum, karena Fase B nanti kemungkinan akan menyentuh
+      relasi ini juga.
+
+### Belum dikerjakan (menunggu keputusan user)
+
+- Fase B: dashboard Bab 13 (Revenue MTD/YTD, Win Rate, kepatuhan visit) dihitung dari
+  data Opportunity/Task hasil Fase A ini.
+- Fase C: fitur AI Bab 14 -- perlu keputusan bisnis dulu (sambungkan rule-based ke data
+  nyata vs integrasi LLM sungguhan) sebelum eksekusi.
