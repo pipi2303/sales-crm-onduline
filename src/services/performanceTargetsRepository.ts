@@ -1,30 +1,55 @@
-// Performance targets repository — adapter layer over the unified
-// target/actual/forecast model (see src/types/performanceTarget.ts for
-// why this replaces four separate implementations across the codebase).
+// Performance targets repository — same adapter pattern as
+// leadsRepository.ts. See src/types/performanceTarget.ts for the
+// "exclusive arc" rule (exactly one of productId/salesRepId/territoryId).
 //
-// Same localStorage-now/Postgres-later adapter shape as
-// productsRepository.ts, and the same reasoning for keeping it separate
-// from api.ts: validation belongs here, not scattered across whichever
-// component happens to write a target/achievement number.
+// Fase 1 item 2 (23 Sep 2026): PerformanceTarget already existed in
+// prisma/schema.prisma but had no route, so this used to be
+// localStorage-only. Now calls GET/POST/PUT/DELETE /api/performance-targets.
+// Two shape gaps bridged here:
+// - target/actual/forecast are Decimal columns, which serialize to JSON
+//   as strings — Number() on every read (same as Lead.value).
+// - period is a DateTime column but the frontend type treats it as a
+//   plain 'YYYY-MM-DD' string — sliced to the date portion on read.
+// getForEntity filters client-side over the full list rather than via a
+// query param, since no other route in this app relies on anything past
+// resource/id surviving vercel.json's rewrite.
 
 import type { PerformanceTarget, NewPerformanceTarget } from '@/types/performanceTarget';
 import type { Result } from '@/types/result';
 
-
-const STORAGE_KEY = 'sales_monitoring_performance_targets';
-
-function readAll(): PerformanceTarget[] {
+function getAuthToken(): string | undefined {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as PerformanceTarget[]) : [];
-  } catch (error) {
-    console.error('performanceTargetsRepository: corrupted localStorage data, resetting to empty', error);
-    return [];
+    const raw = localStorage.getItem('salesMonitorUser');
+    if (!raw) return undefined;
+    return JSON.parse(raw)?.accessToken;
+  } catch {
+    return undefined;
   }
 }
 
-function writeAll(targets: PerformanceTarget[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(targets));
+async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<Result<T>> {
+  try {
+    const token = getAuthToken();
+    const res = await fetch(path, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+    });
+    const body = res.status === 204 ? { success: true } : await res.json();
+    if (!res.ok) {
+      if (res.status === 401) {
+        return { success: false, error: 'Sesi login tidak valid atau sudah berakhir. Silakan logout dan login kembali.' };
+      }
+      return { success: false, error: body.error ?? 'Terjadi kesalahan pada server' };
+    }
+    return body as Result<T>;
+  } catch (error) {
+    console.error(`performanceTargetsRepository: request failed (${path}):`, error);
+    return { success: false, error: 'Tidak dapat terhubung ke server. Periksa koneksi Anda dan coba lagi.' };
+  }
 }
 
 function entityKey(input: Pick<NewPerformanceTarget, 'productId' | 'salesRepId' | 'territoryId'>): string {
@@ -33,71 +58,49 @@ function entityKey(input: Pick<NewPerformanceTarget, 'productId' | 'salesRepId' 
   return `territory:${input.territoryId}`;
 }
 
-/** Mirrors the DB "exclusive arc" check constraint — exactly one entity reference, never zero, never more than one. */
-function validate(input: NewPerformanceTarget): string | null {
-  const setCount = [input.productId, input.salesRepId, input.territoryId].filter((v) => v !== undefined && v !== null).length;
-  if (setCount !== 1) return 'Harus mengisi tepat satu dari productId, salesRepId, atau territoryId';
-  if (!input.period?.trim()) return 'Period wajib diisi (format tanggal ISO, misal 2026-09-01)';
-  if (typeof input.target !== 'number' || input.target < 0) return 'Target harus angka >= 0';
-  if (input.actual !== undefined && (typeof input.actual !== 'number' || input.actual < 0)) return 'Actual harus angka >= 0';
-  if (input.forecast !== undefined && (typeof input.forecast !== 'number' || input.forecast < 0)) return 'Forecast harus angka >= 0';
-  return null;
+function fromApiTarget(row: any): PerformanceTarget {
+  return {
+    ...row,
+    period: typeof row.period === 'string' ? row.period.slice(0, 10) : row.period,
+    target: Number(row.target),
+    actual: Number(row.actual),
+    forecast: row.forecast !== null && row.forecast !== undefined ? Number(row.forecast) : undefined,
+  } as PerformanceTarget;
 }
 
 export const performanceTargetsRepository = {
   async getAll(): Promise<Result<PerformanceTarget[]>> {
-    return { success: true, data: readAll() };
+    const res = await apiFetch<any[]>('/api/performance-targets');
+    if (!res.success || !res.data) return res as Result<PerformanceTarget[]>;
+    return { success: true, data: res.data.map(fromApiTarget) };
   },
 
-  /** Convenience filter — most callers want "all targets for this product/rep/territory", not the whole table. */
   async getForEntity(entity: Pick<NewPerformanceTarget, 'productId' | 'salesRepId' | 'territoryId'>): Promise<Result<PerformanceTarget[]>> {
+    const all = await performanceTargetsRepository.getAll();
+    if (!all.success || !all.data) return all;
     const key = entityKey(entity);
-    const data = readAll().filter((t) => entityKey(t) === key);
-    return { success: true, data };
+    return { success: true, data: all.data.filter((t) => entityKey(t) === key) };
   },
 
   async create(input: NewPerformanceTarget): Promise<Result<PerformanceTarget>> {
-    const validationError = validate(input);
-    if (validationError) return { success: false, error: validationError };
-
-    const targets = readAll();
-    const key = entityKey(input);
-    if (targets.some((t) => entityKey(t) === key && t.period === input.period)) {
-      return { success: false, error: 'Sudah ada target untuk entity dan period yang sama' };
-    }
-
-    const now = new Date().toISOString();
-    const created: PerformanceTarget = {
-      ...input,
-      actual: input.actual ?? 0,
-      id: crypto.randomUUID(),
-      createdAt: now,
-      updatedAt: now,
-    } as PerformanceTarget;
-    targets.push(created);
-    writeAll(targets);
-    return { success: true, data: created };
+    const res = await apiFetch<any>('/api/performance-targets', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+    if (!res.success || !res.data) return res as Result<PerformanceTarget>;
+    return { success: true, data: fromApiTarget(res.data) };
   },
 
   async update(id: string, updates: Partial<NewPerformanceTarget>): Promise<Result<PerformanceTarget>> {
-    const targets = readAll();
-    const index = targets.findIndex((t) => t.id === id);
-    if (index === -1) return { success: false, error: 'Target tidak ditemukan' };
-
-    const merged = { ...targets[index], ...updates, updatedAt: new Date().toISOString() } as PerformanceTarget;
-    const validationError = validate(merged);
-    if (validationError) return { success: false, error: validationError };
-
-    targets[index] = merged;
-    writeAll(targets);
-    return { success: true, data: merged };
+    const res = await apiFetch<any>(`/api/performance-targets/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+    if (!res.success || !res.data) return res as Result<PerformanceTarget>;
+    return { success: true, data: fromApiTarget(res.data) };
   },
 
   async remove(id: string): Promise<Result<void>> {
-    const targets = readAll();
-    const filtered = targets.filter((t) => t.id !== id);
-    if (filtered.length === targets.length) return { success: false, error: 'Target tidak ditemukan' };
-    writeAll(filtered);
-    return { success: true };
+    return apiFetch<void>(`/api/performance-targets/${id}`, { method: 'DELETE' });
   },
 };

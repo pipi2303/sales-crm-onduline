@@ -20,7 +20,8 @@ import { ClientDetailDialog } from '@/app/components/ClientDetailDialog';
 import { PartnerDetailDialog } from '@/app/components/PartnerDetailDialog';
 import { AIInsightsDashboard } from '@/app/components/ai/AIInsightsDashboard';
 import { ExportButton } from '@/app/components/ExportButton';
-import { employeesApi, clientsApi, partnersApi, communicationsApi } from '@/services/api';
+import { employeesApi, partnersApi, communicationsApi } from '@/services/api';
+import { clientsRepository } from '@/services/clientsRepository';
 import { populateCRMToLocalStorage } from '@/utils/initializeAllData';
 
 const API_URL = 'https://mock-project-id.supabase.co/functions/v1/make-server-67367fc1'; // Disabled - using localStorage
@@ -159,7 +160,7 @@ export function SalesTeam() {
   const fetchClients = async () => {
     try {
       setLoading(true);
-      const result = await clientsApi.getAll();
+      const result = await clientsRepository.getAll();
       
       if (result.success) {
         setClients(result.data || []);
@@ -177,7 +178,7 @@ export function SalesTeam() {
     if (!(await confirm('Apakah Anda yakin ingin menghapus data client ini?', { variant: 'destructive', confirmText: 'Hapus' }))) return;
     
     try {
-      const result = await clientsApi.delete(id);
+      const result = await clientsRepository.remove(id);
       
       if (result.success) {
         toast.success('Client berhasil dihapus');

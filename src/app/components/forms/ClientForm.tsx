@@ -23,7 +23,7 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger 
 } from '@/app/components/ui/tooltip';
 import { Button } from '@/app/components/ui/button';
-import { clientsApi } from '@/services/api';
+import { clientsRepository } from '@/services/clientsRepository';
 
 interface ClientFormProps {
   client: any;
@@ -179,8 +179,8 @@ export function ClientFormModal({ client, onClose, onSuccess }: ClientFormProps)
       };
 
       const result = client
-        ? await clientsApi.update(client.id, payload)
-        : await clientsApi.create(payload);
+        ? await clientsRepository.update(client.id, payload)
+        : await clientsRepository.create(payload);
       
       if (result.success) {
         toast.success(client ? 'Data client berhasil diupdate!' : 'Data client berhasil ditambahkan!');
@@ -371,7 +371,7 @@ export function ClientFormModal({ client, onClose, onSuccess }: ClientFormProps)
                           value={formData.nama_entitas}
                           onChange={handleChange}
                           required
-                          placeholder="RS Harapan Sehat"
+                          placeholder="Toko Bangunan Makmur Jaya"
                           className="bg-white border-gray-300 focus:border-emerald-500 focus:ring-emerald-500 h-11 text-base font-medium"
                         />
                       </div>

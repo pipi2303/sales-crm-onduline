@@ -43,7 +43,8 @@ import {
   Activity
 } from 'lucide-react';
 import type { Opportunity, ProductItem } from '@/types/opportunity';
-import { clientsApi, partnersApi, employeesApi } from '@/services/api';
+import { partnersApi, employeesApi } from '@/services/api';
+import { clientsRepository } from '@/services/clientsRepository';
 
 interface OpportunityFormNewProps {
   opportunity: Opportunity | null;
@@ -198,7 +199,7 @@ export function OpportunityFormNew({ opportunity, products, onSave, onCancel }: 
     whyBuyAnything: '',
     whyBuyNow: '',
     evaluationStarted: false,
-    budgetStatus: 'No' as 'No' | 'Available' | 'Approved',
+    budgetAvailabilityStatus: 'No' as 'No' | 'Available' | 'Approved',
     whyBuyIntramedika: '',
     winStrategyBuyingProcess: '',
     jointExecutionPlanCreated: '',
@@ -239,7 +240,7 @@ export function OpportunityFormNew({ opportunity, products, onSave, onCancel }: 
   const fetchData = async () => {
     try {
       const [clientsResult, partnersResult, employeesResult] = await Promise.all([
-        clientsApi.getAll(),
+        clientsRepository.getAll(),
         partnersApi.getAll(),
         employeesApi.getAll(),
       ]);
@@ -362,7 +363,7 @@ export function OpportunityFormNew({ opportunity, products, onSave, onCancel }: 
       whyBuyAnything: opp.whyBuyAnything || '',
       whyBuyNow: opp.whyBuyNow || '',
       evaluationStarted: opp.evaluationStarted || false,
-      budgetStatus: opp.budgetStatus || 'No',
+      budgetAvailabilityStatus: opp.budgetAvailabilityStatus || 'No',
       whyBuyIntramedika: opp.whyBuyIntramedika || '',
       winStrategyBuyingProcess: opp.winStrategyBuyingProcess || '',
       jointExecutionPlanCreated: opp.jointExecutionPlanCreated || '',
@@ -1802,8 +1803,8 @@ export function OpportunityFormNew({ opportunity, products, onSave, onCancel }: 
                           <div className="space-y-2">
                             <Label>Budget Status?</Label>
                             <Select
-                              value={commercialDetails.budgetStatus}
-                              onValueChange={(value: any) => setCommercialDetails({ ...commercialDetails, budgetStatus: value })}
+                              value={commercialDetails.budgetAvailabilityStatus}
+                              onValueChange={(value: any) => setCommercialDetails({ ...commercialDetails, budgetAvailabilityStatus: value })}
                             >
                               <SelectTrigger>
                                 <SelectValue />

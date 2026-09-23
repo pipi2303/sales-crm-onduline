@@ -420,6 +420,467 @@ async function handleLeads(id: string | undefined, req: ApiRequest, res: ApiResp
 }
 
 // ---------------------------------------------------------------------
+// /api/clients, /api/clients/:id
+//
+// Fase 1 item 2: Client used to be entirely localStorage-backed via
+// src/services/api.ts's clientsApi (ClientForm.tsx, SalesTeam.tsx,
+// OpportunityFormNew.tsx) even though the Client model has existed in
+// prisma/schema.prisma from the start (it just had no route). That meant
+// every browser had its own private, never-shared list of clients -- and
+// since the template this app started from was healthcare software, the
+// model's optional fields (idSatusehat/idFaskesBpjs/statusAkreditasi/
+// volumePasien/jumlahTempatTidur/npwpFaskes) are healthcare-shaped. They
+// stay on the model as-is here (Fase 1 item 5, unifying the data model,
+// is a separate piece of work) -- any client can simply leave them blank.
+// ---------------------------------------------------------------------
+
+function generateCustomerId(): string {
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `CUS-${date}-${rand}`;
+}
+
+async function handleClients(id: string | undefined, req: ApiRequest, res: ApiResponse) {
+  try {
+    const user = await getUserFromToken(extractBearerToken(req.headers.authorization));
+
+    if (!id) {
+      // GET/POST /api/clients
+      requireAuth(user);
+
+      if (req.method === 'GET') {
+        const clients = await prisma.client.findMany({ orderBy: { createdAt: 'desc' } });
+        res.status(200).json({ success: true, data: clients });
+        return;
+      }
+
+      if (req.method === 'POST') {
+        const body = (req.body ?? {}) as Record<string, unknown>;
+        if (!body.namaEntitas || !body.kategoriClient) {
+          res.status(400).json({ success: false, error: 'namaEntitas dan kategoriClient wajib diisi' });
+          return;
+        }
+        const client = await prisma.client.create({
+          data: {
+            idCustomer: (body.idCustomer as string) || generateCustomerId(),
+            namaEntitas: body.namaEntitas as string,
+            kategoriClient: body.kategoriClient as string,
+            owner: (body.owner as string) ?? user.id,
+            alamatLengkap: (body.alamatLengkap as string) ?? null,
+            koordinatGps: (body.koordinatGps as string) ?? null,
+            nomorTelepon: (body.nomorTelepon as string) ?? null,
+            emailResmi: (body.emailResmi as string) ?? null,
+            idSatusehat: (body.idSatusehat as string) ?? null,
+            idFaskesBpjs: (body.idFaskesBpjs as string) ?? null,
+            statusAkreditasi: (body.statusAkreditasi as string) ?? null,
+            sistemLama: (body.sistemLama as string) ?? null,
+            volumePasien: (body.volumePasien as string) ?? null,
+            jumlahTempatTidur: (body.jumlahTempatTidur as string) ?? null,
+            namaPic: (body.namaPic as string) ?? null,
+            jabatanPic: (body.jabatanPic as string) ?? null,
+            whatsappPic: (body.whatsappPic as string) ?? null,
+            statusHubungan: (body.statusHubungan as string) ?? null,
+            paketAktif: (body.paketAktif as string) ?? null,
+            modulTambahan: (body.modulTambahan as string) ?? null,
+            statusKontrak: (body.statusKontrak as string) ?? null,
+            statusSubscription: (body.statusSubscription as string) ?? null,
+            tanggalMulaiLangganan: (body.tanggalMulaiLangganan as string) ?? null,
+            tanggalHabisKontrak: (body.tanggalHabisKontrak as string) ?? null,
+            totalNilaiKontrak: (body.totalNilaiKontrak as string) ?? null,
+            fileKontrakDigital: (body.fileKontrakDigital as string) ?? null,
+            statusEsign: (body.statusEsign as string) ?? null,
+            npwpFaskes: (body.npwpFaskes as string) ?? null,
+            salesFlow: (body.salesFlow as 'PROJECT' | 'RETAIL') ?? null,
+            distributorId: (body.distributorId as string) ?? null,
+            storeId: (body.storeId as string) ?? null,
+          },
+        });
+        res.status(201).json({ success: true, data: client });
+        return;
+      }
+
+      res.status(405).json({ success: false, error: 'Method not allowed' });
+      return;
+    }
+
+    // GET/PUT/DELETE /api/clients/:id
+    if (req.method === 'GET') {
+      requireAuth(user);
+      const client = await prisma.client.findUnique({ where: { id }, include: { opportunities: true } });
+      if (!client) {
+        res.status(404).json({ success: false, error: 'Client not found' });
+        return;
+      }
+      res.status(200).json({ success: true, data: client });
+      return;
+    }
+
+    if (req.method === 'PUT') {
+      requireAuth(user);
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const editableFields = [
+        'namaEntitas', 'kategoriClient', 'owner', 'alamatLengkap', 'koordinatGps',
+        'nomorTelepon', 'emailResmi', 'idSatusehat', 'idFaskesBpjs', 'statusAkreditasi',
+        'sistemLama', 'volumePasien', 'jumlahTempatTidur', 'namaPic', 'jabatanPic',
+        'whatsappPic', 'statusHubungan', 'paketAktif', 'modulTambahan', 'statusKontrak',
+        'statusSubscription', 'tanggalMulaiLangganan', 'tanggalHabisKontrak',
+        'totalNilaiKontrak', 'fileKontrakDigital', 'statusEsign', 'npwpFaskes',
+        'salesFlow', 'distributorId', 'storeId',
+      ] as const;
+      const data: Record<string, unknown> = {};
+      for (const field of editableFields) {
+        if (body[field] !== undefined) data[field] = body[field];
+      }
+      const client = await prisma.client.update({ where: { id }, data });
+      res.status(200).json({ success: true, data: client });
+      return;
+    }
+
+    if (req.method === 'DELETE') {
+      requireRole(user, ['SUPER_ADMIN', 'SALES_MANAGER']);
+      await prisma.client.delete({ where: { id } });
+      res.status(200).json({ success: true });
+      return;
+    }
+
+    res.status(405).json({ success: false, error: 'Method not allowed' });
+  } catch (err) {
+    if (err instanceof UnauthorizedError || err instanceof ForbiddenError) {
+      res.status(err.status).json({ success: false, error: err.message });
+      return;
+    }
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2025') {
+      res.status(404).json({ success: false, error: 'Client not found' });
+      return;
+    }
+    console.error('[api/clients] unexpected error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
+// ---------------------------------------------------------------------
+// /api/sales-reps, /api/sales-reps/:id
+//
+// Fase 1 item 2 (23 Sep 2026): SalesRep already existed in
+// prisma/schema.prisma (a deliberately minimal identity record -- see
+// src/types/salesRep.ts -- just enough for PerformanceTarget/
+// CommissionRecord to reference) but had no route, so
+// salesRepsRepository.ts was localStorage-only. Plain CRUD, no
+// healthcare-shaped fields, no schema gap.
+// ---------------------------------------------------------------------
+
+async function handleSalesReps(id: string | undefined, req: ApiRequest, res: ApiResponse) {
+  try {
+    const user = await getUserFromToken(extractBearerToken(req.headers.authorization));
+
+    if (!id) {
+      requireAuth(user);
+
+      if (req.method === 'GET') {
+        const salesReps = await prisma.salesRep.findMany({ orderBy: { createdAt: 'desc' } });
+        res.status(200).json({ success: true, data: salesReps });
+        return;
+      }
+
+      if (req.method === 'POST') {
+        requireRole(user, ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADMIN']);
+        const body = (req.body ?? {}) as Record<string, unknown>;
+        if (!body.name || !body.email || !body.role) {
+          res.status(400).json({ success: false, error: 'name, email, dan role wajib diisi' });
+          return;
+        }
+        const existing = await prisma.salesRep.findUnique({ where: { email: body.email as string } });
+        if (existing) {
+          res.status(409).json({ success: false, error: `Email "${body.email}" sudah dipakai sales rep lain` });
+          return;
+        }
+        const salesRep = await prisma.salesRep.create({
+          data: {
+            name: body.name as string,
+            email: body.email as string,
+            role: body.role as string,
+          },
+        });
+        res.status(201).json({ success: true, data: salesRep });
+        return;
+      }
+
+      res.status(405).json({ success: false, error: 'Method not allowed' });
+      return;
+    }
+
+    if (req.method === 'GET') {
+      requireAuth(user);
+      const salesRep = await prisma.salesRep.findUnique({ where: { id } });
+      if (!salesRep) {
+        res.status(404).json({ success: false, error: 'Sales rep not found' });
+        return;
+      }
+      res.status(200).json({ success: true, data: salesRep });
+      return;
+    }
+
+    if (req.method === 'PUT') {
+      requireRole(user, ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADMIN']);
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const salesRep = await prisma.salesRep.update({
+        where: { id },
+        data: {
+          ...(body.name !== undefined && { name: body.name as string }),
+          ...(body.email !== undefined && { email: body.email as string }),
+          ...(body.role !== undefined && { role: body.role as string }),
+        },
+      });
+      res.status(200).json({ success: true, data: salesRep });
+      return;
+    }
+
+    if (req.method === 'DELETE') {
+      requireRole(user, ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADMIN']);
+      await prisma.salesRep.delete({ where: { id } });
+      res.status(200).json({ success: true });
+      return;
+    }
+
+    res.status(405).json({ success: false, error: 'Method not allowed' });
+  } catch (err) {
+    if (err instanceof UnauthorizedError || err instanceof ForbiddenError) {
+      res.status(err.status).json({ success: false, error: err.message });
+      return;
+    }
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2025') {
+      res.status(404).json({ success: false, error: 'Sales rep not found' });
+      return;
+    }
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2002') {
+      res.status(409).json({ success: false, error: 'Email sudah dipakai sales rep lain' });
+      return;
+    }
+    console.error('[api/sales-reps] unexpected error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
+// ---------------------------------------------------------------------
+// /api/performance-targets, /api/performance-targets/:id
+//
+// Fase 1 item 2 (23 Sep 2026): mirrors src/types/performanceTarget.ts's
+// "exclusive arc" rule (exactly one of productId/salesRepId/territoryId).
+// Filtering by entity (getForEntity in performanceTargetsRepository.ts)
+// is done client-side over the full list rather than via extra query
+// params -- no existing route in this file relies on anything past
+// resource/id surviving vercel.json's rewrite, so this doesn't either.
+// ---------------------------------------------------------------------
+
+function validatePerformanceTargetBody(body: Record<string, unknown>): string | null {
+  const entityCount = [body.productId, body.salesRepId, body.territoryId].filter(
+    (v) => v !== undefined && v !== null
+  ).length;
+  if (entityCount !== 1) return 'Harus mengisi tepat satu dari productId, salesRepId, atau territoryId';
+  if (!body.period) return 'Period wajib diisi';
+  if (typeof body.target !== 'number' || body.target < 0) return 'Target harus angka >= 0';
+  return null;
+}
+
+async function handlePerformanceTargets(id: string | undefined, req: ApiRequest, res: ApiResponse) {
+  try {
+    const user = await getUserFromToken(extractBearerToken(req.headers.authorization));
+
+    if (!id) {
+      requireAuth(user);
+
+      if (req.method === 'GET') {
+        const targets = await prisma.performanceTarget.findMany({ orderBy: { period: 'desc' } });
+        res.status(200).json({ success: true, data: targets });
+        return;
+      }
+
+      if (req.method === 'POST') {
+        const body = (req.body ?? {}) as Record<string, unknown>;
+        const validationError = validatePerformanceTargetBody(body);
+        if (validationError) {
+          res.status(400).json({ success: false, error: validationError });
+          return;
+        }
+        const target = await prisma.performanceTarget.create({
+          data: {
+            productId: (body.productId as string) ?? null,
+            salesRepId: (body.salesRepId as string) ?? null,
+            territoryId: (body.territoryId as string) ?? null,
+            period: new Date(body.period as string),
+            target: body.target as number,
+            actual: (body.actual as number) ?? 0,
+            forecast: (body.forecast as number) ?? null,
+          },
+        });
+        res.status(201).json({ success: true, data: target });
+        return;
+      }
+
+      res.status(405).json({ success: false, error: 'Method not allowed' });
+      return;
+    }
+
+    if (req.method === 'GET') {
+      requireAuth(user);
+      const target = await prisma.performanceTarget.findUnique({ where: { id } });
+      if (!target) {
+        res.status(404).json({ success: false, error: 'Performance target not found' });
+        return;
+      }
+      res.status(200).json({ success: true, data: target });
+      return;
+    }
+
+    if (req.method === 'PUT') {
+      requireAuth(user);
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const target = await prisma.performanceTarget.update({
+        where: { id },
+        data: {
+          ...(body.target !== undefined && { target: body.target as number }),
+          ...(body.actual !== undefined && { actual: body.actual as number }),
+          ...(body.forecast !== undefined && { forecast: body.forecast as number }),
+          ...(body.period !== undefined && { period: new Date(body.period as string) }),
+        },
+      });
+      res.status(200).json({ success: true, data: target });
+      return;
+    }
+
+    if (req.method === 'DELETE') {
+      requireRole(user, ['SUPER_ADMIN', 'SALES_MANAGER']);
+      await prisma.performanceTarget.delete({ where: { id } });
+      res.status(200).json({ success: true });
+      return;
+    }
+
+    res.status(405).json({ success: false, error: 'Method not allowed' });
+  } catch (err) {
+    if (err instanceof UnauthorizedError || err instanceof ForbiddenError) {
+      res.status(err.status).json({ success: false, error: err.message });
+      return;
+    }
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2025') {
+      res.status(404).json({ success: false, error: 'Performance target not found' });
+      return;
+    }
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2002') {
+      res.status(409).json({ success: false, error: 'Sudah ada target untuk entity dan period yang sama' });
+      return;
+    }
+    console.error('[api/performance-targets] unexpected error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
+// ---------------------------------------------------------------------
+// /api/commissions, /api/commissions/:id
+//
+// Fase 1 item 2 (23 Sep 2026). CommissionStatus is a SCREAMING_SNAKE_CASE
+// Prisma enum server-side (PENDING/APPROVED/PAID), a lower-case string
+// literal client-side (src/types/commission.ts) -- same translation
+// pattern as Lead.status in leadsRepository.ts.
+// ---------------------------------------------------------------------
+
+async function handleCommissions(id: string | undefined, req: ApiRequest, res: ApiResponse) {
+  try {
+    const user = await getUserFromToken(extractBearerToken(req.headers.authorization));
+
+    if (!id) {
+      requireAuth(user);
+
+      if (req.method === 'GET') {
+        const records = await prisma.commissionRecord.findMany({ orderBy: { period: 'desc' } });
+        res.status(200).json({ success: true, data: records });
+        return;
+      }
+
+      if (req.method === 'POST') {
+        requireRole(user, ['SUPER_ADMIN', 'SALES_MANAGER']);
+        const body = (req.body ?? {}) as Record<string, unknown>;
+        if (!body.salesRepId || !body.period) {
+          res.status(400).json({ success: false, error: 'salesRepId dan period wajib diisi' });
+          return;
+        }
+        const record = await prisma.commissionRecord.create({
+          data: {
+            salesRepId: body.salesRepId as string,
+            period: new Date(body.period as string),
+            baseCommission: (body.baseCommission as number) ?? 0,
+            bonuses: (body.bonuses as number) ?? 0,
+            totalCommission: (body.totalCommission as number) ?? 0,
+            status: ((body.status as string)?.toUpperCase() as 'PENDING' | 'APPROVED' | 'PAID') ?? 'PENDING',
+            deals: (body.deals as number) ?? 0,
+            paymentDate: body.paymentDate ? new Date(body.paymentDate as string) : null,
+          },
+        });
+        res.status(201).json({ success: true, data: record });
+        return;
+      }
+
+      res.status(405).json({ success: false, error: 'Method not allowed' });
+      return;
+    }
+
+    if (req.method === 'GET') {
+      requireAuth(user);
+      const record = await prisma.commissionRecord.findUnique({ where: { id } });
+      if (!record) {
+        res.status(404).json({ success: false, error: 'Commission record not found' });
+        return;
+      }
+      res.status(200).json({ success: true, data: record });
+      return;
+    }
+
+    if (req.method === 'PUT') {
+      requireRole(user, ['SUPER_ADMIN', 'SALES_MANAGER']);
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const record = await prisma.commissionRecord.update({
+        where: { id },
+        data: {
+          ...(body.baseCommission !== undefined && { baseCommission: body.baseCommission as number }),
+          ...(body.bonuses !== undefined && { bonuses: body.bonuses as number }),
+          ...(body.totalCommission !== undefined && { totalCommission: body.totalCommission as number }),
+          ...(body.status !== undefined && { status: (body.status as string).toUpperCase() as 'PENDING' | 'APPROVED' | 'PAID' }),
+          ...(body.deals !== undefined && { deals: body.deals as number }),
+          ...(body.paymentDate !== undefined && {
+            paymentDate: body.paymentDate ? new Date(body.paymentDate as string) : null,
+          }),
+        },
+      });
+      res.status(200).json({ success: true, data: record });
+      return;
+    }
+
+    if (req.method === 'DELETE') {
+      requireRole(user, ['SUPER_ADMIN', 'SALES_MANAGER']);
+      await prisma.commissionRecord.delete({ where: { id } });
+      res.status(200).json({ success: true });
+      return;
+    }
+
+    res.status(405).json({ success: false, error: 'Method not allowed' });
+  } catch (err) {
+    if (err instanceof UnauthorizedError || err instanceof ForbiddenError) {
+      res.status(err.status).json({ success: false, error: err.message });
+      return;
+    }
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2025') {
+      res.status(404).json({ success: false, error: 'Commission record not found' });
+      return;
+    }
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2002') {
+      res.status(409).json({ success: false, error: 'Sudah ada payout record untuk sales rep dan period yang sama' });
+      return;
+    }
+    console.error('[api/commissions] unexpected error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
+// ---------------------------------------------------------------------
 // /api/opportunities, /api/opportunities/:id
 //
 // Third of the three pilot modules named in Fase 1 item 2. Opportunity
@@ -1140,6 +1601,18 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return;
     case 'distributors':
       await handleDistributors(sub, req, res);
+      return;
+    case 'clients':
+      await handleClients(sub, req, res);
+      return;
+    case 'sales-reps':
+      await handleSalesReps(sub, req, res);
+      return;
+    case 'performance-targets':
+      await handlePerformanceTargets(sub, req, res);
+      return;
+    case 'commissions':
+      await handleCommissions(sub, req, res);
       return;
     case 'leads':
       await handleLeads(sub, req, res);
