@@ -29,13 +29,23 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { MapPin, Store as StoreIcon, Truck, Clock, CheckCircle2, XCircle, Camera, CameraOff } from 'lucide-react';
+import { MapPin, Store as StoreIcon, Truck, Clock, CheckCircle2, XCircle, Camera, CameraOff, Plus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
 import { Switch } from '@/app/components/ui/switch';
 import { Label } from '@/app/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
 import { Input } from '@/app/components/ui/input';
+import { Textarea } from '@/app/components/ui/textarea';
+import { Button } from '@/app/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/app/components/ui/dialog';
 import { toast } from 'sonner';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { distributorsRepository } from '@/services/distributorsRepository';
@@ -214,6 +224,32 @@ export function DistributorStoreMap() {
   const [showPending, setShowPending] = useState(false); // approver-only, default off
   const [mapMode, setMapMode] = useState<MapMode>('approval');
 
+  // Bab 9: form pengajuan Distributor/Toko baru (siapa saja yang login
+  // bisa mengajukan -- lihat handleDistributors/handleStores POST di
+  // api/handler.ts, requireAuth saja, bukan requireRole). GPS lat/lng
+  // dibuat wajib di form ini (berbeda dari API yang mengizinkan null)
+  // karena halaman ini satu-satunya tempat Distributor/Toko ditampilkan --
+  // tanpa koordinat, titik itu tidak akan pernah muncul di mana pun.
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createKind, setCreateKind] = useState<PointKind>('distributor');
+  const [createForm, setCreateForm] = useState({
+    code: '',
+    name: '',
+    address: '',
+    gpsLat: '',
+    gpsLng: '',
+    distributorId: '',
+  });
+  const [creating, setCreating] = useState(false);
+
+  // Bab 9: antrean approve/reject -- menyambungkan tombol UI ke
+  // distributorsRepository/storesRepository.decide() yang sebelumnya
+  // sudah ada di repository tapi tidak pernah dipanggil dari mana pun.
+  const [decidingId, setDecidingId] = useState<string | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<{ kind: PointKind; id: string; name: string } | null>(null);
+  const [rejectNote, setRejectNote] = useState('');
+  const [rejecting, setRejecting] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -309,13 +345,153 @@ export function DistributorStoreMap() {
     return STATUS_COLOR[p.status];
   }
 
+  function openCreate(kind: PointKind) {
+    setCreateKind(kind);
+    setCreateForm({ code: '', name: '', address: '', gpsLat: '', gpsLng: '', distributorId: '' });
+    setCreateOpen(true);
+  }
+
+  async function handleCreateSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const code = createForm.code.trim();
+    const name = createForm.name.trim();
+    if (!code || !name) {
+      toast.error('Kode dan nama wajib diisi');
+      return;
+    }
+    const latStr = createForm.gpsLat.trim();
+    const lngStr = createForm.gpsLng.trim();
+    if (!latStr || !lngStr) {
+      toast.error('Koordinat GPS (latitude & longitude) wajib diisi');
+      return;
+    }
+    const lat = Number(latStr);
+    const lng = Number(lngStr);
+    if (Number.isNaN(lat) || Number.isNaN(lng)) {
+      toast.error('Koordinat GPS harus berupa angka');
+      return;
+    }
+
+    setCreating(true);
+    try {
+      if (createKind === 'distributor') {
+        const res = await distributorsRepository.create({
+          code,
+          name,
+          address: createForm.address.trim(),
+          gpsLat: lat,
+          gpsLng: lng,
+        });
+        if (res.success && res.data) {
+          setDistributors((prev) => [res.data as Distributor, ...prev]);
+          toast.success('Distributor baru diajukan, menunggu approval');
+          setCreateOpen(false);
+        } else {
+          toast.error(res.success ? 'Gagal menambah distributor' : res.error);
+        }
+      } else {
+        const res = await storesRepository.create({
+          code,
+          name,
+          address: createForm.address.trim(),
+          gpsLat: lat,
+          gpsLng: lng,
+          distributorId: createForm.distributorId || null,
+        });
+        if (res.success && res.data) {
+          setStores((prev) => [res.data as Store, ...prev]);
+          toast.success('Toko baru diajukan, menunggu approval');
+          setCreateOpen(false);
+        } else {
+          toast.error(res.success ? 'Gagal menambah toko' : res.error);
+        }
+      }
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleApprove(kind: PointKind, id: string) {
+    setDecidingId(id);
+    try {
+      if (kind === 'distributor') {
+        const res = await distributorsRepository.decide(id, 'approved');
+        if (res.success && res.data) {
+          setDistributors((prev) => prev.map((d) => (d.id === id ? (res.data as Distributor) : d)));
+          toast.success('Disetujui');
+        } else {
+          toast.error(res.success ? 'Gagal menyetujui' : res.error);
+        }
+      } else {
+        const res = await storesRepository.decide(id, 'approved');
+        if (res.success && res.data) {
+          setStores((prev) => prev.map((s) => (s.id === id ? (res.data as Store) : s)));
+          toast.success('Disetujui');
+        } else {
+          toast.error(res.success ? 'Gagal menyetujui' : res.error);
+        }
+      }
+    } finally {
+      setDecidingId(null);
+    }
+  }
+
+  function openReject(kind: PointKind, id: string, name: string) {
+    setRejectTarget({ kind, id, name });
+    setRejectNote('');
+  }
+
+  async function handleRejectSubmit() {
+    if (!rejectTarget) return;
+    if (!rejectNote.trim()) {
+      toast.error('Alasan penolakan wajib diisi');
+      return;
+    }
+    setRejecting(true);
+    try {
+      if (rejectTarget.kind === 'distributor') {
+        const res = await distributorsRepository.decide(rejectTarget.id, 'rejected', rejectNote.trim());
+        if (res.success && res.data) {
+          setDistributors((prev) => prev.map((d) => (d.id === rejectTarget.id ? (res.data as Distributor) : d)));
+          toast.success('Ditolak');
+          setRejectTarget(null);
+        } else {
+          toast.error(res.success ? 'Gagal menolak' : res.error);
+        }
+      } else {
+        const res = await storesRepository.decide(rejectTarget.id, 'rejected', rejectNote.trim());
+        if (res.success && res.data) {
+          setStores((prev) => prev.map((s) => (s.id === rejectTarget.id ? (res.data as Store) : s)));
+          toast.success('Ditolak');
+          setRejectTarget(null);
+        } else {
+          toast.error(res.success ? 'Gagal menolak' : res.error);
+        }
+      }
+    } finally {
+      setRejecting(false);
+    }
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-      <div>
-        <h1 className="text-2xl font-bold text-[#013E37]">Peta Distributor & Toko</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Sebaran lokasi Distributor dan Toko berdasarkan koordinat GPS, beserta status approval (Bab 9) dan riwayat kunjungan (Bab 8).
-        </p>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-[#013E37]">Peta Distributor & Toko</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Sebaran lokasi Distributor dan Toko berdasarkan koordinat GPS, beserta status approval (Bab 9) dan riwayat kunjungan (Bab 8).
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => openCreate('distributor')}>
+            <Plus className="w-4 h-4 mr-2" />
+            Distributor Baru
+          </Button>
+          <Button variant="outline" onClick={() => openCreate('store')}>
+            <Plus className="w-4 h-4 mr-2" />
+            Toko Baru
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -414,6 +590,73 @@ export function DistributorStoreMap() {
           </CardContent>
         </Card>
       </div>
+
+      {isApprover && (
+        <Card className={summary.pendingCount > 0 ? 'border-amber-300' : ''}>
+          <CardHeader>
+            <CardTitle className="text-base">Antrean Approval ({summary.pendingCount})</CardTitle>
+            <CardDescription>
+              Distributor & Toko yang menunggu persetujuan Anda. (Hanya menampilkan pengajuan yang sudah
+              punya koordinat GPS -- lihat catatan di kode.)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {allPoints.filter((p) => p.status === 'pending').length === 0 ? (
+              <p className="text-sm text-muted-foreground">Tidak ada antrean approval saat ini.</p>
+            ) : (
+              <div className="space-y-2">
+                {allPoints
+                  .filter((p) => p.status === 'pending')
+                  .map((p) => (
+                    <div
+                      key={`${p.kind}-${p.id}`}
+                      className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 p-3 rounded-lg border border-amber-200 bg-amber-50/50"
+                    >
+                      <div className="flex items-center gap-2">
+                        {p.kind === 'distributor' ? (
+                          <Truck className="w-4 h-4 text-[#013E37]" />
+                        ) : (
+                          <StoreIcon className="w-4 h-4 text-[#013E37]" />
+                        )}
+                        <div>
+                          <p className="text-sm font-medium">
+                            {p.name} <span className="text-xs text-muted-foreground">({p.code})</span>
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {p.kind === 'distributor' ? 'Distributor' : 'Toko'}
+                            {p.distributorName ? ` · ${p.distributorName}` : ''}
+                            {p.submittedAt ? ` · Diajukan ${formatDate(p.submittedAt)}` : ''}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          className="bg-emerald-600 hover:bg-emerald-700"
+                          disabled={decidingId === p.id}
+                          onClick={() => handleApprove(p.kind, p.id)}
+                        >
+                          <CheckCircle2 className="w-4 h-4 mr-1" />
+                          Setujui
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-red-300 text-red-700 hover:bg-red-50"
+                          disabled={decidingId === p.id}
+                          onClick={() => openReject(p.kind, p.id, p.name)}
+                        >
+                          <XCircle className="w-4 h-4 mr-1" />
+                          Tolak
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -564,6 +807,145 @@ export function DistributorStoreMap() {
           Belum ada Distributor/Toko dengan koordinat GPS.
         </div>
       )}
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{createKind === 'distributor' ? 'Distributor Baru' : 'Toko Baru'}</DialogTitle>
+            <DialogDescription>
+              Data akan berstatus "Pending" sampai disetujui oleh Super Admin, Sales Manager, atau Master Data
+              Admin (Bab 9).
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="dist-code">Kode *</Label>
+                <Input
+                  id="dist-code"
+                  value={createForm.code}
+                  onChange={(e) => setCreateForm({ ...createForm, code: e.target.value })}
+                  placeholder={createKind === 'distributor' ? 'DIST-001' : 'TOKO-001'}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dist-name">Nama *</Label>
+                <Input
+                  id="dist-name"
+                  value={createForm.name}
+                  onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                  placeholder={createKind === 'distributor' ? 'PT Distributor Makmur' : 'Toko Bangunan Jaya'}
+                  required
+                />
+              </div>
+            </div>
+            {createKind === 'store' && (
+              <div className="space-y-2">
+                <Label htmlFor="dist-parent">Distributor Induk (opsional)</Label>
+                <Select
+                  value={createForm.distributorId || undefined}
+                  onValueChange={(v) => setCreateForm({ ...createForm, distributorId: v })}
+                >
+                  <SelectTrigger id="dist-parent">
+                    <SelectValue placeholder="Pilih distributor..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {distributors
+                      .filter((d) => d.status === 'approved')
+                      .map((d) => (
+                        <SelectItem key={d.id} value={d.id}>
+                          {d.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="dist-address">Alamat</Label>
+              <Textarea
+                id="dist-address"
+                value={createForm.address}
+                onChange={(e) => setCreateForm({ ...createForm, address: e.target.value })}
+                rows={2}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="dist-lat">Latitude *</Label>
+                <Input
+                  id="dist-lat"
+                  type="number"
+                  step="any"
+                  value={createForm.gpsLat}
+                  onChange={(e) => setCreateForm({ ...createForm, gpsLat: e.target.value })}
+                  placeholder="-6.200000"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dist-lng">Longitude *</Label>
+                <Input
+                  id="dist-lng"
+                  type="number"
+                  step="any"
+                  value={createForm.gpsLng}
+                  onChange={(e) => setCreateForm({ ...createForm, gpsLng: e.target.value })}
+                  placeholder="106.816666"
+                  required
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              * Koordinat GPS wajib diisi agar titik ini muncul di peta setelah disetujui.
+            </p>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
+                Batal
+              </Button>
+              <Button type="submit" disabled={creating}>
+                {creating ? 'Menyimpan...' : 'Ajukan'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!rejectTarget} onOpenChange={(open) => !open && setRejectTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Tolak Pengajuan</DialogTitle>
+            <DialogDescription>
+              {rejectTarget && `Berikan alasan penolakan untuk "${rejectTarget.name}". Alasan ini akan terlihat oleh pengaju.`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="reject-note">Alasan Penolakan *</Label>
+            <Textarea
+              id="reject-note"
+              value={rejectNote}
+              onChange={(e) => setRejectNote(e.target.value)}
+              rows={3}
+              placeholder="Contoh: Koordinat GPS tidak valid / duplikat dengan toko lain"
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setRejectTarget(null)}>
+              Batal
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-red-300 text-red-700 hover:bg-red-50"
+              disabled={rejecting}
+              onClick={handleRejectSubmit}
+            >
+              {rejecting ? 'Menolak...' : 'Tolak'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
