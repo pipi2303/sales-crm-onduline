@@ -92,7 +92,7 @@ export function Login({ onLogin }: LoginProps) {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full pl-10 pr-12 py-3 border-2 border-gray-200 rounded-xl focus:border-[#013E37] focus:ring-2 focus:ring-[#013E37]/10 transition-all outline-none"
-                    placeholder="nama@email.com"
+                    placeholder="nama@gmail.com"
                     required
                   />
                   <VoiceInput

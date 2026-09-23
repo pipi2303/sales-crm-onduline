@@ -414,7 +414,7 @@ export function LeadManagement() {
                   type="email"
                   value={formData.email || ''}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="email@example.com"
+                  placeholder="email@gmail.com"
                   className="h-10"
                 />
               </div>
@@ -704,7 +704,7 @@ export function LeadManagement() {
                               type="email"
                               value={newCompany.email || ''}
                               onChange={(e) => setNewCompany({ ...newCompany, email: e.target.value })}
-                              placeholder="email@perusahaan.com"
+                              placeholder="email@gmail.com"
                               className="h-8 text-sm"
                             />
                           </div>

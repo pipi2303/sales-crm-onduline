@@ -777,7 +777,7 @@ export function OpportunityFormNew({ opportunity, products, onSave, onCancel }: 
                       type="email"
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      placeholder="contact@company.com"
+                      placeholder="contact@gmail.com"
                       className="text-sm h-11 border-gray-300 focus:border-[#013E37] focus:ring-[#013E37]"
                     />
                   </div>

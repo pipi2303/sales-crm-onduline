@@ -198,7 +198,7 @@ export function NotificationSettings({ isOpen, onClose, settings, onSave }: Noti
                   <label className="text-sm text-gray-700 mb-2 block">Alamat Email</label>
                   <Input
                     type="email"
-                    placeholder="email@example.com"
+                    placeholder="email@gmail.com"
                     value={localSettings.email}
                     onChange={(e) =>
                       setLocalSettings({ ...localSettings, email: e.target.value })

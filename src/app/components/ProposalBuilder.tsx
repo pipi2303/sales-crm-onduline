@@ -336,7 +336,7 @@ export function ProposalBuilder({
                 <Input
                   value={clientEmail}
                   onChange={(e) => setClientEmail(e.target.value)}
-                  placeholder="Contoh: john.doe@example.com"
+                  placeholder="Contoh: john.doe@gmail.com"
                 />
               </div>
             </CardContent>

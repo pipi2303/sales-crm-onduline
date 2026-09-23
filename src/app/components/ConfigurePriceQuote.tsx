@@ -268,7 +268,7 @@ export function ConfigurePriceQuote() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="clientEmail">Client Email *</Label>
-                  <Input id="clientEmail" name="clientEmail" type="email" required placeholder="client@example.com" />
+                  <Input id="clientEmail" name="clientEmail" type="email" required placeholder="client@gmail.com" />
                 </div>
               </div>
 

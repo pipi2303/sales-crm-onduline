@@ -211,7 +211,7 @@ export function OpportunityForm({ opportunity, products, onSave, onCancel }: Opp
                     type="email"
                     value={formData.email || ''}
                     onChange={(e) => handleChange('email', e.target.value)}
-                    placeholder="contact@company.com"
+                    placeholder="contact@gmail.com"
                   />
                 </div>
 

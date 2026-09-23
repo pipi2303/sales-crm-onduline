@@ -267,7 +267,7 @@ export function KaryawanFormModal({ karyawan, onClose, onSuccess }: KaryawanForm
                       name="email_pribadi"
                       value={formData.email_pribadi}
                       onChange={handleInputChange}
-                      placeholder="email@example.com"
+                      placeholder="email@gmail.com"
                       className="bg-white border-gray-300 focus:border-[#EEF7F5]0 focus:ring-[#EEF7F5]0"
                     />
                   </div>
@@ -514,7 +514,7 @@ export function KaryawanFormModal({ karyawan, onClose, onSuccess }: KaryawanForm
                 <div className="p-5 pt-4 grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold text-gray-700">
-                      Email Kantor (@intramedika.co.id) <span className="text-red-500">*</span>
+                      Email Kantor (@gmail.com) <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       type="email"
@@ -522,7 +522,7 @@ export function KaryawanFormModal({ karyawan, onClose, onSuccess }: KaryawanForm
                       value={formData.email_kantor}
                       onChange={handleInputChange}
                       required
-                      placeholder="nama@intramedika.co.id"
+                      placeholder="nama@gmail.com"
                       className="bg-white border-gray-300 focus:border-red-500 focus:ring-red-500"
                     />
                   </div>

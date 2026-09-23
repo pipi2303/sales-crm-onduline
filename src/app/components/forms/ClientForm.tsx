@@ -532,7 +532,7 @@ export function ClientFormModal({ client, onClose, onSuccess }: ClientFormProps)
                           name="email_resmi"
                           value={formData.email_resmi}
                           onChange={handleChange}
-                          placeholder="info@rsharapansehat.com"
+                          placeholder="info@gmail.com"
                           className="bg-white border-gray-300 focus:border-emerald-500 focus:ring-emerald-500 h-11"
                         />
                       </div>

@@ -24,7 +24,7 @@ const DEMO_USERS: OnlineUser[] = [
   {
     id: '1',
     name: 'Ahmad Hidayat',
-    email: 'ahmad@example.com',
+    email: 'ahmad@gmail.com',
     status: 'online',
     lastActivity: new Date(),
     currentPage: 'Dashboard',
@@ -32,7 +32,7 @@ const DEMO_USERS: OnlineUser[] = [
   {
     id: '2',
     name: 'Budi Santoso',
-    email: 'budi@example.com',
+    email: 'budi@gmail.com',
     status: 'online',
     lastActivity: new Date(Date.now() - 2 * 60 * 1000),
     currentPage: 'CRM',
@@ -40,7 +40,7 @@ const DEMO_USERS: OnlineUser[] = [
   {
     id: '3',
     name: 'Citra Dewi',
-    email: 'citra@example.com',
+    email: 'citra@gmail.com',
     status: 'away',
     lastActivity: new Date(Date.now() - 10 * 60 * 1000),
     currentPage: 'Reports',
@@ -48,7 +48,7 @@ const DEMO_USERS: OnlineUser[] = [
   {
     id: '4',
     name: 'Diana Putri',
-    email: 'diana@example.com',
+    email: 'diana@gmail.com',
     status: 'busy',
     lastActivity: new Date(Date.now() - 5 * 60 * 1000),
     currentPage: 'Contracts',

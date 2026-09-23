@@ -193,7 +193,7 @@ export function AIEmailGenerator({ open, onClose, recipientName = '', recipientO
       }
 
       // Add AI signature
-      personalizedContent += `\n\nBest regards,\n[Your Name]\nSales Executive\n[Company Name]\n📞 +62 xxx-xxxx-xxxx\n✉️ email@company.com`;
+      personalizedContent += `\n\nBest regards,\n[Your Name]\nSales Executive\n[Company Name]\n📞 +62 xxx-xxxx-xxxx\n✉️ email@gmail.com`;
 
       setGeneratedEmail(personalizedContent);
       setEmailSubject(template.subject.replace(/\{organization\}/g, orgName));

@@ -69,10 +69,10 @@ const PERIOD_OPTIONS = [
 ];
 
 const SEED_REPS: Array<Omit<SalesRep, 'id' | 'createdAt'>> = [
-  { name: 'Budi Santoso', email: 'budi.santoso@intramedika.co.id', role: 'Sales Executive' },
-  { name: 'Ani Wijaya', email: 'ani.wijaya@intramedika.co.id', role: 'Sales Executive' },
-  { name: 'Dewi Kartika', email: 'dewi.kartika@intramedika.co.id', role: 'Senior Sales Executive' },
-  { name: 'Eko Prasetyo', email: 'eko.prasetyo@intramedika.co.id', role: 'Sales Executive' },
+  { name: 'Budi Santoso', email: 'budi.santoso@gmail.com', role: 'Sales Executive' },
+  { name: 'Ani Wijaya', email: 'ani.wijaya@gmail.com', role: 'Sales Executive' },
+  { name: 'Dewi Kartika', email: 'dewi.kartika@gmail.com', role: 'Senior Sales Executive' },
+  { name: 'Eko Prasetyo', email: 'eko.prasetyo@gmail.com', role: 'Sales Executive' },
 ];
 
 // Same 5 commission records this screen has always shipped with as sample

@@ -80,7 +80,7 @@ export function EmailCommunicationHub() {
       id: '1',
       from: 'Budi Hartono',
       fromEmail: 'budi@majujaya.com',
-      to: ['me@company.com'],
+      to: ['me@gmail.com'],
       subject: 'Re: Enterprise Plan Demo Follow-up',
       body: 'Thank you for the demo presentation. We are very interested in proceeding with the Enterprise Plan. Could you send us the formal quotation?',
       date: '2024-02-19T10:30:00',
@@ -96,7 +96,7 @@ export function EmailCommunicationHub() {
       id: '2',
       from: 'Sarah Wijaya',
       fromEmail: 'sarah@berkahsejahtera.com',
-      to: ['me@company.com'],
+      to: ['me@gmail.com'],
       subject: 'Contract Renewal Discussion',
       body: 'Hi, I would like to schedule a meeting to discuss our contract renewal terms. Are you available this week?',
       date: '2024-02-18T14:15:00',
@@ -109,9 +109,9 @@ export function EmailCommunicationHub() {
     {
       id: '3',
       from: 'Me',
-      fromEmail: 'me@company.com',
-      to: ['prospects@list.com'],
-      cc: ['marketing@company.com'],
+      fromEmail: 'me@gmail.com',
+      to: ['prospects@gmail.com'],
+      cc: ['marketing@gmail.com'],
       subject: 'Introducing Our New Features - Limited Time Offer',
       body: 'Dear valued customers, we are excited to announce new features...',
       date: '2024-02-17T09:00:00',
@@ -128,8 +128,8 @@ export function EmailCommunicationHub() {
     {
       id: '4',
       from: 'Andi Prakoso',
-      fromEmail: 'andi@globalsolutions.com',
-      to: ['me@company.com'],
+      fromEmail: 'andi@gmail.com',
+      to: ['me@gmail.com'],
       subject: 'Payment Confirmation',
       body: 'We have completed the payment for invoice #INV-2024-001. Please confirm receipt.',
       date: '2024-02-16T16:45:00',
@@ -141,8 +141,8 @@ export function EmailCommunicationHub() {
     {
       id: '5',
       from: 'Me',
-      fromEmail: 'me@company.com',
-      to: ['client@company.com'],
+      fromEmail: 'me@gmail.com',
+      to: ['client@gmail.com'],
       subject: 'Demo Reminder - Tomorrow at 2 PM',
       body: 'This is a friendly reminder about our demo session scheduled for tomorrow...',
       date: '2024-02-20T08:00:00',
@@ -801,12 +801,12 @@ export function EmailCommunicationHub() {
           <div className="space-y-4">
             <div>
               <Label>To *</Label>
-              <Input placeholder="recipient@company.com" />
+              <Input placeholder="recipient@gmail.com" />
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <Label>Cc (Optional)</Label>
-                <Input placeholder="cc@company.com" />
+                <Input placeholder="cc@gmail.com" />
               </div>
               <div>
                 <Label>Category</Label>
