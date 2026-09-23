@@ -156,6 +156,7 @@ function fromApiOpportunity(row: any): OpportunityWithExtra {
     id: row.id,
     name: row.name,
     leadId: row.leadId ?? undefined,
+    clientId: row.clientId ?? undefined,
     clientName: row.clientName,
     contactPerson: row.contactPerson,
     email: row.email ?? undefined,

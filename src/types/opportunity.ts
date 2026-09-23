@@ -25,6 +25,12 @@ export interface Opportunity {
   id: string;
   name: string;
   leadId?: string;
+  // Bab 12 follow-up (insight #1/#6, 23 Sep 2026): sudah ada di Prisma
+  // model (Opportunity.clientId) sejak awal, tapi belum pernah di-expose
+  // ke shape frontend -- dibutuhkan untuk join Opportunity -> Client ->
+  // Distributor/Store demi agregasi heatmap performa & penetrasi
+  // kategori produk.
+  clientId?: string;
   clientName: string;
   contactPerson: string;
   email?: string;

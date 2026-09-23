@@ -14,10 +14,26 @@
 // Distributor selalu pakai warna status approval -- Task tidak punya
 // relasi ke Distributor, hanya ke Store.
 //
-// Layer lain dari insight doc (heatmap performa/coverage gap terhadap
-// Territory, penetrasi kategori produk) sengaja DITUNDA -- butuh
-// agregasi lintas-tabel (Territory, Opportunity/Product) yang lebih
-// berat daripada menampilkan titik GPS + check-in yang sudah ada.
+// Fase 3 (Bab 12 follow-up, 23 Sep 2026): empat gap terakhir dari insight
+// doc ditutup di sini --
+//   #1 heatmap performa   : mode peta baru "performance", mewarnai titik
+//                            berdasarkan agregat nilai Opportunity yang
+//                            terhubung lewat Client.distributorId/storeId.
+//   #2 coverage gap        : substring-match Territory.region terhadap
+//                            alamat Distributor/Toko (tidak ada data
+//                            batas wilayah/polygon sama sekali di schema
+//                            ini, jadi ini pendekatan pragmatis, bukan
+//                            geo-spatial asli) -- dua arah: Territory
+//                            tanpa titik, dan titik tanpa Territory.
+//   #6 penetrasi kategori  : agregasi OpportunityProduct -> Product.category
+//                            untuk Opportunity yang klien-nya terhubung
+//                            ke jaringan distribusi ini.
+//   #7 distribusi beban    : field Distributor/Store.salesRepId baru
+//                            (menunjuk ke User) + UI penugasan/pelepasan
+//                            PIC untuk approver, dan ringkasan beban per
+//                            sales rep untuk semua orang.
+// Semua agregasi dihitung client-side dari data yang sudah/baru
+// diambil di sini -- tidak ada endpoint agregasi baru di backend.
 //
 // Default tampilan hanya menampilkan titik berstatus "approved" (perilaku
 // operasional yang sebenarnya). Untuk role approver (Super Admin/Sales
@@ -29,7 +45,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { MapPin, Store as StoreIcon, Truck, Clock, CheckCircle2, XCircle, Camera, CameraOff, Plus, AlertTriangle } from 'lucide-react';
+import { MapPin, Store as StoreIcon, Truck, Clock, CheckCircle2, XCircle, Camera, CameraOff, Plus, AlertTriangle, Users, Package, MapPinOff, UserCog } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
 import { Switch } from '@/app/components/ui/switch';
@@ -51,13 +67,45 @@ import { useAuth } from '@/app/contexts/AuthContext';
 import { distributorsRepository } from '@/services/distributorsRepository';
 import { storesRepository } from '@/services/storesRepository';
 import { tasksRepository } from '@/services/tasksRepository';
-import { formatDate } from '@/utils/formatters';
+import { clientsRepository } from '@/services/clientsRepository';
+import { opportunitiesRepository } from '@/services/opportunitiesRepository';
+import { productsRepository } from '@/services/productsRepository';
+import { territoriesRepository } from '@/services/territoriesRepository';
+import { usersApi } from '@/services/api';
+import { formatDate, formatCurrency } from '@/utils/formatters';
 import type { Distributor } from '@/types/distributor';
 import type { Store } from '@/types/store';
 import type { ApprovalStatus } from '@/types/distributor';
 import type { Task } from '@/types/task';
+import type { Client } from '@/types/client';
+import type { Opportunity } from '@/types/opportunity';
+import type { Product } from '@/types/product';
+import type { TerritoryProfile } from '@/types/territory';
 
 const APPROVER_ROLES = new Set(['Super Admin', 'Sales Manager', 'Master Data Admin']);
+
+// Bab 12 follow-up (insight #7): usersApi.getAll() mengembalikan row User
+// server-side mentah (serializeUser() di api/handler.ts -- role masih
+// SCREAMING_SNAKE_CASE Prisma enum, tidak melalui adapter case-conversion
+// manapun karena usersApi bukan repository ber-FIELD_MAP seperti yang
+// lain).
+interface SalesRepUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+}
+
+const ROLE_LABEL: Record<string, string> = {
+  SUPER_ADMIN: 'Super Admin',
+  SALES_MANAGER: 'Sales Manager',
+  SALES_REPRESENTATIVE: 'Sales Representative',
+  SALES_EXECUTIVE: 'Sales Executive',
+  MASTER_DATA_ADMIN: 'Master Data Admin',
+};
+
+const UNASSIGNED_VALUE = '__unassigned__'; // sentinel -- Radix Select tidak mengizinkan value=""
 
 // Default center: kira-kira tengah Indonesia, dipakai kalau belum ada titik
 // dengan koordinat valid untuk dihitung rata-ratanya.
@@ -139,7 +187,35 @@ function computeStoreVisits(tasks: Task[]): Map<string, StoreVisitInfo> {
   return result;
 }
 
-type MapMode = 'approval' | 'visit';
+type MapMode = 'approval' | 'visit' | 'performance';
+
+// Insight #1 (heatmap performa): dibucketkan (bukan gradien kontinu)
+// supaya konsisten dengan pola warna tetap yang sudah dipakai STATUS_COLOR/
+// VISIT_COLOR di file ini -- relatif terhadap titik dengan nilai Opportunity
+// tertinggi yang sedang tampil, bukan skala absolut.
+type PerformanceBucket = 'none' | 'low' | 'medium' | 'high';
+
+const PERFORMANCE_COLOR: Record<PerformanceBucket, string> = {
+  none: '#9ca3af', // gray-400 -- belum ada Opportunity tercatat lewat titik ini
+  low: '#93c5fd', // blue-300
+  medium: '#3b82f6', // blue-500
+  high: '#1d4ed8', // blue-700
+};
+
+const PERFORMANCE_LABEL: Record<PerformanceBucket, string> = {
+  none: 'Belum Ada Opportunity',
+  low: 'Nilai Rendah',
+  medium: 'Nilai Sedang',
+  high: 'Nilai Tinggi',
+};
+
+function performanceBucket(value: number, max: number): PerformanceBucket {
+  if (value <= 0 || max <= 0) return 'none';
+  const ratio = value / max;
+  if (ratio >= 0.66) return 'high';
+  if (ratio >= 0.33) return 'medium';
+  return 'low';
+}
 type PointKind = 'distributor' | 'store';
 
 interface MapPoint {
@@ -155,6 +231,9 @@ interface MapPoint {
   submittedAt: Date | null;
   decidedAt: Date | null;
   rejectionNote: string;
+  // Bab 12 follow-up (insight #7).
+  salesRepId: string | null;
+  salesRepName: string | null;
 }
 
 function divIcon(kind: PointKind, color: string): L.DivIcon {
@@ -218,6 +297,8 @@ function toPoints(distributors: Distributor[], stores: Store[]): MapPoint[] {
       submittedAt: d.submittedAt,
       decidedAt: d.decidedAt,
       rejectionNote: d.rejectionNote,
+      salesRepId: d.salesRepId,
+      salesRepName: d.salesRep?.name ?? null,
     }));
 
   const storePoints: MapPoint[] = stores
@@ -235,6 +316,8 @@ function toPoints(distributors: Distributor[], stores: Store[]): MapPoint[] {
       submittedAt: s.submittedAt,
       decidedAt: s.decidedAt,
       rejectionNote: s.rejectionNote,
+      salesRepId: s.salesRepId,
+      salesRepName: s.salesRep?.name ?? null,
     }));
 
   return [...distributorPoints, ...storePoints];
@@ -256,6 +339,15 @@ export function DistributorStoreMap({ fixedTypeFilter }: DistributorStoreMapProp
   const [distributors, setDistributors] = useState<Distributor[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  // Bab 12 follow-up -- data tambahan untuk insight #1/#2/#6/#7. Semua
+  // non-fatal kalau gagal dimuat (sama seperti tasks di atas): peta inti
+  // (GPS + approval + kunjungan) tetap jalan, hanya kartu insight terkait
+  // yang menunjukkan data kosong.
+  const [salesReps, setSalesReps] = useState<SalesRepUser[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [territories, setTerritories] = useState<TerritoryProfile[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [typeFilter, setTypeFilter] = useState<'all' | PointKind>(fixedTypeFilter ?? 'all');
@@ -290,14 +382,24 @@ export function DistributorStoreMap({ fixedTypeFilter }: DistributorStoreMapProp
   const [rejectNote, setRejectNote] = useState('');
   const [rejecting, setRejecting] = useState(false);
 
+  // Bab 12 follow-up (insight #7): penugasan/pelepasan PIC sales rep --
+  // hanya approver yang bisa memanggil ini (server menolak yang lain
+  // lewat DISTRIBUTOR_APPROVER_ROLES/STORE_APPROVER_ROLES).
+  const [assigningId, setAssigningId] = useState<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const [distRes, storeRes, taskRes] = await Promise.all([
+      const [distRes, storeRes, taskRes, usersRes, clientRes, oppRes, productRes, territoryRes] = await Promise.all([
         distributorsRepository.getAll(),
         storesRepository.getAll(),
         tasksRepository.getAll(),
+        usersApi.getAll(user?.accessToken),
+        clientsRepository.getAll(),
+        opportunitiesRepository.getAll(),
+        productsRepository.getAll(),
+        territoriesRepository.getAll(),
       ]);
       if (cancelled) return;
       if (distRes.success && distRes.data) {
@@ -317,12 +419,40 @@ export function DistributorStoreMap({ fixedTypeFilter }: DistributorStoreMapProp
         // peta tetap jalan dengan mode "Status Approval" saja.
         console.warn('DistributorStoreMap: gagal memuat data task untuk layer kunjungan', taskRes.success ? undefined : taskRes.error);
       }
+      // Bab 12 follow-up -- keempatnya non-fatal: masing-masing hanya
+      // membuat satu kartu insight tampil kosong kalau gagal, tidak
+      // menghalangi peta inti (GPS + approval + kunjungan) di atas.
+      if (usersRes.success && usersRes.data) {
+        setSalesReps((usersRes.data as SalesRepUser[]).filter((u) => u.isActive));
+      } else {
+        console.warn('DistributorStoreMap: gagal memuat data user untuk penugasan sales rep', usersRes.success ? undefined : usersRes.error);
+      }
+      if (clientRes.success && clientRes.data) {
+        setClients(clientRes.data);
+      } else {
+        console.warn('DistributorStoreMap: gagal memuat data client untuk heatmap performa', clientRes.success ? undefined : clientRes.error);
+      }
+      if (oppRes.success && oppRes.data) {
+        setOpportunities(oppRes.data);
+      } else {
+        console.warn('DistributorStoreMap: gagal memuat data opportunity untuk heatmap performa', oppRes.success ? undefined : oppRes.error);
+      }
+      if (productRes.success && productRes.data) {
+        setProducts(productRes.data);
+      } else {
+        console.warn('DistributorStoreMap: gagal memuat data produk untuk penetrasi kategori', productRes.success ? undefined : productRes.error);
+      }
+      if (territoryRes.success && territoryRes.data) {
+        setTerritories(territoryRes.data);
+      } else {
+        console.warn('DistributorStoreMap: gagal memuat data territory untuk coverage gap', territoryRes.success ? undefined : territoryRes.error);
+      }
       setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user?.accessToken]);
 
   const allPoints = useMemo(() => toPoints(distributors, stores), [distributors, stores]);
 
@@ -388,12 +518,185 @@ export function DistributorStoreMap({ fixedTypeFilter }: DistributorStoreMapProp
     return { totalDistributor, totalStore, pendingCount, approvedCount, neverVisited, overdue, noPhotoRecent };
   }, [distributors, stores, allPoints, storeVisits, effectiveTypeFilter]);
 
+  // Bab 12 follow-up (insight #1/#6): Client.distributorId/storeId ->
+  // dipakai untuk menghubungkan Opportunity (lewat clientId) ke titik
+  // Distributor/Toko yang benar. Data produksi saat ini punya 0 Client/
+  // Opportunity (diverifikasi langsung lewat API produksi) -- kartu
+  // insight di bawah akan menunjukkan itu apa adanya, bukan bug.
+  const clientLocationMap = useMemo(() => {
+    const map = new Map<string, { distributorId: string | null; storeId: string | null }>();
+    for (const c of clients) {
+      map.set(c.id, { distributorId: c.distributor_id || null, storeId: c.store_id || null });
+    }
+    return map;
+  }, [clients]);
+
+  // Insight #1: total nilai Opportunity (semua stage/status -- ini
+  // "potensi tercatat", bukan cuma yang sudah closed-won) per titik,
+  // dihubungkan lewat Opportunity.clientId -> Client.distributorId/storeId.
+  const pointPerformance = useMemo(() => {
+    const byDistributor = new Map<string, number>();
+    const byStore = new Map<string, number>();
+    for (const opp of opportunities) {
+      if (!opp.clientId) continue;
+      const loc = clientLocationMap.get(opp.clientId);
+      if (!loc) continue;
+      if (loc.distributorId) {
+        byDistributor.set(loc.distributorId, (byDistributor.get(loc.distributorId) ?? 0) + opp.totalValue);
+      }
+      if (loc.storeId) {
+        byStore.set(loc.storeId, (byStore.get(loc.storeId) ?? 0) + opp.totalValue);
+      }
+    }
+    return { byDistributor, byStore };
+  }, [opportunities, clientLocationMap]);
+
+  const maxPerformanceValue = useMemo(() => {
+    const values = [...pointPerformance.byDistributor.values(), ...pointPerformance.byStore.values()];
+    return values.length > 0 ? Math.max(...values) : 0;
+  }, [pointPerformance]);
+
+  // Insight #6: agregasi nilai OpportunityProduct per Product.category,
+  // dibatasi ke Opportunity yang klien-nya terhubung ke jaringan
+  // distribusi (punya distributorId atau storeId) -- bukan seluruh
+  // Opportunity di sistem, supaya angkanya relevan dengan tab
+  // Distributor/Toko yang sedang dilihat.
+  const categoryPenetration = useMemo(() => {
+    const categoryById = new Map(products.map((p) => [p.id, p.category]));
+    const totals = new Map<string, { totalValue: number; totalQty: number }>();
+    for (const opp of opportunities) {
+      if (!opp.clientId) continue;
+      const loc = clientLocationMap.get(opp.clientId);
+      if (!loc) continue;
+      const relevant =
+        effectiveTypeFilter === 'distributor'
+          ? !!loc.distributorId
+          : effectiveTypeFilter === 'store'
+          ? !!loc.storeId
+          : !!loc.distributorId || !!loc.storeId;
+      if (!relevant) continue;
+      for (const item of opp.products) {
+        const category = (item.productId && categoryById.get(item.productId)) || 'Lainnya';
+        const bucket = totals.get(category) ?? { totalValue: 0, totalQty: 0 };
+        bucket.totalValue += item.totalPrice;
+        bucket.totalQty += item.quantity;
+        totals.set(category, bucket);
+      }
+    }
+    return Array.from(totals.entries())
+      .map(([category, v]) => ({ category, ...v }))
+      .sort((a, b) => b.totalValue - a.totalValue);
+  }, [opportunities, products, clientLocationMap, effectiveTypeFilter]);
+
+  // Insight #2 (coverage gap): Territory tidak punya data batas
+  // wilayah/polygon sama sekali (hanya `region` bebas teks) -- pendekatan
+  // pragmatis: substring-match case-insensitive antara Territory.region
+  // dan alamat Distributor/Toko. Divalidasi terhadap data produksi nyata
+  // (bukan dummy) sebelum dipilih -- lihat MEMORY.md. Dua arah dihitung:
+  // Territory yang tidak punya titik pendukung, dan titik yang tidak
+  // masuk Territory manapun (temuan bonus: jejak distribusi riil jauh
+  // lebih luas daripada Territory yang tercatat).
+  const coverageGap = useMemo(() => {
+    const relevantPoints = allPoints.filter(
+      (p) => p.status !== 'rejected' && (effectiveTypeFilter === 'all' || p.kind === effectiveTypeFilter)
+    );
+    const regions = territories
+      .map((t) => ({ territory: t, region: t.region.trim().toLowerCase() }))
+      .filter((t) => t.region.length > 0);
+
+    const territoriesWithoutPoints = regions
+      .filter(({ region }) => !relevantPoints.some((p) => p.address.toLowerCase().includes(region)))
+      .map(({ territory }) => territory);
+
+    const pointsWithoutTerritory = relevantPoints.filter((p) => {
+      const addr = p.address.trim().toLowerCase();
+      if (!addr) return true;
+      return !regions.some(({ region }) => addr.includes(region));
+    });
+
+    return { territoriesWithoutPoints, pointsWithoutTerritory, relevantCount: relevantPoints.length };
+  }, [territories, allPoints, effectiveTypeFilter]);
+
+  // Insight #7: ringkasan beban (jumlah Distributor + Toko aktif, tidak
+  // termasuk yang rejected) per sales rep, termasuk grup "Belum
+  // Ditugaskan" -- dihitung dari salesRepId di data Distributor/Store
+  // yang sudah dimuat, tidak perlu endpoint agregasi baru.
+  const salesRepWorkload = useMemo(() => {
+    const buckets = new Map<string, { rep: SalesRepUser | null; distributorCount: number; storeCount: number }>();
+    const bucketFor = (repId: string | null) => {
+      const key = repId ?? UNASSIGNED_VALUE;
+      let bucket = buckets.get(key);
+      if (!bucket) {
+        bucket = { rep: repId ? salesReps.find((r) => r.id === repId) ?? null : null, distributorCount: 0, storeCount: 0 };
+        buckets.set(key, bucket);
+      }
+      return bucket;
+    };
+    if (effectiveTypeFilter !== 'store') {
+      for (const d of distributors) {
+        if (d.status === 'rejected') continue;
+        bucketFor(d.salesRepId).distributorCount += 1;
+      }
+    }
+    if (effectiveTypeFilter !== 'distributor') {
+      for (const s of stores) {
+        if (s.status === 'rejected') continue;
+        bucketFor(s.salesRepId).storeCount += 1;
+      }
+    }
+    return Array.from(buckets.values()).sort(
+      (a, b) => b.distributorCount + b.storeCount - (a.distributorCount + a.storeCount)
+    );
+  }, [distributors, stores, salesReps, effectiveTypeFilter]);
+
+  // Daftar titik yang bisa ditugaskan PIC-nya -- semua yang belum
+  // rejected, TIDAK mengikuti toggle "Tampilkan Pending" (mengelola beban
+  // kerja adalah kebutuhan berbeda dari sekadar melihat peta).
+  const assignablePoints = useMemo(() => {
+    return allPoints
+      .filter((p) => p.status !== 'rejected' && (effectiveTypeFilter === 'all' || p.kind === effectiveTypeFilter))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [allPoints, effectiveTypeFilter]);
+
   function colorFor(p: MapPoint): string {
+    if (mapMode === 'performance') {
+      const value = p.kind === 'distributor' ? pointPerformance.byDistributor.get(p.id) : pointPerformance.byStore.get(p.id);
+      return PERFORMANCE_COLOR[performanceBucket(value ?? 0, maxPerformanceValue)];
+    }
     if (mapMode === 'visit' && p.kind === 'store') {
       const visit = storeVisits.get(p.id);
       return VISIT_COLOR[visit ? visit.bucket : 'never'];
     }
     return STATUS_COLOR[p.status];
+  }
+
+  // Insight #7: dipanggil dari kartu "Distribusi Beban Sales Rep" di
+  // bawah -- server (DISTRIBUTOR_APPROVER_ROLES/STORE_APPROVER_ROLES)
+  // yang menegakkan siapa boleh memanggil ini, kontrol di UI hanya untuk
+  // kenyamanan (disembunyikan dari non-approver).
+  async function handleAssignSalesRep(kind: PointKind, id: string, salesRepId: string | null) {
+    setAssigningId(id);
+    try {
+      if (kind === 'distributor') {
+        const res = await distributorsRepository.update(id, { salesRepId } as Partial<Distributor>);
+        if (res.success && res.data) {
+          setDistributors((prev) => prev.map((d) => (d.id === id ? (res.data as Distributor) : d)));
+          toast.success(salesRepId ? 'PIC sales rep ditugaskan' : 'Penugasan PIC dilepas');
+        } else {
+          toast.error(res.success ? 'Gagal memperbarui PIC' : res.error);
+        }
+      } else {
+        const res = await storesRepository.update(id, { salesRepId } as Partial<Store>);
+        if (res.success && res.data) {
+          setStores((prev) => prev.map((s) => (s.id === id ? (res.data as Store) : s)));
+          toast.success(salesRepId ? 'PIC sales rep ditugaskan' : 'Penugasan PIC dilepas');
+        } else {
+          toast.error(res.success ? 'Gagal memperbarui PIC' : res.error);
+        }
+      }
+    } finally {
+      setAssigningId(null);
+    }
   }
 
   function openCreate(kind: PointKind) {
@@ -736,37 +1039,45 @@ export function DistributorStoreMap({ fixedTypeFilter }: DistributorStoreMapProp
             <div>
               <CardTitle className="text-base">Peta Sebaran</CardTitle>
               <CardDescription>
-                {fixedTypeFilter === 'distributor' && 'Kotak = Distributor. Hijau = approved, kuning = pending.'}
+                {fixedTypeFilter === 'distributor' && (
+                  <>
+                    Kotak = Distributor.{' '}
+                    {mapMode === 'performance'
+                      ? 'Warna mengikuti total nilai Opportunity yang terhubung (biru tua = tertinggi, abu-abu = belum ada).'
+                      : 'Hijau = approved, kuning = pending.'}
+                  </>
+                )}
                 {fixedTypeFilter === 'store' && (
                   <>
                     Lingkaran = Toko.{' '}
-                    {mapMode === 'approval'
-                      ? 'Hijau = approved, kuning = pending.'
-                      : 'Warna mengikuti kapan terakhir dikunjungi (hijau = baru, kuning = perlu kunjungan ulang, merah = terlambat, abu-abu = belum pernah).'}
+                    {mapMode === 'approval' &&  'Hijau = approved, kuning = pending.'}
+                    {mapMode === 'visit' && 'Warna mengikuti kapan terakhir dikunjungi (hijau = baru, kuning = perlu kunjungan ulang, merah = terlambat, abu-abu = belum pernah).'}
+                    {mapMode === 'performance' && 'Warna mengikuti total nilai Opportunity yang terhubung (biru tua = tertinggi, abu-abu = belum ada).'}
                   </>
                 )}
                 {!fixedTypeFilter && (
                   <>
                     Kotak = Distributor, lingkaran = Toko.{' '}
-                    {mapMode === 'approval'
-                      ? 'Hijau = approved, kuning = pending.'
-                      : 'Warna Toko mengikuti kapan terakhir dikunjungi (hijau = baru, kuning = perlu kunjungan ulang, merah = terlambat, abu-abu = belum pernah). Distributor tetap warna status approval.'}
+                    {mapMode === 'approval' && 'Hijau = approved, kuning = pending.'}
+                    {mapMode === 'visit' && 'Warna Toko mengikuti kapan terakhir dikunjungi (hijau = baru, kuning = perlu kunjungan ulang, merah = terlambat, abu-abu = belum pernah). Distributor tetap warna status approval.'}
+                    {mapMode === 'performance' && 'Warna mengikuti total nilai Opportunity yang terhubung (biru tua = tertinggi, abu-abu = belum ada).'}
                   </>
                 )}
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              {effectiveTypeFilter !== 'distributor' && (
-                <Select value={mapMode} onValueChange={(v) => setMapMode(v as MapMode)}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue placeholder="Mode Peta" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="approval">Mode: Status Approval</SelectItem>
+              <Select value={mapMode} onValueChange={(v) => setMapMode(v as MapMode)}>
+                <SelectTrigger className="w-56">
+                  <SelectValue placeholder="Mode Peta" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="approval">Mode: Status Approval</SelectItem>
+                  {effectiveTypeFilter !== 'distributor' && (
                     <SelectItem value="visit">Mode: Kunjungan Toko</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
+                  )}
+                  <SelectItem value="performance">Mode: Performa Opportunity</SelectItem>
+                </SelectContent>
+              </Select>
               <Input
                 placeholder="Cari nama, kode, atau alamat..."
                 value={searchText}
@@ -827,6 +1138,16 @@ export function DistributorStoreMap({ fixedTypeFilter }: DistributorStoreMapProp
                           {p.distributorName && (
                             <p className="text-xs text-muted-foreground">Distributor: {p.distributorName}</p>
                           )}
+                          <p className="text-xs text-muted-foreground">
+                            PIC Sales Rep: {p.salesRepName ?? 'Belum ditugaskan'}
+                          </p>
+                          {mapMode === 'performance' && (
+                            <p className="text-xs text-muted-foreground">
+                              Nilai Opportunity: {formatCurrency(
+                                (p.kind === 'distributor' ? pointPerformance.byDistributor.get(p.id) : pointPerformance.byStore.get(p.id)) ?? 0
+                              )}
+                            </p>
+                          )}
                           <div className="flex items-center gap-1 pt-1">
                             {p.status === 'approved' && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
                             {p.status === 'pending' && <Clock className="w-3 h-3 text-amber-600" />}
@@ -885,6 +1206,191 @@ export function DistributorStoreMap({ fixedTypeFilter }: DistributorStoreMapProp
                   );
                 })}
               </MapContainer>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Bab 12 follow-up (insight #7): ringkasan + penugasan beban PIC sales rep. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <UserCog className="w-4 h-4 text-[#013E37]" />
+            Distribusi Beban Sales Rep
+          </CardTitle>
+          <CardDescription>
+            Jumlah {fixedTypeFilter === 'distributor' ? 'Distributor' : fixedTypeFilter === 'store' ? 'Toko' : 'Distributor & Toko'} yang ditangani tiap sales rep (tidak termasuk yang rejected).
+            {isApprover && ' Ubah PIC lewat daftar di bawah.'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Memuat...</p>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-2">
+                {salesRepWorkload.map((b) => (
+                  <div
+                    key={b.rep?.id ?? UNASSIGNED_VALUE}
+                    className={
+                      'flex items-center gap-2 px-3 py-2 rounded-lg border text-sm ' +
+                      (b.rep ? 'border-gray-200 bg-gray-50' : 'border-amber-200 bg-amber-50')
+                    }
+                  >
+                    <Users className="w-4 h-4 text-[#013E37]" />
+                    <span className="font-medium">{b.rep ? b.rep.name : 'Belum Ditugaskan'}</span>
+                    <Badge variant="outline">
+                      {b.distributorCount + b.storeCount} titik
+                      {effectiveTypeFilter === 'all' ? ` (${b.distributorCount} distributor, ${b.storeCount} toko)` : ''}
+                    </Badge>
+                  </div>
+                ))}
+                {salesRepWorkload.length === 0 && (
+                  <p className="text-sm text-muted-foreground">Belum ada data.</p>
+                )}
+              </div>
+
+              {isApprover && (
+                <div className="border-t border-gray-100 pt-4 max-h-72 overflow-y-auto space-y-1">
+                  {assignablePoints.map((p) => (
+                    <div
+                      key={`assign-${p.kind}-${p.id}`}
+                      className="flex items-center justify-between gap-3 py-1.5"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        {p.kind === 'distributor' ? (
+                          <Truck className="w-4 h-4 text-[#013E37] shrink-0" />
+                        ) : (
+                          <StoreIcon className="w-4 h-4 text-[#013E37] shrink-0" />
+                        )}
+                        <span className="text-sm truncate">{p.name}</span>
+                        <span className="text-xs text-muted-foreground shrink-0">({p.code})</span>
+                      </div>
+                      <Select
+                        value={p.salesRepId ?? UNASSIGNED_VALUE}
+                        onValueChange={(v) => handleAssignSalesRep(p.kind, p.id, v === UNASSIGNED_VALUE ? null : v)}
+                        disabled={assigningId === p.id}
+                      >
+                        <SelectTrigger className="w-56 h-8 text-xs shrink-0">
+                          <SelectValue placeholder="Pilih sales rep..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={UNASSIGNED_VALUE}>Belum Ditugaskan</SelectItem>
+                          {salesReps.map((r) => (
+                            <SelectItem key={r.id} value={r.id}>
+                              {r.name} · {ROLE_LABEL[r.role] ?? r.role}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ))}
+                  {assignablePoints.length === 0 && (
+                    <p className="text-sm text-muted-foreground">Belum ada Distributor/Toko untuk ditugaskan.</p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Bab 12 follow-up (insight #2): coverage gap terhadap Territory --
+          pendekatan substring-match, lihat komentar di coverageGap useMemo. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <MapPinOff className="w-4 h-4 text-[#013E37]" />
+            Coverage Gap Wilayah
+          </CardTitle>
+          <CardDescription>
+            Dihitung dari kecocokan teks antara nama wilayah Territory dan alamat Distributor/Toko -- Territory di
+            aplikasi ini belum punya data batas wilayah GIS asli, jadi ini perkiraan, bukan kepastian geografis.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <p className="text-sm font-medium mb-2">
+              Territory Tanpa {fixedTypeFilter === 'distributor' ? 'Distributor' : fixedTypeFilter === 'store' ? 'Toko' : 'Distributor/Toko'} Terpetakan ({coverageGap.territoriesWithoutPoints.length}/{territories.length})
+            </p>
+            {coverageGap.territoriesWithoutPoints.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                {territories.length === 0 ? 'Belum ada data Territory.' : 'Semua Territory sudah punya titik pendukung.'}
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {coverageGap.territoriesWithoutPoints.map((t) => (
+                  <Badge key={t.id} variant="outline" className="text-amber-700 border-amber-300">
+                    {t.name} ({t.region})
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+          <div>
+            <p className="text-sm font-medium mb-2">
+              {fixedTypeFilter === 'distributor' ? 'Distributor' : fixedTypeFilter === 'store' ? 'Toko' : 'Distributor/Toko'} di Luar Wilayah Territory Manapun ({coverageGap.pointsWithoutTerritory.length}/{coverageGap.relevantCount})
+            </p>
+            {coverageGap.pointsWithoutTerritory.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                {coverageGap.relevantCount === 0 ? 'Belum ada data.' : 'Semua titik sudah tercakup Territory.'}
+              </p>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-1.5">
+                  {coverageGap.pointsWithoutTerritory.slice(0, 8).map((p) => (
+                    <Badge key={`${p.kind}-${p.id}`} variant="outline" className="text-gray-700 border-gray-300">
+                      {p.name}
+                    </Badge>
+                  ))}
+                </div>
+                {coverageGap.pointsWithoutTerritory.length > 8 && (
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    +{coverageGap.pointsWithoutTerritory.length - 8} lainnya
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Bab 12 follow-up (insight #6): penetrasi kategori produk. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Package className="w-4 h-4 text-[#013E37]" />
+            Penetrasi Kategori Produk
+          </CardTitle>
+          <CardDescription>
+            Total nilai Opportunity per kategori produk, dibatasi ke Opportunity yang klien-nya terhubung ke jaringan
+            distribusi {fixedTypeFilter === 'distributor' ? 'Distributor' : fixedTypeFilter === 'store' ? 'Toko' : 'Distributor/Toko'} ini.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {categoryPenetration.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Belum ada Opportunity yang terhubung ke Client dengan Distributor/Toko tercatat.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {categoryPenetration.map((c) => {
+                const maxValue = categoryPenetration[0].totalValue || 1;
+                const widthPct = Math.max(4, Math.round((c.totalValue / maxValue) * 100));
+                return (
+                  <div key={c.category}>
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span className="font-medium">{c.category}</span>
+                      <span className="text-muted-foreground">
+                        {formatCurrency(c.totalValue)} · {c.totalQty} unit
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                      <div className="h-full bg-[#013E37] rounded-full" style={{ width: `${widthPct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>
