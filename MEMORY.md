@@ -1937,3 +1937,88 @@ mau lanjutkan Fase C:
 - `AIFeaturesSection.tsx`, `AIAssistant.tsx`, `ai/OpportunityDetailDialog.tsx`,
   `ai/RecommendationDetailDialog.tsx`, `ai/RiskDetailDialog.tsx` -- belum dinilai
   detail, perlu audit isi masing-masing dulu sebelum diprioritaskan.
+
+## 21. Gap audit Fase A-C -- 23 Sep 2026
+
+### Konteks
+
+User bertanya "apakah masih ada gap dari fase a sampai fase c?". Audit ini
+memverifikasi ulang KODE (review manual + isolated tsc + vite build, bukan cuma
+baca MEMORY.md) dan DATA LIVE production (browser fetch ke API + cek DOM halaman
+Home) untuk section 18-20.
+
+### Temuan 1 -- KODE Fase A/B/C: tidak ada bug baru ditemukan
+
+Ditinjau ulang manual: field Client upsert (`seedClients`) lengkap dan cocok skema
+(`update`/`create` block punya semua field yang relevan, bukan placeholder kosong);
+perhitungan Revenue MTD/YTD/Win Rate/Kepatuhan Visit di `Home.tsx` sudah ada guard
+pembagian-nol; query `buildAiBusinessContext` di `api/handler.ts` memakai nilai enum
+Prisma yang benar (`'VISIT'`, bukan `'visit'`); routing `/api/ai-chat` konsisten
+dengan konvensi resource multi-kata yang sudah ada (`discount-approvals`,
+`performance-targets`, dst.); tidak ada dependency npm baru yang perlu di-install
+(pilihan sengaja pakai `fetch` mentah, bukan `@anthropic-ai/sdk`); tidak ada sisa
+referensi ke kode yang sudah dihapus (`AI_KNOWLEDGE_BASE`/`generateAIResponse`).
+Tidak ditemukan gap/bug baru di level kode.
+
+### Temuan 2 -- SEMUA gap yang tersisa adalah gap DEPLOYMENT, bukan gap KODE
+
+Dicek langsung ke `https://salesappv20.vercel.app` (live production):
+
+- Halaman Home MASIH versi lama -- teks "Ringkasan Bab 13" TIDAK ada di DOM.
+  Artinya deploy production masih di commit sebelum Fase A (bukan cuma datanya
+  kosong, KODE-nya sendiri belum sampai ke production).
+- `POST /api/ai-chat` balas **404 Not Found** (bukan 503) -- mengonfirmasi endpoint
+  ini belum ter-deploy sama sekali (404 = route tidak ada; 503 baru akan muncul
+  SETELAH deploy kalau `ANTHROPIC_API_KEY` masih kosong).
+- `/api/clients`, `/api/opportunities`, `/api/tasks` semua masih 0 record.
+  `/api/products` masih stock/sold flat 200/5 di semua SKU.
+
+Akar masalahnya satu: **6 commit dari Fase A-C (`a699fd98` s/d `9f2a4262`) masih
+cuma ada di git lokal Mac, belum pernah `git push origin main`**. Sandbox Claude
+tidak punya kredensial GitHub untuk push sendiri -- ini sudah diflag berkali-kali
+di section 18/19/20, tapi diverifikasi ulang di sini karena masih jadi akar semua
+gap yang terlihat.
+
+### Temuan 3 -- satu gap LAMA (section 17) ternyata SUDAH RESOLVED, bukan gap lagi
+
+Migration `salesRepId` (commit `160f0f28`, section 17) sebelumnya ditandai "WAJIB
+dijalankan manual" di beberapa TODO. Dicek live: `GET /api/distributors` sekarang
+mengembalikan field `salesRepId` dengan nilai `null` (bukan error/undefined) --
+ini membuktikan migration SUDAH jalan di Neon production DAN Prisma Client yang
+ter-deploy sudah mengenali field ini. Kemungkinan besar `160f0f28`/`a8b67963` sudah
+ter-push+deploy di sesi sebelumnya (ada catatan push yang berhasil "via proses
+eksternal" di section-section awal). **Item TODO soal migration salesRepId di
+section 18 dianggap selesai, tidak perlu diulang.**
+
+### Kesimpulan -- checklist gabungan yang BENAR-BENAR masih tersisa
+
+Hanya 3 langkah manual, semuanya di mesin lokal user (tidak ada lagi yang perlu
+dikerjakan Claude di level kode untuk Fase A-C):
+
+- [ ] **`git push origin main`** -- 6 commit: `a699fd98`, `e4801e2b`, `fd6080d6`,
+      `811d7415`, `5d5f7eaa`, `9f2a4262`. Ini SATU-SATUNYA langkah yang membuat
+      Fase A, B, DAN C semuanya sekaligus live (dashboard Bab 13 muncul, endpoint
+      /api/ai-chat mulai terjawab -- meskipun awalnya masih 503 sampai langkah
+      berikutnya).
+- [ ] **`npx prisma db seed`** (`DATABASE_URL` harus sudah di-set) -- mengisi 12
+      Client, 24 Opportunity, 38 Task/Visit, dan stock/sold realistis ke 29 produk.
+      Tanpa ini, dashboard & AI Assistant tetap akan menampilkan angka nol/kosong
+      walau kode-nya sudah live.
+- [ ] **Set `ANTHROPIC_API_KEY` di Vercel Environment Variables** lalu redeploy --
+      supaya AI Assistant sungguhan (bukan 503) berfungsi. `AI_MODEL_ID` opsional.
+
+### Catatan tambahan (bukan gap, tapi perlu diketahui)
+
+- **Revenue MTD bisa tampil Rp0 di bulan yang "salah".** Tanggal `actualCloseDate`
+  di `clientsAndOpportunities.ts` di-hand-code tersebar Jan-Sep 2026 (tanggal
+  tetap, bukan relatif ke kapan seed dijalankan). Kalau dashboard dicek di bulan
+  yang TIDAK ada deal WON yang closing di bulan itu, "Revenue MTD" akan
+  menampilkan Rp0 -- itu bukan bug, itu karakteristik data dummy dengan tanggal
+  tetap. "Revenue YTD" lebih stabil (cakupan satu tahun penuh, 2026). Kalau ini
+  jadi masalah nyata (demo di luar rentang Jan-Sep 2026), datanya perlu di-refresh
+  dengan tanggal yang digeser relatif ke hari ini -- bukan dikerjakan sekarang,
+  cukup dicatat.
+- Item-item TODO dari sebelum Fase A (rotasi password 4 akun, batasi akses publik
+  domain production, migration Bab 9/10 yang lama, dst. -- lihat section 7-17) TIDAK
+  termasuk cakupan pertanyaan ini ("gap dari Fase A sampai C") dan tidak dicek ulang
+  di sini. Itu backlog terpisah dari sebelum Bab 12-15.
