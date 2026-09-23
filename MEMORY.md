@@ -1392,3 +1392,123 @@ Akun `demo@onduline.co.id` (nonaktif) masih ada di tabel `users` untuk
 jejak audit -- kalau mau benar-benar dibersihkan dari DB, perlu query
 manual dari Mac (bukan lewat aplikasi, karena memang sengaja tidak ada
 jalur hapus user).
+
+## 16. Bersih-bersih UI menu CRM & Leaderboard, sapuan domain email, unifikasi tab CRM -- 23 Sep 2026
+
+Empat permintaan berurutan/bersamaan dalam satu sesi lanjutan.
+
+### 16.1 Hapus subtitle "FASKES & INSTITUSI" di tab Client -- commit `c041ae78`
+
+Sisa label era healthcare di `SalesTeam.tsx` (tab "Client" pada menu
+CRM), tidak terhapus oleh refactor Fase 1 item 5 (section 14) karena itu
+teks statis di JSX, bukan field data. Dihapus satu baris, dicek tidak
+ada sisa string "FASKES" di manapun di `src/`.
+
+### 16.2 Background menu Leaderboard jadi transparan -- commit `04b11b9e`
+
+`SalesLeaderboard.tsx` sebelumnya adalah dark dashboard mandiri
+(`bg-gradient-to-br slate-900/blue-900`, kartu translucent
+`bg-slate-800/50` + `backdrop-blur`, teks putih/pastel) -- tidak
+konsisten dengan tema terang aplikasi (Card putih + aksen `#013E37`,
+pola `Home.tsx`). Diganti ke tema terang penuh: root `bg-transparent`,
+4 kartu ringkasan jadi kartu putih standar dengan lencana ikon gradient
+(pola sama seperti stat card Dashboard), kartu Podium & Tabel Ranking
+jadi Card putih polos, semua teks yang tadinya dikontraskan ke latar
+gelap (`text-white`, `text-blue-200`, `text-gray-300/400`,
+`text-yellow-200/400`) disesuaikan ke `text-gray-900/500` &
+`text-yellow-600/700`, border/ring avatar (`border-slate-700`) jadi
+`border-white`+shadow, baris top-3 di tabel diberi tint `bg-yellow-50`.
+Elemen dengan bg solid sendiri (badge modul, badge target, lingkaran
+rank bergradient) dibiarkan karena kontrasnya independen dari warna
+halaman.
+
+### 16.3 Sapuan domain email placeholder -> @gmail.com -- commit `7b4447c1`
+
+Permintaan awal "ganti semua domain email" sempat berubah target
+(`@ondulin.com` -> `@gmail.com`) dan scope-nya ambigu (grep awal
+menemukan ~28 domain berbeda: kredensial login asli, domain per-klien
+dummy, placeholder generik, asumsi salah saya sendiri
+`onduline.co.id` di section 15.2). `AskUserQuestion` multi-select
+dijawab "[No preference]" -- tidak menyelesaikan ambiguitas, jadi
+diberikan rekomendasi konkret + alasan (bukan tanya ulang dengan cara
+sama): domain seperti `onduline.co.id`/`intramedika.co.id` dipakai
+sebagai domain email kantor/staff sungguhan (bukan data acak -- ada
+label form "Email Kantor (@intramedika.co.id)" di `KaryawanForm.tsx`),
+beda dengan domain generik `company.com`/`example.com`/dst yang murni
+placeholder. User menyetujui dengan 1 syarat tambahan: `intramedika.co.id`
+JUGA ikut diganti (bukan cuma placeholder generik) karena Intramedika
+bergerak di bidang healthcare, tidak relevan untuk konteks bisnis
+Onduline di codebase ini.
+
+Scope final yang diganti ke `@gmail.com` (64 kemunculan "@domain" di 15
+file): `company.com`, `example.com`, `medico.id` (sisa era healthcare),
+`rsharapansehat.com` (email saja, placeholder website `www.` dibiarkan
+-- di luar scope "domain email"), `list.com`, `perusahaan.com`,
+`email.com`, `globalsolutions.com`, `intramedika.co.id` (termasuk
+label & placeholder "Email Kantor" di `KaryawanForm.tsx`).
+
+TIDAK diubah: `onduline.co.id` (domain staff internal Onduline, relevan
+untuk bisnis aplikasi ini) dan seluruh domain per-klien dummy yang
+merepresentasikan perusahaan fiktif berbeda (`villaciwidey.co.id`,
+`makmurjayabangunan.co.id`, dll) -- mengganti ini akan menurunkan
+realisme data demo tiap klien tanpa alasan bisnis.
+
+### 16.4 Unifikasi tab menu CRM: Client, Distributor, Toko, AI Insights -- commit `d092cd10`
+
+User flag: tab CRM saat ini (Client/Partner/AI Insights) "kurang benar",
+seharusnya Client/Distributor/Toko/AI Insights. Insight yang diberikan
+sebelum eksekusi (pola sama seperti section 14): investigasi
+`SalesTeam.tsx` menemukan tab "Partner" (subtitle "RESELLER & VENDOR")
+ternyata datanya **localStorage-only** (`partnersApi` di
+`services/api.ts` menembak URL Supabase yang sudah mati, fallback ke
+localStorage) -- tidak pernah nyata dipakai di production. Sementara
+Distributor & Toko yang diminta user justru **sudah live** di database
+Prisma (`distributorsRepository`/`storesRepository`, lengkap approval
+workflow Bab 9 & peta GIS Bab 11), tapi berdiri sendiri di menu
+terpisah "Produk & Wilayah > Peta Distributor & Toko"
+(`DistributorStoreMap.tsx`, 992 baris -- peta Leaflet, GPS check-in +
+foto, alur approve/reject).
+
+3 opsi diberikan (pindahkan sepenuhnya / tambah tab baru+peta tetap ada
+terpisah / ganti isi tab tanpa pindah menu lama), user pilih **opsi 1
+(pindahkan sepenuhnya)**.
+
+Eksekusi -- dipindah utuh, BUKAN ditulis ulang, supaya logic peta/GPS/
+approval yang sudah jalan tidak berisiko rusak:
+
+- `DistributorStoreMap.tsx`: tambah prop opsional `fixedTypeFilter`
+  (`'distributor' | 'store'`). Saat diisi: state `typeFilter` di-init
+  dari prop, semua filter/summary/antrean-approval pakai
+  `effectiveTypeFilter` (prop kalau ada, else state lama) -- selector
+  "Tipe" & "Mode Peta" (mode kunjungan tidak relevan buat Distributor)
+  disembunyikan, kartu ringkasan "Total X"/kartu kunjungan-toko/antrean
+  approval ikut difilter ke 1 jenis, judul+deskripsi+tombol "Tambah"
+  menyesuaikan jadi cuma yang relevan. `undefined` = perilaku lama
+  (semua tipe sekaligus), dipertahankan untuk kompatibilitas.
+- `SalesTeam.tsx`: seluruh state/effect/fungsi Partner (`partners`,
+  `filteredPartners`, `fetchPartners`, `handleDeletePartner`,
+  `PartnerFormModal`/`PartnerDetailDialog` & importnya, `partnersApi`
+  dari import `services/api`) dihapus. `TabsList` jadi `grid-cols-4`,
+  2 `TabsTrigger` baru (Distributor/`Truck` icon, Toko/`Store` icon)
+  me-render `<DistributorStoreMap fixedTypeFilter="distributor" />` dan
+  `<DistributorStoreMap fixedTypeFilter="store" />`.
+- `menuConfig.ts`: item `distributor-store-map` ("Peta Distributor &
+  Toko") dihapus dari grup "Produk & Wilayah" beserta lazy import &
+  icon `Navigation` yang jadi tidak terpakai -- sudah pindah ke CRM,
+  bukan menu sidebar sendiri lagi.
+
+**Sengaja TIDAK dihapus**: file `PartnerForm.tsx`,
+`PartnerDetailDialog.tsx`, dan `partnersApi` (di `services/api.ts`) --
+sekarang jadi kode yatim (tidak dipakai di mana pun lagi), dibiarkan
+utuh di codebase, bisa dibersihkan permanen nanti kalau memang diminta.
+
+Verifikasi: `tsc --noEmit` terisolasi per file yang diubah (termasuk
+sekali dengan full dependency graph lewat import `SalesTeam.tsx`) --
+nol error baru yang terkait perubahan ini; satu-satunya error yang
+menyentuh `SalesTeam.tsx` (`communicationsApi` tidak ada di
+`services/api.ts`) dikonfirmasi PRA-EKSISTING lewat `git show HEAD~4`,
+bukan disebabkan perubahan sesi ini.
+
+- [ ] `git push origin main` untuk semua commit sesi ini yang belum
+      di-push (`c041ae78`, `04b11b9e`, `7b4447c1`, `d092cd10`, dan
+      commit sebelumnya yang juga belum di-push -- lihat section 15).
