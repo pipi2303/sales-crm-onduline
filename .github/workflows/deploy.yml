@@ -56,6 +56,9 @@ jobs:
         continue-on-error: true
         run: npx tsc --noEmit
 
+      - name: Run tests
+        run: npm test
+
 
       # ==========================================
       # 2. Docker Buildx
