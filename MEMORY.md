@@ -492,3 +492,117 @@ endpoint itu setelah deploy ke Vercel.
       opportunities/coverage ditambahkan ke model Territory (schema
       migration), atau direstrukturisasi ke tempat lain, sebelum
       migrasinya bisa lanjut.
+
+## 9. Bab 9 & 10 (Rencana Insight doc) — approval workflow, ownership check, discount approval DB — 23 Sep 2026
+
+Investigasi (`insight` dulu, sesuai preferensi user) lalu eksekusi 4 item
+yang dipilih user dari `AskUserQuestion`, urut komit:
+
+### Bab 9 — Alur Approval Toko & Distributor (`241c1026`)
+
+Backend (schema + `handleDistributors`/`handleStores` di `api/handler.ts`
++ `decide()` di kedua repository) sudah 100% lengkap sejak sesi
+sebelumnya, tapi frontend-nya nihil: tidak ada form create sama sekali,
+dan `DistributorStoreMap.tsx` (satu-satunya consumer kedua repository)
+cuma read-only, tidak ada tombol approve/reject.
+
+Ditambahkan ke `DistributorStoreMap.tsx` (satu-satunya tempat Distributor/
+Toko pernah ditampilkan, jadi wajar semua fitur ini masuk situ):
+- Dialog "Distributor Baru" / "Toko Baru" — kode, nama, alamat, GPS
+  lat/lng (dibuat wajib di form meski API mengizinkan null, karena tanpa
+  koordinat titik itu tak akan pernah muncul di peta ini). Siapa saja
+  yang login boleh mengajukan (match `requireAuth` di API, bukan
+  `requireRole`).
+- Kartu "Antrean Approval", hanya tampil untuk approver (Super Admin,
+  Sales Manager, Master Data Admin — user pilih "tetap izinkan
+  ketiganya", tidak mengunci ke satu role), tombol Setujui/Tolak
+  tersambung ke `decide()` yang sudah ada tapi sebelumnya tidak pernah
+  dipanggil dari mana pun.
+- Catatan: antrean hanya menampilkan pengajuan yang sudah punya
+  koordinat GPS (mengikuti filter `toPoints()` yang sudah ada) — kalau
+  ada pengajuan lama tanpa GPS (dibuat langsung lewat API, bukan lewat
+  form baru ini), dia tidak akan muncul di antrean ini.
+- Belum dikerjakan (di luar scope yang dipilih user): duplikat
+  kode/lokasi hanya dicek lewat unique constraint kolom `code` di DB,
+  belum ada pengecekan proksimitas GPS.
+
+### Bab 10 #5 — Proteksi data historis (`7a8deda0`)
+
+`PUT /api/tasks/:id` dan `PUT /api/opportunities/:id` sebelumnya hanya
+`requireAuth()` — siapa saja yang login (role apa pun) bisa mengedit
+task/opportunity milik orang lain, termasuk field yang terkait riwayat
+yang sudah terjadi (hasil check-in, nilai/stage deal yang sudah closed).
+Proteksi reopen di `OpportunityManagement.tsx` cuma di frontend, tidak
+ditegakkan di API — bisa dilewati lewat panggilan API langsung.
+
+Ditambahkan `requireOwnerOrRole()` di `lib/rbac.ts`: mengizinkan pemilik
+record (`ownerId`) ATAU role `SUPER_ADMIN`/`SALES_MANAGER` (role set yang
+sama dipakai DELETE di kedua resource ini). Kalau `ownerId` record itu
+null (data lama/seed sebelum ownerId jadi default), fallback ke perilaku
+lama (siapa saja login boleh edit) — supaya data lama tidak terkunci.
+Dipasang di kedua PUT handler, masing-masing fetch `current` dulu untuk
+tahu `ownerId` sebelum update.
+
+### Bab 10 #3 — Discount Approval System ke DB (`2d1419e9`)
+
+`DiscountApprovalSystem.tsx` sudah punya UI lengkap (kalkulator margin,
+approval level 1-4, counter-offer, conditional approve) tapi semua data
+cuma `useState` hardcoded di komponen — approve/reject/tolak TIDAK PERNAH
+mengubah array itu sama sekali, cuma munculkan toast. Tombol "Tolak" di
+detail dialog bahkan tidak punya `onClick` sama sekali (mati total).
+
+Model baru `DiscountApprovalRequest`/`DiscountApprovalStep` di
+`prisma/schema.prisma` + migration SQL manual di
+`prisma/migrations/20260923060000_add_discount_approval/`. `opportunityId`/
+`requestedById` sengaja disimpan sebagai string biasa (bukan relasi Prisma)
+supaya migrasi ini tidak menyentuh model User/Opportunity yang sudah ada.
+
+**PENTING — migrasi ini BEDA dari 4 migrasi Fase 1 sebelumnya**: kali ini
+modelnya baru dibuat, bukan sekadar nyambungin ke tabel yang sudah ada.
+Sandbox ini tidak bisa menjangkau `binaries.prisma.sh` maupun host Neon,
+jadi `npx prisma generate`/`npx prisma migrate` TIDAK BISA dijalankan atau
+diverifikasi dari sini — sudah didiskusikan dan dikonfirmasi ke user
+sebelum menulis kode ini. `tsc` mengonfirmasi setiap referensi
+`prisma.discountApprovalRequest` gagal hari ini dengan "does not exist on
+type PrismaClient" — itu SESUAI PERKIRAAN, akan hilang begitu Prisma
+client di-generate ulang.
+
+**Sebelum deploy, WAJIB dijalankan manual (bukan lewat sandbox ini):**
+1. `npx prisma migrate deploy` (apply `migration.sql` ke Neon).
+2. `npx prisma generate` (regenerate tipe TS client).
+3. Jalankan ulang `tsc`/`npx vite build` untuk pastikan bersih.
+
+Juga sekalian dibersihkan (masih dalam file yang sama, jadi murah untuk
+sekalian dikerjakan): `productCatalog` di `DiscountApprovalSystem.tsx`
+tadinya berisi produk rumah sakit ("Enterprise Health Suite", "Radiology
+Imaging System", dst) dan dropdown klien di form "New Request" berisi
+nama rumah sakit ("RS Pondok Indah", dll., bahkan bukan dropdown yang
+tersambung ke data asli) — diganti produk Onduline riil dan input nama
+klien bebas teks.
+
+Belum dikerjakan (di luar scope): role approver level 2-4 di sistem ini
+("Sales Manager"/"Sales Director"/"C-Level") adalah label kebijakan
+bisnis, BUKAN role login asli (`Role` enum cuma punya SUPER_ADMIN/
+SALES_MANAGER/SALES_REPRESENTATIVE/SALES_EXECUTIVE/MASTER_DATA_ADMIN —
+tidak ada "Sales Director"/"C-Level"). Jadi keputusan approve/reject di
+endpoint ini baru sebatas `requireAuth`, belum di-role-gate ke role
+tertentu — butuh keputusan bisnis dulu soal pemetaan tier kebijakan ke
+role login yang sesungguhnya.
+
+### Verifikasi
+
+Semua perubahan (kecuali `handleDiscountApprovals` yang bergantung pada
+Prisma client baru) dicek dengan `tsc --noEmit` terisolasi + `npx vite
+build` penuh — nol error baru selain yang sudah diketahui/pre-existing.
+
+- [ ] `git push origin main` untuk 3 commit di atas.
+- [ ] Jalankan `npx prisma migrate deploy` + `npx prisma generate` untuk
+      migrasi Discount Approval, lalu re-verify `tsc`/`vite build`.
+- [ ] Keputusan bisnis: pemetaan role approver Bab 9 (sudah diputuskan:
+      tetap 3 role) vs. tier approval level 2-4 Discount Approval (belum
+      diputuskan, masih label bebas).
+- [ ] Duplikat lokasi/GPS untuk Distributor/Toko (Bab 9) belum ada
+      pengecekan proksimitas, hanya unique `code`.
+- [ ] Bab 10 item 1 (Client tanpa approval) dan item 4 (AdminSystem.tsx
+      100% mock, tidak ada endpoint `/api/users`) masih terbuka, belum
+      dikerjakan sesi ini (di luar 4 item yang dipilih user).
