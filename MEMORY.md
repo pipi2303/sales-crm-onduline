@@ -390,3 +390,105 @@ eksekusi sendiri), tinggal bilang.
 
 - [ ] `git push origin main` dari Mac untuk 3 commit yang masih tertinggal
       di atas (`f2451453`, `1eba95b9`, `683a22d2`).
+
+## 8. Fase 1 lanjutan — deep-dive per item, data cleanup, migrasi DB — 23 Sep 2026
+
+Commit terkait (terbaru di atas):
+
+```
+399f641f fix(opportunity): rename duplicate budgetStatus field, fixes data loss
+5db23393 feat(api): migrate Client, SalesRep, PerformanceTarget, Commission to DB
+df8c7171 fix(data): replace hospital/HMS dummy data with Onduline business data
+```
+
+### Status per item Fase 1 (dicek langsung ke kode, bukan cuma dokumen)
+
+1. **Backend nyata**: selesai (Prisma + Postgres/Neon via Vercel).
+2. **Migrasi localStorage → DB**: tadinya dikira cuma Lead/Opportunity/
+   Product/Distributor/Store/Task yang sudah pindah. Ternyata Client,
+   SalesRep, Territory, PerformanceTarget, CommissionRecord juga masih
+   localStorage-only walau model Prisma-nya (kecuali Territory) sudah ada
+   dari awal, cuma belum ada API route-nya. Ditambah lagi Partner,
+   Employee/Karyawan, Demo, Contract yang modelnya belum ada sama sekali.
+   Sesi ini: **Client, SalesRep, PerformanceTarget, CommissionRecord sudah
+   dipindah ke DB asli** (route baru di `api/handler.ts`:
+   `/api/clients`, `/api/sales-reps`, `/api/performance-targets`,
+   `/api/commissions`, plus `clientsRepository.ts` baru dan
+   `salesRepsRepository.ts`/`performanceTargetsRepository.ts`/
+   `commissionsRepository.ts` disambungkan ke route itu). **Territory
+   TIDAK dipindah** — `TerritoryProfile` di frontend butuh field
+   `assignedTo`/`leads`/`opportunities`/`coverage`/`updatedAt` yang tidak
+   ada di model Prisma `Territory` (cuma `id`/`name`/`region`/`createdAt`).
+   Ini butuh migration schema Prisma dulu (`prisma migrate dev` atau
+   `db push`) yang harus dijalankan dari Mac (sandbox ini tidak bisa
+   connect ke Neon). Partner/Employee/Demo/Contract masih localStorage
+   sesuai keputusan user (fokus quick-win dulu, skema baru menyusul).
+3. **Autentikasi nyata**: selesai.
+4. **RBAC dua level**: backend selesai (semua endpoint pakai
+   requireAuth/requireRole termasuk 4 endpoint baru sesi ini). UI baru
+   Admin System yang dibatasi; menu lain menunggu keputusan bisnis.
+5. **Satukan model data**: ditemukan bug nyata — `Opportunity.budgetStatus`
+   dideklarasikan 2x di `src/types/opportunity.ts` dengan 2 arti berbeda
+   (Sales Process Details vs Commercial Detail "23.04.04"). Ini BUKAN
+   cuma error tipe kosmetik: `OpportunityFormNew.tsx` men-spread
+   `...salesDetails` lalu `...commercialDetails` ke payload yang sama saat
+   submit, jadi setiap kali disimpan, nilai Commercial Detail selalu
+   menimpa nilai Sales Process Details — salah satunya selalu hilang tanpa
+   pemberitahuan. Field Commercial Detail-nya di-rename jadi
+   `budgetAvailabilityStatus`; keduanya sekarang independen dan sama-sama
+   tersimpan. Sisa unifikasi model data (Client/Lead/Opportunity jadi satu
+   definisi konsisten) belum dikerjakan — ini baru 1 bug spesifik yang
+   ketemu di jalan.
+
+### Pembersihan data rumah sakit/HMS (sesuai instruksi eksplisit)
+
+- `App.tsx` tidak lagi auto-panggil `initializeAllData()` di setiap mount
+  — sebelumnya ini otomatis mengisi employees/clients/partners/contracts
+  dengan data dummy rumah sakit ke `localStorage` siapa pun yang browser/
+  device-nya belum punya data itu, tanpa aksi eksplisit apa pun. Tombol
+  manual "Load Dummy Data" di `SalesTeam.tsx`/`SalesRepresentative.tsx`
+  tetap ada untuk yang mau lihat contoh data.
+- `populateCRMData.ts` & `initializeDemos.ts`: seluruh data dummy Clients/
+  Partners/Contracts/Demos ditulis ulang dari rumah sakit/klinik/software
+  HMS ("RS Harapan Sehat", "Klinik Sehat Bersama", "HMS Enterprise") jadi
+  bisnis Onduline asli (toko bahan bangunan, kontraktor proyek, developer
+  properti, resort, distributor/aplikator, produk Onduline
+  Classic/Waterproofing/Ondusolar/Ondugreen). `productsDummyData` dihapus
+  total — sudah mati sejak Product pindah ke DB asli.
+- Sapuan penuh ke seluruh repo menemukan ~3 titik lain (placeholder form
+  di `ProductForm.tsx`/`ClientForm.tsx`, 2 entri mock data di
+  `RecommendationDetailDialog.tsx`/`RiskDetailDialog.tsx`) — sudah
+  diperbaiki juga.
+- **Belum disentuh** (butuh keputusan/effort lebih besar, bukan sekadar
+  ganti teks): `src/data/kpiData.ts` dan `src/types/kpi.ts` punya metrik
+  closing KPI yang secara struktural memakai kategori "SIMRS"/"Klinik"/
+  "Dokter" (`jumlah_closing_simrs`, dst) — ini taksonomi KPI, bukan cuma
+  konten dummy, dan gantinya harus berdasarkan kategori produk Onduline
+  yang sesungguhnya (Atap/Waterproofing/Photovoltaic/Green Roof/
+  Aksesoris). Juga beberapa dashboard AI lain
+  (`AIInsightsDashboard.tsx`, `AILeadScoring.tsx`, dll.) dan dropdown
+  kategori client di form yang masih menyebut rumah sakit/klinik sebagai
+  salah satu pilihan. Ini sengaja tidak diubah sekarang — butuh keputusan
+  soal taksonomi KPI yang baru, bukan sekadar cari-ganti teks.
+
+### Verifikasi
+
+`tsc` terhadap semua file yang diubah/dibuat: nol error baru (hanya ~59
+error type pre-existing yang sudah ada sebelum sesi ini, di file-file lain
+yang tidak disentuh). `vite build` sukses di setiap tahap. `dist/` dicek
+tidak mengandung string brand rumah sakit yang disentuh sesi ini. Route
+API baru (`/api/clients`, `/api/sales-reps`, `/api/performance-targets`,
+`/api/commissions`) BELUM diverifikasi end-to-end ke database sungguhan —
+`prisma generate` tidak bisa jalan dari sandbox ini (binaries.prisma.sh
+diblokir), jadi tolong jalankan `npm run build` dan smoke-test keempat
+endpoint itu setelah deploy ke Vercel.
+
+- [ ] `git push origin main` dari Mac untuk 3 commit di atas (dan yang
+      sebelumnya kalau belum ke-push: `f2451453`, `1eba95b9`, `683a22d2`,
+      `f2c8d0cc`).
+- [ ] Smoke-test `/api/clients`, `/api/sales-reps`, `/api/performance-targets`,
+      `/api/commissions` di production setelah deploy.
+- [ ] Kalau mau lanjut Territory: putuskan apakah field assignedTo/leads/
+      opportunities/coverage ditambahkan ke model Territory (schema
+      migration), atau direstrukturisasi ke tempat lain, sebelum
+      migrasinya bisa lanjut.
