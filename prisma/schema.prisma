@@ -265,6 +265,8 @@ model Lead {
   assignedTo  String?    @map("assigned_to")
   lastContact DateTime?  @map("last_contact")
   notes       String?
+  territoryId String?    @map("territory_id")
+  territory   Territory? @relation(fields: [territoryId], references: [id])
 
   // Same rationale as Opportunity.extra below: LeadManagement.tsx's
   // multi-contact editor (`companies[]`, singular `position`) has no
@@ -278,6 +280,7 @@ model Lead {
   opportunities Opportunity[]
 
   @@map("leads")
+  @@index([territoryId])
 }
 
 enum OpportunityStage {
@@ -337,6 +340,9 @@ model Opportunity {
   // opportunity belongs to.
   salesFlow SalesFlow? @map("sales_flow")
 
+  territoryId String?     @map("territory_id")
+  territory   Territory?  @relation(fields: [territoryId], references: [id])
+
   // The ~40 optional Overview/Commercial/Technical-Detail fields from
   // src/types/opportunity.ts (opportunityMaturity, budgetStatus,
   // forecastType, salesStage, functionFit, etc.) — see modeling note.
@@ -352,6 +358,7 @@ model Opportunity {
   @@map("opportunities")
   @@index([status])
   @@index([ownerId])
+  @@index([territoryId])
 }
 
 model OpportunityProduct {
@@ -640,13 +647,26 @@ model SalesRep {
   @@map("sales_reps")
 }
 
+// Bab-follow-up (business decision confirmed with user): assignedTo +
+// coverage added as real columns; leads/opportunities are NOT stored here
+// -- they're computed at read time from Lead.territoryId/
+// Opportunity.territoryId (see handleTerritories' GET in api/handler.ts),
+// same "derive, don't duplicate" approach as PerformanceTarget's
+// achievementRate. This is why Lead and Opportunity below both gained a
+// territoryId -- before this, neither had ANY link to a territory at
+// all, so "computed automatically" was not actually possible without it.
 model Territory {
-  id        String   @id @default(uuid())
-  name      String
-  region    String
-  createdAt DateTime @default(now()) @map("created_at")
+  id         String   @id @default(uuid())
+  name       String
+  region     String
+  assignedTo String?  @map("assigned_to")
+  coverage   Float    @default(0)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   performanceTargets PerformanceTarget[]
+  leads              Lead[]
+  opportunities      Opportunity[]
 
   @@map("territories")
 }

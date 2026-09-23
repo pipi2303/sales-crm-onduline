@@ -1,25 +1,50 @@
-// Territories repository — localStorage-backed profile store (name/region/
-// assignedTo/leads/opportunities/coverage). Target/actual/forecast revenue
-// figures are NOT stored here — see performanceTargetsRepository, keyed by
-// territoryId.
+// Territories repository — same adapter pattern as salesRepsRepository.ts.
+//
+// Bab-follow-up (business decision confirmed with user, 23 Sep 2026):
+// TerritoryProfile (name/region/assignedTo/coverage) used to be 100%
+// localStorage-backed; now calls GET/POST/PUT/DELETE /api/territories.
+// leads/opportunities in every response are server-computed counts
+// (Lead.territoryId/Opportunity.territoryId), never sent on create/update
+// — see src/types/territory.ts's NewTerritoryProfile.
+// Target/actual/forecast revenue figures are still NOT stored here —
+// see performanceTargetsRepository, keyed by territoryId.
+
 import type { TerritoryProfile, NewTerritoryProfile } from '@/types/territory';
 import type { Result } from '@/types/result';
 
-
-const STORAGE_KEY = 'sales_monitoring_territories_v2';
-
-function readAll(): TerritoryProfile[] {
+function getAuthToken(): string | undefined {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as TerritoryProfile[]) : [];
-  } catch (error) {
-    console.error('territoriesRepository: corrupted localStorage data, resetting to empty', error);
-    return [];
+    const raw = localStorage.getItem('salesMonitorUser');
+    if (!raw) return undefined;
+    return JSON.parse(raw)?.accessToken;
+  } catch {
+    return undefined;
   }
 }
 
-function writeAll(territories: TerritoryProfile[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(territories));
+async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<Result<T>> {
+  try {
+    const token = getAuthToken();
+    const res = await fetch(path, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+    });
+    const body = res.status === 204 ? { success: true } : await res.json();
+    if (!res.ok) {
+      if (res.status === 401) {
+        return { success: false, error: 'Sesi login tidak valid atau sudah berakhir. Silakan logout dan login kembali.' };
+      }
+      return { success: false, error: body.error ?? 'Terjadi kesalahan pada server' };
+    }
+    return body as Result<T>;
+  } catch (error) {
+    console.error(`territoriesRepository: request failed (${path}):`, error);
+    return { success: false, error: 'Tidak dapat terhubung ke server. Periksa koneksi Anda dan coba lagi.' };
+  }
 }
 
 function validate(input: NewTerritoryProfile): string | null {
@@ -32,46 +57,31 @@ function validate(input: NewTerritoryProfile): string | null {
 
 export const territoriesRepository = {
   async getAll(): Promise<Result<TerritoryProfile[]>> {
-    return { success: true, data: readAll() };
+    return apiFetch<TerritoryProfile[]>('/api/territories');
   },
 
   async getById(id: string): Promise<Result<TerritoryProfile>> {
-    const found = readAll().find((t) => t.id === id);
-    if (!found) return { success: false, error: 'Wilayah tidak ditemukan' };
-    return { success: true, data: found };
+    return apiFetch<TerritoryProfile>(`/api/territories/${id}`);
   },
 
   async create(input: NewTerritoryProfile): Promise<Result<TerritoryProfile>> {
     const validationError = validate(input);
     if (validationError) return { success: false, error: validationError };
 
-    const now = new Date().toISOString();
-    const created: TerritoryProfile = { ...input, id: crypto.randomUUID(), createdAt: now, updatedAt: now };
-    const territories = readAll();
-    territories.push(created);
-    writeAll(territories);
-    return { success: true, data: created };
+    return apiFetch<TerritoryProfile>('/api/territories', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
   },
 
   async update(id: string, updates: Partial<NewTerritoryProfile>): Promise<Result<TerritoryProfile>> {
-    const territories = readAll();
-    const index = territories.findIndex((t) => t.id === id);
-    if (index === -1) return { success: false, error: 'Wilayah tidak ditemukan' };
-
-    const merged = { ...territories[index], ...updates, updatedAt: new Date().toISOString() };
-    const validationError = validate(merged);
-    if (validationError) return { success: false, error: validationError };
-
-    territories[index] = merged;
-    writeAll(territories);
-    return { success: true, data: merged };
+    return apiFetch<TerritoryProfile>(`/api/territories/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
   },
 
   async remove(id: string): Promise<Result<void>> {
-    const territories = readAll();
-    const filtered = territories.filter((t) => t.id !== id);
-    if (filtered.length === territories.length) return { success: false, error: 'Wilayah tidak ditemukan' };
-    writeAll(filtered);
-    return { success: true };
+    return apiFetch<void>(`/api/territories/${id}`, { method: 'DELETE' });
   },
 };

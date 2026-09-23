@@ -21,13 +21,18 @@ import { computeAchievementPct } from '@/types/performanceTarget';
 import type { PerformanceTarget } from '@/types/performanceTarget';
 import type { TerritoryWithPerformance } from '@/types/territory';
 
-// Data source: territoriesRepository (profile: name/region/assignedTo/leads/
-// opportunities/coverage) joined with performanceTargetsRepository (target/
-// actual revenue per territory per period) — replaces the previous
-// hardcoded `useState<Territory[]>([...])` which never persisted anything
-// (a page refresh silently reverted every edit). `achievement` is now
-// always computeAchievementPct(target, actual), never a separately stored
-// number that could drift from the two figures it's derived from.
+// Data source: territoriesRepository (profile: name/region/assignedTo/
+// coverage) joined with performanceTargetsRepository (target/actual revenue
+// per territory per period) — replaces the previous hardcoded
+// `useState<Territory[]>([...])` which never persisted anything (a page
+// refresh silently reverted every edit). `achievement` is now always
+// computeAchievementPct(target, actual), never a separately stored number
+// that could drift from the two figures it's derived from.
+//
+// Bab-follow-up (23 Sep 2026): `leads`/`opportunities` are no longer
+// creatable/editable fields — the API now computes them from
+// Lead.territoryId/Opportunity.territoryId counts, so they are never sent
+// in a create/update payload (see NewTerritoryProfile), only read back.
 
 function getCurrentPeriod(): string {
   const now = new Date();
@@ -38,10 +43,10 @@ function getCurrentPeriod(): string {
 // sample data, now created through territoriesRepository + a matching
 // performance_targets row instead of being hardcoded into component state.
 const SEED_TERRITORIES = [
-  { name: 'Jakarta Pusat', region: 'DKI Jakarta', assignedTo: 'Budi Santoso', leads: 45, opportunities: 12, coverage: 85, revenue: 350000000, target: 300000000 },
-  { name: 'Jakarta Selatan', region: 'DKI Jakarta', assignedTo: 'Ani Wijaya', leads: 38, opportunities: 10, coverage: 78, revenue: 280000000, target: 300000000 },
-  { name: 'Bandung', region: 'Jawa Barat', assignedTo: 'Dewi Kartika', leads: 52, opportunities: 15, coverage: 92, revenue: 520000000, target: 400000000 },
-  { name: 'Surabaya', region: 'Jawa Timur', assignedTo: 'Eko Prasetyo', leads: 30, opportunities: 8, coverage: 65, revenue: 185000000, target: 250000000 },
+  { name: 'Jakarta Pusat', region: 'DKI Jakarta', assignedTo: 'Budi Santoso', coverage: 85, revenue: 350000000, target: 300000000 },
+  { name: 'Jakarta Selatan', region: 'DKI Jakarta', assignedTo: 'Ani Wijaya', coverage: 78, revenue: 280000000, target: 300000000 },
+  { name: 'Bandung', region: 'Jawa Barat', assignedTo: 'Dewi Kartika', coverage: 92, revenue: 520000000, target: 400000000 },
+  { name: 'Surabaya', region: 'Jawa Timur', assignedTo: 'Eko Prasetyo', coverage: 65, revenue: 185000000, target: 250000000 },
 ];
 
 export function TerritoryManagement() {
@@ -84,7 +89,7 @@ export function TerritoryManagement() {
         for (const seed of SEED_TERRITORIES) {
           const created = await territoriesRepository.create({
             name: seed.name, region: seed.region, assignedTo: seed.assignedTo,
-            leads: seed.leads, opportunities: seed.opportunities, coverage: seed.coverage,
+            coverage: seed.coverage,
           });
           if (created.success && created.data) {
             await performanceTargetsRepository.create({
@@ -151,8 +156,6 @@ export function TerritoryManagement() {
       name: selectedTerritory.name,
       region: selectedTerritory.region,
       assignedTo: selectedTerritory.assignedTo,
-      leads: selectedTerritory.leads,
-      opportunities: selectedTerritory.opportunities,
       coverage: selectedTerritory.coverage,
     });
     if (!profileResult.success) {
@@ -186,8 +189,6 @@ export function TerritoryManagement() {
       name: newTerritory.name || '',
       region: newTerritory.region || 'DKI Jakarta',
       assignedTo: newTerritory.assignedTo || '',
-      leads: newTerritory.leads || 0,
-      opportunities: newTerritory.opportunities || 0,
       coverage: newTerritory.coverage || 0,
     });
     if (!profileResult.success || !profileResult.data) {

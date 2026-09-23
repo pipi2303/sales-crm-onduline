@@ -340,6 +340,7 @@ async function handleLeads(id: string | undefined, req: ApiRequest, res: ApiResp
             source: (body.source as string) ?? null,
             assignedTo: (body.assignedTo as string) ?? user.id,
             notes: (body.notes as string) ?? null,
+            territoryId: (body.territoryId as string) ?? null,
             // Long-tail UI-only fields (companies[]/position from
             // LeadManagement.tsx) with no dedicated column — same pattern
             // as Opportunity.extra.
@@ -390,6 +391,7 @@ async function handleLeads(id: string | undefined, req: ApiRequest, res: ApiResp
           ...(body.assignedTo !== undefined && { assignedTo: body.assignedTo as string }),
           ...(body.notes !== undefined && { notes: body.notes as string }),
           ...(body.lastContact !== undefined && { lastContact: new Date(body.lastContact as string) }),
+          ...(body.territoryId !== undefined && { territoryId: body.territoryId as string | null }),
           ...(body.extra !== undefined && { extra: body.extra as object }),
         },
       });
@@ -940,6 +942,7 @@ async function handleOpportunities(id: string | undefined, req: ApiRequest, res:
             description: (body.description as string) ?? null,
             notes: (body.notes as string) ?? null,
             salesFlow: (body.salesFlow as 'PROJECT' | 'RETAIL') ?? null,
+            territoryId: (body.territoryId as string) ?? null,
             extra: (body.extra as object) ?? undefined,
             createdBy: user.id,
             products: {
@@ -1013,6 +1016,7 @@ async function handleOpportunities(id: string | undefined, req: ApiRequest, res:
           ...(body.closeReason !== undefined && { closeReason: body.closeReason as string }),
           ...(body.closeDetail !== undefined && { closeDetail: body.closeDetail as string }),
           ...(body.notes !== undefined && { notes: body.notes as string }),
+          ...(body.territoryId !== undefined && { territoryId: body.territoryId as string | null }),
           ...(body.extra !== undefined && { extra: body.extra as object }),
           // The UI always sends the complete current products/activities
           // array on every save (never a delta), so a full delete+recreate
@@ -1867,6 +1871,133 @@ async function handleDiscountApprovals(id: string | undefined, req: ApiRequest, 
 }
 
 // ---------------------------------------------------------------------
+// /api/territories, /api/territories/:id
+//
+// Bab-follow-up (business decision confirmed with user, 23 Sep 2026):
+// territoriesRepository.ts used to be 100% localStorage -- this is its
+// real-backend home. assignedTo/coverage are real columns; leads/
+// opportunities are NEVER stored here, always computed via Prisma's
+// relation _count against Lead.territoryId/Opportunity.territoryId (see
+// the schema.prisma comment on model Territory for the full rationale).
+// ---------------------------------------------------------------------
+
+function serializeTerritory(t: {
+  id: string;
+  name: string;
+  region: string;
+  assignedTo: string | null;
+  coverage: number;
+  createdAt: Date;
+  updatedAt: Date;
+  _count: { leads: number; opportunities: number };
+}) {
+  return {
+    id: t.id,
+    name: t.name,
+    region: t.region,
+    assignedTo: t.assignedTo,
+    coverage: t.coverage,
+    leads: t._count.leads,
+    opportunities: t._count.opportunities,
+    createdAt: t.createdAt,
+    updatedAt: t.updatedAt,
+  };
+}
+
+async function handleTerritories(id: string | undefined, req: ApiRequest, res: ApiResponse) {
+  try {
+    const user = await getUserFromToken(extractBearerToken(req.headers.authorization));
+
+    if (!id) {
+      requireAuth(user);
+
+      if (req.method === 'GET') {
+        const territories = await prisma.territory.findMany({
+          orderBy: { createdAt: 'desc' },
+          include: { _count: { select: { leads: true, opportunities: true } } },
+        });
+        res.status(200).json({ success: true, data: territories.map(serializeTerritory) });
+        return;
+      }
+
+      if (req.method === 'POST') {
+        requireRole(user, ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADMIN']);
+        const body = (req.body ?? {}) as Record<string, unknown>;
+        if (!body.name || !body.region) {
+          res.status(400).json({ success: false, error: 'name dan region wajib diisi' });
+          return;
+        }
+        const territory = await prisma.territory.create({
+          data: {
+            name: body.name as string,
+            region: body.region as string,
+            assignedTo: (body.assignedTo as string) ?? null,
+            coverage: (body.coverage as number) ?? 0,
+          },
+          include: { _count: { select: { leads: true, opportunities: true } } },
+        });
+        res.status(201).json({ success: true, data: serializeTerritory(territory) });
+        return;
+      }
+
+      res.status(405).json({ success: false, error: 'Method not allowed' });
+      return;
+    }
+
+    if (req.method === 'GET') {
+      requireAuth(user);
+      const territory = await prisma.territory.findUnique({
+        where: { id },
+        include: { _count: { select: { leads: true, opportunities: true } } },
+      });
+      if (!territory) {
+        res.status(404).json({ success: false, error: 'Wilayah tidak ditemukan' });
+        return;
+      }
+      res.status(200).json({ success: true, data: serializeTerritory(territory) });
+      return;
+    }
+
+    if (req.method === 'PUT') {
+      requireRole(user, ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADMIN']);
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const territory = await prisma.territory.update({
+        where: { id },
+        data: {
+          ...(body.name !== undefined && { name: body.name as string }),
+          ...(body.region !== undefined && { region: body.region as string }),
+          ...(body.assignedTo !== undefined && { assignedTo: body.assignedTo as string | null }),
+          ...(body.coverage !== undefined && { coverage: body.coverage as number }),
+        },
+        include: { _count: { select: { leads: true, opportunities: true } } },
+      });
+      res.status(200).json({ success: true, data: serializeTerritory(territory) });
+      return;
+    }
+
+    if (req.method === 'DELETE') {
+      requireRole(user, ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADMIN']);
+      await prisma.territory.delete({ where: { id } });
+      res.status(200).json({ success: true });
+      return;
+    }
+
+    res.status(405).json({ success: false, error: 'Method not allowed' });
+  } catch (err) {
+    if (err instanceof UnauthorizedError || err instanceof ForbiddenError) {
+      res.status(err.status).json({ success: false, error: err.message });
+      return;
+    }
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2025') {
+      res.status(404).json({ success: false, error: 'Wilayah tidak ditemukan' });
+      return;
+    }
+    console.error('[api/territories] unexpected error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
+// ---------------------------------------------------------------------
 // Top-level dispatch
 // ---------------------------------------------------------------------
 
@@ -1889,6 +2020,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return;
     case 'performance-targets':
       await handlePerformanceTargets(sub, req, res);
+      return;
+    case 'territories':
+      await handleTerritories(sub, req, res);
       return;
     case 'commissions':
       await handleCommissions(sub, req, res);
