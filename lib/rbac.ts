@@ -32,3 +32,29 @@ export function requireRole(user: AuthedUser | null, allowed: Role[]): asserts u
 export function requireAuth(user: AuthedUser | null): asserts user is AuthedUser {
   if (!user) throw new UnauthorizedError();
 }
+
+// Bab 10 gap #5 (Rencana Insight doc): PUT on Task/Opportunity previously
+// only checked requireAuth(), so any authenticated user -- any role, not
+// just the assigned owner -- could edit someone else's task or deal,
+// including fields tied to already-recorded history (check-in results,
+// closed deal value/stage). This adds the missing ownership boundary
+// without a schema change: the record's own ownerId, or an elevated role,
+// is required to modify it.
+//
+// ownerId is nullable on both Task and Opportunity (legacy/seeded rows
+// created before Fase 1's ownerId default, or genuinely unassigned
+// records). For those, this intentionally falls back to the old
+// behaviour (any authenticated user may edit) rather than locking
+// everyone out of orphaned data -- the boundary only applies once a
+// record actually has a recorded owner.
+export function requireOwnerOrRole(
+  user: AuthedUser | null,
+  ownerId: string | null | undefined,
+  allowed: Role[]
+): asserts user is AuthedUser {
+  if (!user) throw new UnauthorizedError();
+  if (ownerId && user.id === ownerId) return;
+  if (allowed.includes(user.role)) return;
+  if (!ownerId) return;
+  throw new ForbiddenError(`Hanya pemilik record atau role ${allowed.join('/')} yang boleh mengubah data ini`);
+}

@@ -40,7 +40,7 @@ import {
   getUserFromToken,
   extractBearerToken,
 } from '../lib/auth.js';
-import { requireAuth, requireRole, ForbiddenError, UnauthorizedError } from '../lib/rbac.js';
+import { requireAuth, requireRole, requireOwnerOrRole, ForbiddenError, UnauthorizedError } from '../lib/rbac.js';
 import { uploadCheckInPhoto, InvalidPhotoError } from '../lib/blob.js';
 
 interface ApiRequest extends IncomingMessage {
@@ -980,6 +980,14 @@ async function handleOpportunities(id: string | undefined, req: ApiRequest, res:
 
     if (req.method === 'PUT') {
       requireAuth(user);
+      // Bab 10 gap #5: ownership check -- see requireOwnerOrRole's doc
+      // comment in lib/rbac.ts.
+      const currentOpportunity = await prisma.opportunity.findUnique({ where: { id } });
+      if (!currentOpportunity) {
+        res.status(404).json({ success: false, error: 'Opportunity not found' });
+        return;
+      }
+      requireOwnerOrRole(user, currentOpportunity.ownerId, ['SUPER_ADMIN', 'SALES_MANAGER']);
       const body = (req.body ?? {}) as Record<string, unknown>;
       // FR-04 (src/types/opportunity.ts): closeReason/closeDetail are
       // required before an opportunity can move to Closed Won/Lost —
@@ -1505,6 +1513,14 @@ async function handleTasks(id: string | undefined, req: ApiRequest, res: ApiResp
 
     if (req.method === 'PUT') {
       requireAuth(user);
+      // Bab 10 gap #5: ownership check -- see requireOwnerOrRole's doc
+      // comment in lib/rbac.ts.
+      const currentTask = await prisma.task.findUnique({ where: { id } });
+      if (!currentTask) {
+        res.status(404).json({ success: false, error: 'Task not found' });
+        return;
+      }
+      requireOwnerOrRole(user, currentTask.ownerId, ['SUPER_ADMIN', 'SALES_MANAGER']);
       const body = (req.body ?? {}) as Record<string, unknown>;
       const task = await prisma.task.update({
         where: { id },
