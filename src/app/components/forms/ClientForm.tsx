@@ -51,9 +51,12 @@ export function ClientFormModal({ client, onClose, onSuccess }: ClientFormProps)
     id_customer: '', // NEW FIELD - ID Customer
     nama_entitas: '',
     kategori_client: '',
-    // FR-05: Sektor kepemilikan faskes (Type/Sub Type/Sector dari FSD, diadaptasi ke konteks
-    // faskes kesehatan — bukan Distributor/Installer/Kontraktor ala Onduline yang ada di FSD asli,
-    // karena Salesappv20 memang mengelola Rumah Sakit/Puskesmas/Klinik, bukan proyek atap/bangunan).
+    // FR-05: Sektor kepemilikan client (Type/Sub Type/Sector dari FSD) --
+    // klasifikasi terpisah dari kategori_client di atas: ini soal SIAPA
+    // pemiliknya (Pemerintah/BUMN/Swasta/TNI-Polri, lihat dropdown "Sektor
+    // Kepemilikan" di bawah), bukan APA jenis bisnisnya (kategori_client
+    // sudah dimigrasi ke kategori Onduline -- Toko Bangunan/Distributor/
+    // Kontraktor/dst, lihat dropdown di atas -- lihat MEMORY.md).
     sektor_client: '',
     owner: '',
     alamat_lengkap: '', // deprecated: dipertahankan untuk kompatibilitas data lama, lihat alamat_penagihan/alamat_pengiriman
@@ -246,7 +249,7 @@ export function ClientFormModal({ client, onClose, onSuccess }: ClientFormProps)
                   {formData.nama_entitas || (client ? 'Edit Data Client' : 'Tambah Client Baru')}
                 </DialogTitle>
                 <DialogDescription className="text-white/80 text-sm mt-1 leading-tight">
-                  {formData.kategori_client || 'Rumah Sakit'}
+                  {formData.kategori_client || 'Toko Bangunan'}
                 </DialogDescription>
               </div>
             </div>
@@ -388,11 +391,12 @@ export function ClientFormModal({ client, onClose, onSuccess }: ClientFormProps)
                             <SelectValue placeholder="Pilih kategori" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Rumah Sakit">🏥 Rumah Sakit</SelectItem>
-                            <SelectItem value="Puskesmas">🏢 Puskesmas</SelectItem>
-                            <SelectItem value="Klinik">🩺 Klinik</SelectItem>
-                            <SelectItem value="Praktek Dokter Pribadi">👨‍⚕️ Praktek Dokter Pribadi</SelectItem>
-                            <SelectItem value="Faskes Lainnya">🏗️ Faskes Lainnya</SelectItem>
+                            <SelectItem value="Toko Bangunan">🏬 Toko Bangunan</SelectItem>
+                            <SelectItem value="Distributor">🚚 Distributor</SelectItem>
+                            <SelectItem value="Kontraktor">👷 Kontraktor</SelectItem>
+                            <SelectItem value="Developer">🏗️ Developer / Proyek Perumahan</SelectItem>
+                            <SelectItem value="Instansi Pemerintah">🏛️ Instansi Pemerintah / BUMN</SelectItem>
+                            <SelectItem value="End User">🏠 End User / Individu</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
