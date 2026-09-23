@@ -2173,3 +2173,73 @@ Urutan ini penting -- migration harus jalan SEBELUM seed ulang, supaya
 Temuan ini murni hasil verifikasi terhadap live production (bukan asumsi dari
 laporan "done" user) -- sesuai pola kerja yang sudah konsisten dipakai sepanjang
 sesi ini: jangan percaya klaim "selesai" tanpa mengecek data/API sungguhan.
+
+## 24. AI Assistant: ganti Anthropic -> Gemini API -- 23 Sep 2026
+
+### Konteks
+
+Setelah migration Task (section 23) beres dan `ANTHROPIC_API_KEY` akhirnya terbaca
+di production (503 hilang), muncul dua error berurutan dari Anthropic API sendiri,
+ditemukan lewat log runtime Vercel (`[api/ai-chat] Anthropic API error: ...`):
+
+1. **400 "not scoped to a workspace"** -- key awal dibuat tanpa workspace dipilih.
+   User buat ulang key dengan Scope = "Default workspace" secara eksplisit -- ini
+   memperbaiki error ini.
+2. **400 "Your credit balance is too low to access the Anthropic API"** -- akun
+   Anthropic yang dipakai belum ada credit/billing-nya sama sekali. Ini bukan
+   masalah konfigurasi lagi, murni akun belum diisi saldo.
+
+User bertanya "kalau kita pakai Gemini gimana?" -- ditanya balik lewat
+AskUserQuestion (ganti sekarang / tunggu isi saldo Anthropic / siapkan fallback
+dua-duanya), **user pilih ganti ke Gemini sekarang**.
+
+### Yang dikerjakan
+
+`api/handler.ts`, fungsi `handleAiChat()`:
+
+- `GEMINI_API_KEY` (env var) menggantikan `ANTHROPIC_API_KEY`, tetap hanya dibaca
+  server-side.
+- Endpoint diganti ke
+  `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key=...`
+  -- auth Gemini lewat query param `key`, BUKAN header seperti Anthropic
+  (`x-api-key`).
+- Body request diganti ke format Gemini: `contents[]` (bukan `messages[]`),
+  `systemInstruction: {parts:[{text}]}` (bukan field `system` polos),
+  `generationConfig: {maxOutputTokens}` (bukan `max_tokens` di top level).
+- Histori percakapan di-mapping: role `'assistant'` (istilah Anthropic) jadi
+  `'model'` (istilah Gemini) -- Gemini tidak pakai kata "assistant" untuk giliran
+  AI. Tiap turn dibungkus `{role, parts:[{text}]}`, bukan `{role, content}` polos.
+- Response parsing: `candidates[0].content.parts[].text` menggantikan
+  `content[].text` (struktur Anthropic).
+- Model default: **`gemini-3.8-flash`** -- dikonfirmasi via WebFetch ke dokumentasi
+  resmi Google (`ai.google.dev`) per 23 Sep 2026, bukan tebakan. Masih
+  override-able lewat `AI_MODEL_ID` seperti sebelumnya.
+
+**Yang TIDAK berubah**: `buildAiBusinessContext()` (query Opportunity/Task/Product
+dari Prisma) dan isi system prompt (instruksi Bahasa Indonesia, jangan mengarang
+data) -- murni ganti lapisan pemanggilan API-nya, bukan logika bisnisnya.
+
+`.env.example` diperbarui: `ANTHROPIC_API_KEY` -> `GEMINI_API_KEY`, link
+dokumentasi cara dapat key diganti ke `https://aistudio.google.com/apikey`.
+
+### Verifikasi
+
+- Isolated `tsc --noEmit` identik byte-for-byte dengan baseline (154 error
+  pre-existing dari sebelumnya, nol baru).
+- `npx vite build` (build produksi sungguhan) sukses tanpa error.
+- Grep dikonfirmasi tidak ada sisa referensi "Anthropic"/"Claude" di
+  `api/handler.ts` maupun `AIChatAssistant.tsx` (frontend tidak perlu diubah sama
+  sekali -- dia cuma manggil `/api/ai-chat`, tidak tahu-menahu provider di
+  baliknya).
+- Commit: `80f00ca5`.
+
+### PENTING -- langkah manual yang wajib dijalankan user
+
+- [ ] **Buat API key Gemini gratis** di `https://aistudio.google.com/apikey`.
+- [ ] **Set `GEMINI_API_KEY`** di Vercel Project Settings -> Environment
+      Variables (isi value dengan key Gemini barusan). `ANTHROPIC_API_KEY` yang
+      lama boleh dihapus atau dibiarkan -- sudah tidak dipakai kode manapun.
+- [ ] **Redeploy** setelah env var baru di-set.
+- [ ] Tes AI Assistant lagi setelah redeploy selesai ("Ready").
+
+Tidak perlu isi saldo Anthropic lagi untuk fitur ini -- sudah tidak dipakai.
