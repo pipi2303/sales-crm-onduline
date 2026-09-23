@@ -29,7 +29,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { MapPin, Store as StoreIcon, Truck, Clock, CheckCircle2, XCircle, Camera, CameraOff, Plus } from 'lucide-react';
+import { MapPin, Store as StoreIcon, Truck, Clock, CheckCircle2, XCircle, Camera, CameraOff, Plus, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
 import { Switch } from '@/app/components/ui/switch';
@@ -172,6 +172,36 @@ function divIcon(kind: PointKind, color: string): L.DivIcon {
   });
 }
 
+// Bab 9 follow-up (business decision confirmed with user): warn the
+// approver when a pending Distributor/Toko is geographically close to
+// another point, instead of blocking submission outright -- the doc's
+// own "duplikat kode/lokasi" concern, previously only half-implemented
+// (unique `code` constraint only, no location check at all). Computed
+// client-side from data already loaded here; no schema/API change
+// needed.
+const DUPLICATE_RADIUS_METERS = 200;
+
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000; // Earth radius, meters
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
+// Points closer than DUPLICATE_RADIUS_METERS to `point`, excluding itself
+// and anything already rejected (a rejected point being nearby isn't a
+// signal of a live duplicate).
+function findNearbyPoints(point: MapPoint, allPoints: MapPoint[]): MapPoint[] {
+  return allPoints.filter((p) => {
+    if (p.kind === point.kind && p.id === point.id) return false;
+    if (p.status === 'rejected') return false;
+    return haversineMeters(point.lat, point.lng, p.lat, p.lng) <= DUPLICATE_RADIUS_METERS;
+  });
+}
+
 function toPoints(distributors: Distributor[], stores: Store[]): MapPoint[] {
   const distributorPoints: MapPoint[] = distributors
     .filter((d) => d.gpsLat !== null && d.gpsLng !== null)
@@ -301,6 +331,12 @@ export function DistributorStoreMap() {
       return true;
     });
   }, [allPoints, isApprover, showPending, typeFilter, searchText]);
+
+  const pendingWithNearby = useMemo(() => {
+    return allPoints
+      .filter((p) => p.status === 'pending')
+      .map((p) => ({ point: p, nearby: findNearbyPoints(p, allPoints) }));
+  }, [allPoints]);
 
   const mapCenter = useMemo((): [number, number] => {
     if (allPoints.length === 0) return DEFAULT_CENTER;
@@ -601,13 +637,12 @@ export function DistributorStoreMap() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {allPoints.filter((p) => p.status === 'pending').length === 0 ? (
+            {pendingWithNearby.length === 0 ? (
               <p className="text-sm text-muted-foreground">Tidak ada antrean approval saat ini.</p>
             ) : (
               <div className="space-y-2">
-                {allPoints
-                  .filter((p) => p.status === 'pending')
-                  .map((p) => (
+                {pendingWithNearby
+                  .map(({ point: p, nearby }) => (
                     <div
                       key={`${p.kind}-${p.id}`}
                       className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 p-3 rounded-lg border border-amber-200 bg-amber-50/50"
@@ -627,6 +662,12 @@ export function DistributorStoreMap() {
                             {p.distributorName ? ` · ${p.distributorName}` : ''}
                             {p.submittedAt ? ` · Diajukan ${formatDate(p.submittedAt)}` : ''}
                           </p>
+                          {nearby.length > 0 && (
+                            <p className="text-xs text-amber-700 font-medium mt-1 flex items-center gap-1">
+                              <AlertTriangle className="w-3 h-3" />
+                              Berdekatan (&lt;{DUPLICATE_RADIUS_METERS}m) dengan: {nearby.map((n) => n.name).join(', ')}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="flex gap-2">
