@@ -4,6 +4,7 @@ import { AIAssistant } from '@/app/components/AIAssistant';
 import { AIChatAssistant } from '@/app/components/ai/AIChatAssistant';
 import { LoadingScreen } from '@/app/components/LoadingScreen';
 import { ComponentLoader } from '@/app/components/ComponentLoader';
+import { ErrorBoundary } from '@/app/components/ErrorBoundary';
 import { Login } from '@/app/components/Login';
 import { Sidebar } from '@/app/components/layout/Sidebar';
 import { Header } from '@/app/components/layout/Header';
@@ -227,7 +228,9 @@ function AppContent() {
             <div className="h-full overflow-y-auto p-6">
               <div className="max-w-7xl mx-auto">
                 <Suspense fallback={<ComponentLoader />}>
-                  <ActiveComponent />
+                  <ErrorBoundary key={activeMenu} fallbackLabel="Gagal menampilkan halaman ini">
+                    <ActiveComponent />
+                  </ErrorBoundary>
                 </Suspense>
               </div>
             </div>
@@ -262,8 +265,10 @@ function AppContent() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ErrorBoundary fallbackLabel="Sales Monitoring Pro mengalami masalah">
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
