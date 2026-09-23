@@ -2243,3 +2243,136 @@ dokumentasi cara dapat key diganti ke `https://aistudio.google.com/apikey`.
 - [ ] Tes AI Assistant lagi setelah redeploy selesai ("Ready").
 
 Tidak perlu isi saldo Anthropic lagi untuk fitur ini -- sudah tidak dipakai.
+
+## 25. Bab 16.5 -- Hardening Tier 1: Error Boundary, audit JSON.parse, kompres logo -- 23 Sep 2026
+
+### Konteks
+
+Setelah audit Fase 2-4 (Error Boundary, Sentry, test suite, CI/CD gate,
+try/catch JSON.parse, dependency cleanup, kompresi logo, memoization, React
+Router, tsconfig strict) dilaporkan hampir semuanya belum dikerjakan,
+diminta saran & insight untuk prioritisasi, lalu eksekusi dimulai dari
+"Tier 1" (item yang murah dikerjakan dan mencegah outage nyata untuk user
+yang sudah pakai app ini di production): Error Boundary, audit menyeluruh
+`JSON.parse(localStorage)` yang belum ter-guard, dan kompresi logo.
+
+### Insight dari prioritisasi (sebelum eksekusi)
+
+Checklist Fase 2-4 dokumen aslinya mencampur tiga tingkat urgensi berbeda
+jauh -- disarankan urutan berdasarkan risiko nyata, bukan urutan dokumen:
+
+- **Tier 1** (murah, aman, cegah outage): Error Boundary, audit
+  `JSON.parse(localStorage)`, kompresi logo.
+- **Tier 2** (fondasi, urutan penting): `tsconfig.json` (ternyata TIDAK ADA
+  SAMA SEKALI -- lebih mendasar dari yang disadari dokumen asli, artinya
+  `vite build` produksi kemungkinan besar tidak pernah type-check sama
+  sekali) harus ada dulu sebelum CI/CD test gate berarti apa-apa; Sentry
+  baru berguna setelah Error Boundary ada tempat melaporkan error-nya; test
+  suite lebih baik mulai dari beberapa smoke test kritis daripada coverage
+  penuh dari nol.
+- **Tier 3** (nice-to-have, jangan buru-buru): memoization
+  (useMemo/useCallback/React.memo) di SalesTeam/OpportunityManagement/
+  SalesReports -- disarankan SKIP dulu, karena volume data production kecil
+  (~12 client, 24 opportunity, 38 task) sehingga optimisasi prematur lebih
+  berisiko nambah bug (stale closure) daripada manfaat; React Router untuk
+  deep-link itu refactor besar, layak jadi fase tersendiri; dependency
+  cleanup ("8 unused") belum diverifikasi dengan `depcheck` sungguhan,
+  jangan hapus berdasarkan angka yang belum dikonfirmasi.
+
+Soal 6 tabel SKU/logistik yang sengaja belum dibuat (section sebelumnya) --
+disarankan statusnya diubah dari terlihat seperti gap jadi eksplisit
+"deferred by design, ditinjau ulang kalau data logistik sudah ada".
+
+### Yang dikerjakan (Tier 1)
+
+**1. Error Boundary (`src/app/components/ErrorBoundary.tsx`, baru)**
+
+Class component standar React (`getDerivedStateFromError` +
+`componentDidCatch`). Fallback UI konsisten dengan style app (warna brand
+`#013E37`, ikon lucide-react `AlertTriangle`/`RefreshCw`), tampilkan pesan +
+detail error + tombol "Coba Lagi" (reset state boundary) dan "Muat Ulang
+Halaman" (full reload). `componentDidCatch` log ke console -- siap
+disambungkan ke Sentry di Tier 2 nanti tanpa ubah struktur.
+
+Dipakai dua tingkat di `App.tsx`:
+- Level app: bungkus `<AuthProvider><AppContent /></AuthProvider>` --
+  jaga-jaga kalau crash terjadi sebelum menu manapun sempat render.
+- Level per-menu: bungkus `<ActiveComponent />` di dalam `<Suspense>`,
+  dengan `key={activeMenu}` -- supaya kalau satu menu (mis. SalesReports)
+  crash, sidebar & menu lain tetap utuh, dan pindah menu otomatis "reset"
+  boundary itu tanpa reload seluruh app.
+
+Commit: `50181db3`.
+
+**2. Audit `JSON.parse(localStorage)` menyeluruh**
+
+Bukan cuma perbaiki `AppNotifications.tsx` seperti yang diminta dokumen
+awal -- di-grep SEMUA 35 pemanggilan `JSON.parse` yang datanya berasal dari
+localStorage di seluruh `src/`. Temuan: mayoritas (14 fungsi
+`getAuthToken()` di tiap `src/services/*Repository.ts`, plus
+`api.ts`/`localStorageHelper`, `kpiPersistence.ts`, `AuthContext.tsx`,
+`NotificationCenter.tsx`, `SettingsPanel.tsx`, `initializeDemos.ts`,
+`populateCRMData.ts`) **sudah** di-try/catch dengan benar -- lebih baik dari
+dugaan awal. Yang genuinely belum ter-guard cuma 3 titik:
+
+- `AppNotifications.tsx` (2 JSON.parse: `notificationSettings`,
+  `notifications`) -- yang tadinya dilaporkan dokumen, dikonfirmasi manual
+  baris 68 & 80 memang polos tanpa try/catch.
+- `initializeAllData.ts`, `needsDataInitialization()` -- satu-satunya
+  fungsi di file itu yang tidak ikut try/catch fungsi `initializeAllData()`
+  di atasnya (fungsi lain di file yang sama sudah benar). Saat ini fungsi
+  ini belum dipanggil dari mana pun (dead code, dikonfirmasi grep), tapi
+  tetap dibenerin untuk jaga-jaga dipakai nanti.
+- `demoDebug.ts`, `window.demoDebug.view()` -- utility debug manual di
+  console browser (bukan bagian alur user), tetap dibungkus untuk
+  konsistensi meski risikonya rendah.
+
+Ketiganya diperbaiki dengan pola yang sama: try/catch, `console.error` saat
+gagal, lalu fallback yang aman (state default / return true / early
+return) alih-alih membiarkan exception uncaught membawa React crash ke
+Error Boundary yang baru dibuat.
+
+Commit: `1cbc7ac4`.
+
+**3. Kompresi logo header**
+
+`public/logo-sales-crm.png` cuma dipakai satu tempat (`Header.tsx`), tampil
+`h-8 w-8` (32px CSS) tapi file aslinya 1254x1254px / 987 KB. Diresize ke
+256x256 (~8x ukuran tampil, masih generus untuk retina/high-DPI) + strip
+metadata + PNG compression level 9 pakai ImageMagick (`convert`) -- tanpa
+ubah nama file/path, jadi nol perubahan kode.
+
+987,628 bytes -> 57,351 bytes (**94.2% lebih kecil**).
+
+Commit: `9fc6f11b`.
+
+### Verifikasi
+
+- Isolated `tsc --noEmit` dibandingkan byte-for-byte dengan baseline via
+  `git stash` (154 error pre-existing) -- identik, cuma satu baris shift
+  nomor baris di `AppNotifications.tsx` (133->141) untuk error yang sudah
+  ada sebelumnya (bukan error baru), karena penambahan try/catch nambah 8
+  baris di atasnya.
+- `npx vite build` sungguhan sukses (12.42s), `dist/logo-sales-crm.png`
+  ikut terbawa dengan ukuran baru.
+- `dist/` dihapus lagi setelah verifikasi (sudah di `.gitignore`, tidak
+  ikut commit).
+
+### Belum dikerjakan dari checklist (sengaja, lihat insight di atas)
+
+- Tier 2: `tsconfig.json`, CI/CD test gate, Sentry, test suite (Vitest).
+- Tier 3: memoization, React Router, dependency cleanup (`depcheck` belum
+  dijalankan).
+- 6 tabel SKU/logistik: rekomendasi ubah status dokumen jadi "deferred by
+  design", belum dieksekusi (perlu keputusan/redaksi dari user).
+
+### PENTING -- langkah manual user
+
+- [ ] `git pull` untuk ambil 3 commit baru (`50181db3`, `1cbc7ac4`,
+      `9fc6f11b`).
+- [ ] Redeploy (Vercel akan otomatis build ulang begitu push ke `main` --
+      tidak ada perubahan schema/env var di batch ini, jadi tidak ada
+      langkah manual tambahan selain deploy biasa).
+- [ ] Setelah live, coba trigger error di salah satu menu (opsional, buat
+      lihat fallback UI Error Boundary bekerja) dan cek logo header sudah
+      tajam & tidak pecah di ukuran kecil.
