@@ -34,6 +34,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Role } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import {
+  hashPassword,
   verifyPassword,
   createSession,
   revokeSession,
@@ -442,6 +443,11 @@ function generateCustomerId(): string {
   return `CUS-${date}-${rand}`;
 }
 
+// Bab 10 gap #1 ("Client tanpa approval workflow", 23 Sep 2026): every new
+// client now starts PENDING and needs one of these roles to decide --
+// same approver set as Distributor/Store (Bab 9) and Territory.
+const CLIENT_APPROVER_ROLES: Role[] = ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADMIN'];
+
 async function handleClients(id: string | undefined, req: ApiRequest, res: ApiResponse) {
   try {
     const user = await getUserFromToken(extractBearerToken(req.headers.authorization));
@@ -495,6 +501,9 @@ async function handleClients(id: string | undefined, req: ApiRequest, res: ApiRe
             salesFlow: (body.salesFlow as 'PROJECT' | 'RETAIL') ?? null,
             distributorId: (body.distributorId as string) ?? null,
             storeId: (body.storeId as string) ?? null,
+            status: 'PENDING',
+            submittedById: user.id,
+            submittedAt: new Date(),
           },
         });
         res.status(201).json({ success: true, data: client });
@@ -529,10 +538,32 @@ async function handleClients(id: string | undefined, req: ApiRequest, res: ApiRe
         'totalNilaiKontrak', 'fileKontrakDigital', 'statusEsign', 'npwpFaskes',
         'salesFlow', 'distributorId', 'storeId',
       ] as const;
+
+      // A status change away from PENDING is an approval decision, not a
+      // profile edit -- gate it separately, same split as Distributor/Store.
+      const nextStatus = body.status as 'PENDING' | 'APPROVED' | 'REJECTED' | undefined;
+      let isDeciding = false;
+      if (nextStatus !== undefined) {
+        const current = await prisma.client.findUnique({ where: { id } });
+        if (!current) {
+          res.status(404).json({ success: false, error: 'Client not found' });
+          return;
+        }
+        isDeciding = nextStatus !== current.status && current.status === 'PENDING';
+        if (isDeciding) requireRole(user, CLIENT_APPROVER_ROLES);
+      }
+
       const data: Record<string, unknown> = {};
       for (const field of editableFields) {
         if (body[field] !== undefined) data[field] = body[field];
       }
+      if (nextStatus !== undefined) data.status = nextStatus;
+      if (isDeciding) {
+        data.decidedById = user!.id;
+        data.decidedAt = new Date();
+      }
+      if (body.rejectionNote !== undefined) data.rejectionNote = body.rejectionNote as string;
+
       const client = await prisma.client.update({ where: { id }, data });
       res.status(200).json({ success: true, data: client });
       return;
@@ -1998,6 +2029,170 @@ async function handleTerritories(id: string | undefined, req: ApiRequest, res: A
 }
 
 // ---------------------------------------------------------------------
+// /api/users, /api/users/:id
+//
+// Bab 10 gap #4 ("AdminSystem.tsx 100% mock, tidak ada endpoint
+// /api/users", 23 Sep 2026). All mutations restricted to SUPER_ADMIN --
+// menuConfig.ts already gates the whole Admin System menu item to 'Super
+// Admin' client-side; this is the server-side half of that same boundary
+// (never trust a role the client claims -- see lib/rbac.ts's header).
+//
+// No self-service registration exists anywhere in this app (Fase 0
+// removed Quick Login, and there is no /api/auth/register) -- this is
+// the ONLY way a new account gets created, so POST takes an initial
+// password directly (hashed immediately via lib/auth.ts's hashPassword,
+// same as the login path) rather than an invite/email flow this app has
+// no infrastructure for.
+//
+// Deliberately no DELETE: deactivate (PUT isActive:false) is the
+// supported way to disable an account without destroying its audit
+// trail -- User is referenced by AuditLogEntry.actorId, Distributor/
+// Store/Client submittedBy/decidedBy, Opportunity/Task ownerId, all
+// ON DELETE SET NULL, so a hard delete would silently anonymize that
+// history. Deactivating also revokes every currently active session for
+// that user immediately, rather than waiting for tokens to expire on
+// their own (getUserFromToken already checks isActive, so this is belt-
+// and-suspenders, not the only thing standing between a deactivated
+// account and continued access).
+// ---------------------------------------------------------------------
+
+function serializeUser(u: {
+  id: string;
+  email: string;
+  name: string;
+  role: Role;
+  isActive: boolean;
+  lastLoginAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  const { id, email, name, role, isActive, lastLoginAt, createdAt, updatedAt } = u;
+  return { id, email, name, role, isActive, lastLoginAt, createdAt, updatedAt };
+}
+
+function validatePassword(password: unknown): string | null {
+  if (typeof password !== 'string' || password.length < 8) {
+    return 'Password minimal 8 karakter';
+  }
+  return null;
+}
+
+async function handleUsers(id: string | undefined, req: ApiRequest, res: ApiResponse) {
+  try {
+    const user = await getUserFromToken(extractBearerToken(req.headers.authorization));
+
+    if (!id) {
+      requireRole(user, ['SUPER_ADMIN']);
+
+      if (req.method === 'GET') {
+        const users = await prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
+        res.status(200).json({ success: true, data: users.map(serializeUser) });
+        return;
+      }
+
+      if (req.method === 'POST') {
+        const body = (req.body ?? {}) as Record<string, unknown>;
+        if (!body.email || !body.name || !body.role || !body.password) {
+          res.status(400).json({ success: false, error: 'email, name, role, dan password wajib diisi' });
+          return;
+        }
+        const passwordError = validatePassword(body.password);
+        if (passwordError) {
+          res.status(400).json({ success: false, error: passwordError });
+          return;
+        }
+        const passwordHash = await hashPassword(body.password as string);
+        const created = await prisma.user.create({
+          data: {
+            email: (body.email as string).toLowerCase(),
+            name: body.name as string,
+            role: body.role as Role,
+            passwordHash,
+            isActive: (body.isActive as boolean) ?? true,
+          },
+        });
+        res.status(201).json({ success: true, data: serializeUser(created) });
+        return;
+      }
+
+      res.status(405).json({ success: false, error: 'Method not allowed' });
+      return;
+    }
+
+    requireRole(user, ['SUPER_ADMIN']);
+
+    if (req.method === 'GET') {
+      const found = await prisma.user.findUnique({ where: { id } });
+      if (!found) {
+        res.status(404).json({ success: false, error: 'User not found' });
+        return;
+      }
+      res.status(200).json({ success: true, data: serializeUser(found) });
+      return;
+    }
+
+    if (req.method === 'PUT') {
+      const body = (req.body ?? {}) as Record<string, unknown>;
+
+      // Safety guard: a Super Admin can't deactivate their own account --
+      // avoids a self-inflicted lockout with no one left to undo it.
+      if (id === user.id && body.isActive === false) {
+        res.status(400).json({ success: false, error: 'Tidak bisa menonaktifkan akun sendiri' });
+        return;
+      }
+
+      const current = body.isActive !== undefined ? await prisma.user.findUnique({ where: { id } }) : null;
+      if (body.isActive !== undefined && !current) {
+        res.status(404).json({ success: false, error: 'User not found' });
+        return;
+      }
+
+      const data: Record<string, unknown> = {};
+      if (body.name !== undefined) data.name = body.name as string;
+      if (body.role !== undefined) data.role = body.role as Role;
+      if (body.isActive !== undefined) data.isActive = body.isActive as boolean;
+      if (body.password !== undefined) {
+        const passwordError = validatePassword(body.password);
+        if (passwordError) {
+          res.status(400).json({ success: false, error: passwordError });
+          return;
+        }
+        data.passwordHash = await hashPassword(body.password as string);
+      }
+
+      const updated = await prisma.user.update({ where: { id }, data });
+
+      if (current?.isActive === true && updated.isActive === false) {
+        await prisma.session.updateMany({
+          where: { userId: id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
+
+      res.status(200).json({ success: true, data: serializeUser(updated) });
+      return;
+    }
+
+    res.status(405).json({ success: false, error: 'Method not allowed' });
+  } catch (err) {
+    if (err instanceof UnauthorizedError || err instanceof ForbiddenError) {
+      res.status(err.status).json({ success: false, error: err.message });
+      return;
+    }
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2002') {
+      res.status(409).json({ success: false, error: 'Email sudah dipakai user lain' });
+      return;
+    }
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2025') {
+      res.status(404).json({ success: false, error: 'User not found' });
+      return;
+    }
+    console.error('[api/users] unexpected error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
+// ---------------------------------------------------------------------
 // Top-level dispatch
 // ---------------------------------------------------------------------
 
@@ -2023,6 +2218,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return;
     case 'territories':
       await handleTerritories(sub, req, res);
+      return;
+    case 'users':
+      await handleUsers(sub, req, res);
       return;
     case 'commissions':
       await handleCommissions(sub, req, res);

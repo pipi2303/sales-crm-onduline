@@ -34,4 +34,14 @@ export interface Client {
   file_kontrak_digital: string;
   status_esign: string;
   npwp_faskes: string;
+
+  // Bab 10 gap #1 ("Client tanpa approval workflow", 23 Sep 2026) -- same
+  // shape as Distributor/Store's Bab 9 workflow, kept as plain strings
+  // (not Date objects) to match every other field on this interface.
+  status: 'pending' | 'approved' | 'rejected';
+  submitted_by_id: string;
+  submitted_at: string;
+  decided_by_id: string;
+  decided_at: string;
+  rejection_note: string;
 }

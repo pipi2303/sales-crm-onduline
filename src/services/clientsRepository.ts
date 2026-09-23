@@ -80,6 +80,25 @@ const FIELD_MAP: Record<keyof Client, string> = {
   file_kontrak_digital: 'fileKontrakDigital',
   status_esign: 'statusEsign',
   npwp_faskes: 'npwpFaskes',
+  status: 'status',
+  submitted_by_id: 'submittedById',
+  submitted_at: 'submittedAt',
+  decided_by_id: 'decidedById',
+  decided_at: 'decidedAt',
+  rejection_note: 'rejectionNote',
+};
+
+// ApprovalStatus is SCREAMING_SNAKE_CASE server-side, lower-case client-side
+// -- same convention as distributorsRepository.ts/storesRepository.ts.
+const STATUS_OUT: Record<Client['status'], string> = {
+  pending: 'PENDING',
+  approved: 'APPROVED',
+  rejected: 'REJECTED',
+};
+const STATUS_IN: Record<string, Client['status']> = {
+  PENDING: 'pending',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
 };
 
 function toApiPayload(input: Partial<Client>): Record<string, unknown> {
@@ -90,6 +109,7 @@ function toApiPayload(input: Partial<Client>): Record<string, unknown> {
       payload[camelKey] = value;
     }
   }
+  if (input.status !== undefined) payload.status = STATUS_OUT[input.status];
   return payload;
 }
 
@@ -98,6 +118,7 @@ function fromApiClient(row: any): Client {
   for (const [snakeKey, camelKey] of Object.entries(FIELD_MAP)) {
     client[snakeKey] = row[camelKey] ?? (snakeKey === 'id' ? row.id : '');
   }
+  client.status = STATUS_IN[row.status] ?? 'approved';
   return client as unknown as Client;
 }
 
@@ -130,6 +151,10 @@ export const clientsRepository = {
     });
     if (!res.success || !res.data) return res as Result<Client>;
     return { success: true, data: fromApiClient(res.data) };
+  },
+
+  async decide(id: string, status: 'approved' | 'rejected', rejectionNote?: string): Promise<Result<Client>> {
+    return this.update(id, { status, ...(rejectionNote ? { rejection_note: rejectionNote } : {}) });
   },
 
   async remove(id: string): Promise<Result<void>> {

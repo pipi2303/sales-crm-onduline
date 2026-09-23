@@ -93,6 +93,8 @@ model User {
   distributorsDecided   Distributor[]   @relation("DistributorDecidedBy")
   storesSubmitted       Store[]         @relation("StoreSubmittedBy")
   storesDecided         Store[]         @relation("StoreDecidedBy")
+  clientsSubmitted      Client[]        @relation("ClientSubmittedBy")
+  clientsDecided        Client[]        @relation("ClientDecidedBy")
   opportunitiesOwned    Opportunity[]   @relation("OpportunityOwner")
   tasksOwned            Task[]          @relation("TaskOwner")
 
@@ -235,12 +237,27 @@ model Client {
   storeId       String?      @map("store_id")
   store         Store?       @relation(fields: [storeId], references: [id])
 
+  // Bab 10 gap #1 ("Client tanpa approval workflow") -- same shape as
+  // Distributor/Store's Bab 9 approval workflow. Default APPROVED (not
+  // PENDING) so clients created before this migration aren't retroactively
+  // treated as pending -- api/handler.ts's POST always sets PENDING
+  // explicitly for every new client going forward.
+  status        ApprovalStatus @default(APPROVED)
+  submittedById String?        @map("submitted_by_id")
+  submittedBy   User?          @relation("ClientSubmittedBy", fields: [submittedById], references: [id])
+  submittedAt   DateTime?      @map("submitted_at")
+  decidedById   String?        @map("decided_by_id")
+  decidedBy     User?          @relation("ClientDecidedBy", fields: [decidedById], references: [id])
+  decidedAt     DateTime?      @map("decided_at")
+  rejectionNote String?        @map("rejection_note")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   opportunities Opportunity[]
 
   @@map("clients")
+  @@index([status])
 }
 
 enum LeadStatus {

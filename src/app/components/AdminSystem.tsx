@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Users as UsersIcon, Key, FileText, Plus, Search, Edit2, Trash2, Eye, UserPlus, Settings, Activity, Lock, RefreshCw, Palette, Globe, Server, Database, BellRing, Smartphone, Cloud, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Shield, Users as UsersIcon, Key, FileText, Plus, Search, Edit2, Trash2, Eye, UserPlus, Settings, Activity, Lock, Unlock, RefreshCw, Palette, Globe, Server, Database, BellRing, Smartphone, Cloud, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
@@ -9,9 +9,25 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/app/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
 import { Switch } from '@/app/components/ui/switch';
-import { User } from '@/app/data/dummyData';
+import { useConfirm } from '@/app/components/ui/confirm-dialog';
+import type { AppUser, UserRole } from '@/types/user';
+import { usersRepository } from '@/services/usersRepository';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { toast } from 'sonner';
+
+// Bab 10 gap #4 (23 Sep 2026): the real login Role enum
+// (prisma/schema.prisma), paired with the human-readable label
+// AuthContext.tsx's ROLE_LABELS already uses elsewhere in this app.
+const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
+  { value: 'SUPER_ADMIN', label: 'Super Admin' },
+  { value: 'SALES_MANAGER', label: 'Sales Manager' },
+  { value: 'SALES_EXECUTIVE', label: 'Sales Executive' },
+  { value: 'SALES_REPRESENTATIVE', label: 'Sales Representative' },
+  { value: 'MASTER_DATA_ADMIN', label: 'Master Data Admin' },
+];
+function roleLabel(role: string): string {
+  return ROLE_OPTIONS.find((r) => r.value === role)?.label ?? role;
+}
 
 interface Role {
   id: string;
@@ -33,58 +49,132 @@ interface AuditLog {
   details?: string;
 }
 
+const emptyUserForm = { name: '', email: '', role: '' as UserRole | '', password: '', isActive: true };
+
 export function AdminSystem() {
   const { user } = useAuth();
+  const confirm = useConfirm();
   const [activeTab, setActiveTab] = useState('users');
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<AppUser[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [userFormData, setUserFormData] = useState<Partial<User>>({});
+  const [selectedUser, setSelectedUser] = useState<AppUser | null>(null);
+  const [userFormData, setUserFormData] = useState(emptyUserForm);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
 
   useEffect(() => {
     fetchAdminData();
   }, []);
 
+  // Bab 10 gap #4 (23 Sep 2026): users now come from /api/users (real
+  // data). Audit Log below is a separate, still-open gap -- AuditLogEntry
+  // exists in prisma/schema.prisma but nothing writes to it yet (that's a
+  // project-wide instrumentation effort, out of scope here) -- so it
+  // stays illustrative/dummy for now rather than silently going empty.
   const fetchAdminData = async () => {
     try {
       setLoading(true);
-      // Simulate API call
-      setTimeout(() => {
-        const dummyUsers: User[] = [
-          { id: '1', name: 'Admin Utama', email: 'admin@enterprise.com', role: 'Super Admin', status: 'active', createdAt: new Date('2024-01-01'), lastLogin: new Date() },
-          { id: '2', name: 'Siti Aminah', email: 'siti@enterprise.com', role: 'Sales Manager', status: 'active', createdAt: new Date('2024-01-15'), lastLogin: new Date(Date.now() - 3600000) },
-          { id: '3', name: 'Budi Santoso', email: 'budi@enterprise.com', role: 'Sales Executive', status: 'active', createdAt: new Date('2024-02-01'), lastLogin: new Date(Date.now() - 86400000) },
-          { id: '4', name: 'Dewi Lestari', email: 'dewi@enterprise.com', role: 'Sales Executive', status: 'active', createdAt: new Date('2024-02-10'), lastLogin: new Date(Date.now() - 172800000) },
-          { id: '5', name: 'Andi Wijaya', email: 'andi@enterprise.com', role: 'Finance', status: 'inactive', createdAt: new Date('2024-01-05'), lastLogin: new Date(Date.now() - 2592000000) },
-        ];
+      const result = await usersRepository.getAll();
+      if (result.success) {
+        setUsers(result.data || []);
+      } else {
+        toast.error(result.error || 'Gagal memuat daftar pengguna');
+      }
 
-        const dummyAuditLogs: AuditLog[] = [
-          { id: '1', user: 'admin@enterprise.com', action: 'User Login', resource: 'Auth', timestamp: new Date(), status: 'success', ipAddress: '192.168.1.1' },
-          { id: '2', user: 'siti@enterprise.com', action: 'Created Proposal', resource: 'Sales', timestamp: new Date(Date.now() - 1800000), status: 'success', ipAddress: '192.168.1.42', details: 'Proposal #PRP-2024-001 created for PT Maju Jaya' },
-          { id: '3', user: 'admin@enterprise.com', action: 'Modified Permissions', resource: 'Admin', timestamp: new Date(Date.now() - 7200000), status: 'warning', ipAddress: '192.168.1.1', details: 'Updated Sales Executive role permissions' },
-          { id: '4', user: 'budi@enterprise.com', action: 'Failed Login', resource: 'Auth', timestamp: new Date(Date.now() - 14400000), status: 'failed', ipAddress: '10.0.0.5', details: 'Invalid password attempt' },
-          { id: '5', user: 'admin@enterprise.com', action: 'System Update', resource: 'System', timestamp: new Date(Date.now() - 86400000), status: 'success', ipAddress: 'Server-Local', details: 'Maintenance patch v2.4.1 applied successfully' },
-        ];
-
-        setUsers(dummyUsers);
-        setAuditLogs(dummyAuditLogs);
-        setLoading(false);
-      }, 800);
+      const dummyAuditLogs: AuditLog[] = [
+        { id: '1', user: 'admin@enterprise.com', action: 'User Login', resource: 'Auth', timestamp: new Date(), status: 'success', ipAddress: '192.168.1.1' },
+        { id: '2', user: 'siti@enterprise.com', action: 'Created Proposal', resource: 'Sales', timestamp: new Date(Date.now() - 1800000), status: 'success', ipAddress: '192.168.1.42', details: 'Proposal #PRP-2024-001 created for PT Maju Jaya' },
+        { id: '3', user: 'admin@enterprise.com', action: 'Modified Permissions', resource: 'Admin', timestamp: new Date(Date.now() - 7200000), status: 'warning', ipAddress: '192.168.1.1', details: 'Updated Sales Executive role permissions' },
+        { id: '4', user: 'budi@enterprise.com', action: 'Failed Login', resource: 'Auth', timestamp: new Date(Date.now() - 14400000), status: 'failed', ipAddress: '10.0.0.5', details: 'Invalid password attempt' },
+        { id: '5', user: 'admin@enterprise.com', action: 'System Update', resource: 'System', timestamp: new Date(Date.now() - 86400000), status: 'success', ipAddress: 'Server-Local', details: 'Maintenance patch v2.4.1 applied successfully' },
+      ];
+      setAuditLogs(dummyAuditLogs);
     } catch (error) {
       console.error('Error loading admin data:', error);
       toast.error('Gagal memuat data administrasi');
+    } finally {
+      setLoading(false);
     }
   };
 
+  const openCreateUser = () => {
+    setSelectedUser(null);
+    setUserFormData(emptyUserForm);
+    setIsUserDialogOpen(true);
+  };
+
+  const openEditUser = (u: AppUser) => {
+    setSelectedUser(u);
+    setUserFormData({ name: u.name, email: u.email, role: u.role, password: '', isActive: u.isActive });
+    setIsUserDialogOpen(true);
+  };
+
+  const handleSubmitUser = async () => {
+    if (!userFormData.name.trim() || !userFormData.email.trim() || !userFormData.role) {
+      toast.error('Nama, email, dan role wajib diisi');
+      return;
+    }
+    if (!selectedUser && userFormData.password.length < 8) {
+      toast.error('Password minimal 8 karakter');
+      return;
+    }
+    setSaving(true);
+    try {
+      const result = selectedUser
+        ? await usersRepository.update(selectedUser.id, {
+            name: userFormData.name,
+            role: userFormData.role as UserRole,
+            ...(userFormData.password ? { password: userFormData.password } : {}),
+          })
+        : await usersRepository.create({
+            name: userFormData.name,
+            email: userFormData.email,
+            role: userFormData.role as UserRole,
+            password: userFormData.password,
+          });
+      if (result.success) {
+        toast.success(selectedUser ? 'Pengguna berhasil diperbarui' : 'Pengguna baru berhasil ditambahkan');
+        setIsUserDialogOpen(false);
+        setSelectedUser(null);
+        setUserFormData(emptyUserForm);
+        fetchAdminData();
+      } else {
+        toast.error(result.error || 'Gagal menyimpan pengguna');
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // No DELETE on /api/users by design (see api/handler.ts's handleUsers
+  // header) -- toggling isActive is how an account gets disabled/
+  // re-enabled without destroying its audit trail.
+  const handleToggleActive = async (u: AppUser) => {
+    const action = u.isActive ? 'menonaktifkan' : 'mengaktifkan kembali';
+    if (!(await confirm(`Apakah Anda yakin ingin ${action} akun "${u.name}"?`, { variant: u.isActive ? 'destructive' : 'default', confirmText: u.isActive ? 'Nonaktifkan' : 'Aktifkan' }))) return;
+    const result = await usersRepository.update(u.id, { isActive: !u.isActive });
+    if (result.success) {
+      toast.success(u.isActive ? 'Akun dinonaktifkan' : 'Akun diaktifkan kembali');
+      fetchAdminData();
+    } else {
+      toast.error(result.error || 'Gagal mengubah status akun');
+    }
+  };
+
+  // Roles & Permissions tab: role list is illustrative (this app has no
+  // generic Permission model -- authorization is enforced per-endpoint via
+  // requireRole() in api/handler.ts, not a configurable matrix), but the
+  // 5 roles and their user counts are the real login Role enum + real
+  // counts from the users just fetched above.
   const roles: Role[] = [
-    { id: 'R1', name: 'Super Admin', description: 'Akses penuh ke seluruh sistem dan konfigurasi global.', permissions: ['all'], userCount: 1, color: 'bg-red-500' },
-    { id: 'R2', name: 'Sales Manager', description: 'Kelola tim, lihat semua laporan, dan setujui diskon.', permissions: ['view_reports', 'manage_team', 'approve_discounts'], userCount: 1, color: 'bg-[#013E37]' },
-    { id: 'R3', name: 'Sales Executive', description: 'Kelola lead pribadi dan buat penawaran harga.', permissions: ['manage_leads', 'create_quotes'], userCount: 2, color: 'bg-blue-500' },
-    { id: 'R4', name: 'Finance', description: 'Akses laporan keuangan dan kalkulasi komisi.', permissions: ['view_finance', 'calculate_commission'], userCount: 1, color: 'bg-amber-500' },
+    { id: 'SUPER_ADMIN', name: 'Super Admin', description: 'Akses penuh ke seluruh sistem dan konfigurasi global.', permissions: ['all'], userCount: users.filter(u => u.role === 'SUPER_ADMIN').length, color: 'bg-red-500' },
+    { id: 'SALES_MANAGER', name: 'Sales Manager', description: 'Kelola tim, lihat semua laporan, dan setujui diskon/approval data.', permissions: ['view_reports', 'manage_team', 'approve_discounts'], userCount: users.filter(u => u.role === 'SALES_MANAGER').length, color: 'bg-[#013E37]' },
+    { id: 'SALES_EXECUTIVE', name: 'Sales Executive', description: 'Kelola lead dan opportunity pribadi, buat penawaran harga.', permissions: ['manage_leads', 'create_quotes'], userCount: users.filter(u => u.role === 'SALES_EXECUTIVE').length, color: 'bg-blue-500' },
+    { id: 'SALES_REPRESENTATIVE', name: 'Sales Representative', description: 'Kunjungan lapangan, check-in toko/distributor, input lead retail.', permissions: ['manage_leads', 'field_visits'], userCount: users.filter(u => u.role === 'SALES_REPRESENTATIVE').length, color: 'bg-sky-500' },
+    { id: 'MASTER_DATA_ADMIN', name: 'Master Data Admin', description: 'Kelola data master (produk, wilayah, distributor/toko) dan approval terkait.', permissions: ['manage_master_data', 'approve_records'], userCount: users.filter(u => u.role === 'MASTER_DATA_ADMIN').length, color: 'bg-amber-500' },
   ];
 
   const filteredUsers = users.filter(u => 
@@ -129,7 +219,7 @@ export function AdminSystem() {
           <Button variant="outline" className="gap-2 border-gray-200" onClick={fetchAdminData}>
             <RefreshCw className="h-4 w-4" /> Refresh
           </Button>
-          <Button className="bg-[#013E37] hover:bg-[#025C52] text-white shadow-lg shadow-emerald-900/20 gap-2" onClick={() => setIsUserDialogOpen(true)}>
+          <Button className="bg-[#013E37] hover:bg-[#025C52] text-white shadow-lg shadow-emerald-900/20 gap-2" onClick={openCreateUser}>
             <UserPlus className="h-4 w-4" /> Tambah User Baru
           </Button>
         </div>
@@ -139,7 +229,7 @@ export function AdminSystem() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Total Pengguna', value: users.length, icon: UsersIcon, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'User Aktif', value: users.filter(u => u.status === 'active').length, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'User Aktif', value: users.filter(u => u.isActive).length, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
           { label: 'System Health', value: '99.9%', icon: Activity, color: 'text-amber-600', bg: 'bg-amber-50' },
           { label: 'Audit Log 24h', value: auditLogs.length, icon: FileText, color: 'text-[#013E37]', bg: 'bg-[#EEF7F5]' },
         ].map((stat, i) => (
@@ -262,27 +352,36 @@ export function AdminSystem() {
                       </td>
                       <td className="px-6 py-4">
                         <Badge variant="outline" className="border-gray-200 font-medium text-gray-700 bg-white">
-                          {u.role}
+                          {roleLabel(u.role)}
                         </Badge>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
-                          <div className={`h-2 w-2 rounded-full ${u.status === 'active' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-gray-300'}`}></div>
-                          <span className={`text-sm font-medium ${u.status === 'active' ? 'text-emerald-700' : 'text-gray-500'}`}>
-                            {u.status === 'active' ? 'Aktif' : 'Non-aktif'}
+                          <div className={`h-2 w-2 rounded-full ${u.isActive ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-gray-300'}`}></div>
+                          <span className={`text-sm font-medium ${u.isActive ? 'text-emerald-700' : 'text-gray-500'}`}>
+                            {u.isActive ? 'Aktif' : 'Non-aktif'}
                           </span>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">
-                        {u.lastLogin.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        {u.lastLoginAt
+                          ? new Date(u.lastLoginAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                          : 'Belum pernah login'}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-[#013E37]">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-[#013E37]" onClick={() => openEditUser(u)} title="Edit pengguna">
                             <Edit2 className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-red-500">
-                            <Trash2 className="h-4 w-4" />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={`h-8 w-8 text-gray-400 ${u.isActive ? 'hover:text-red-500' : 'hover:text-emerald-600'}`}
+                            onClick={() => handleToggleActive(u)}
+                            disabled={u.id === user?.id}
+                            title={u.id === user?.id ? 'Tidak bisa menonaktifkan akun sendiri' : (u.isActive ? 'Nonaktifkan' : 'Aktifkan')}
+                          >
+                            {u.isActive ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
                           </Button>
                         </div>
                       </td>
@@ -543,56 +642,71 @@ export function AdminSystem() {
         </TabsContent>
       </Tabs>
 
-      {/* User Dialog */}
-      <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
+      {/* User Dialog -- Bab 10 gap #4: now a real create/edit form wired to
+          /api/users via usersRepository, not a decorative form that just
+          closed itself and showed a fake toast. */}
+      <Dialog open={isUserDialogOpen} onOpenChange={(open) => { setIsUserDialogOpen(open); if (!open) { setSelectedUser(null); setUserFormData(emptyUserForm); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-2xl text-[#013E37]">Tambah Pengguna Baru</DialogTitle>
-            <DialogDescription>Daftarkan anggota tim baru ke dalam sistem monitoring ini.</DialogDescription>
+            <DialogTitle className="text-2xl text-[#013E37]">{selectedUser ? 'Edit Pengguna' : 'Tambah Pengguna Baru'}</DialogTitle>
+            <DialogDescription>
+              {selectedUser ? 'Perbarui data pengguna ini.' : 'Daftarkan anggota tim baru ke dalam sistem monitoring ini.'}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="name">Nama Lengkap</Label>
-              <Input id="name" placeholder="Contoh: John Doe" className="h-11 border-gray-200" />
+              <Input
+                id="name"
+                placeholder="Contoh: John Doe"
+                className="h-11 border-gray-200"
+                value={userFormData.name}
+                onChange={(e) => setUserFormData(prev => ({ ...prev, name: e.target.value }))}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email Institusi</Label>
-              <Input id="email" type="email" placeholder="john.doe@enterprise.com" className="h-11 border-gray-200" />
+              <Input
+                id="email"
+                type="email"
+                placeholder="john.doe@onduline.co.id"
+                className="h-11 border-gray-200"
+                value={userFormData.email}
+                onChange={(e) => setUserFormData(prev => ({ ...prev, email: e.target.value }))}
+                disabled={!!selectedUser}
+              />
+              {selectedUser && <p className="text-[11px] text-gray-400">Email tidak dapat diubah setelah akun dibuat.</p>}
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="role">Role Sistem</Label>
-                <Select>
-                  <SelectTrigger className="h-11 border-gray-200">
-                    <SelectValue placeholder="Pilih Role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {roles.map(r => (
-                      <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="status">Status Awal</Label>
-                <Select defaultValue="active">
-                  <SelectTrigger className="h-11 border-gray-200">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Aktif</SelectItem>
-                    <SelectItem value="inactive">Non-aktif</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="role">Role Sistem</Label>
+              <Select value={userFormData.role} onValueChange={(val) => setUserFormData(prev => ({ ...prev, role: val as UserRole }))}>
+                <SelectTrigger className="h-11 border-gray-200">
+                  <SelectValue placeholder="Pilih Role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROLE_OPTIONS.map(r => (
+                    <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">{selectedUser ? 'Reset Password (opsional)' : 'Password Awal'}</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder={selectedUser ? 'Kosongkan jika tidak diubah' : 'Minimal 8 karakter'}
+                className="h-11 border-gray-200"
+                value={userFormData.password}
+                onChange={(e) => setUserFormData(prev => ({ ...prev, password: e.target.value }))}
+              />
             </div>
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setIsUserDialogOpen(false)}>Batalkan</Button>
-            <Button className="bg-[#013E37] hover:bg-[#025C52]" onClick={() => {
-              setIsUserDialogOpen(false);
-              toast.success('User sedang didaftarkan ke sistem...');
-            }}>Konfirmasi & Simpan</Button>
+            <Button className="bg-[#013E37] hover:bg-[#025C52]" onClick={handleSubmitUser} disabled={saving}>
+              {selectedUser ? 'Simpan Perubahan' : 'Konfirmasi & Simpan'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

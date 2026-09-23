@@ -7,7 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/ca
 import { Badge } from '@/app/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/app/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/app/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/app/components/ui/dialog';
+import { Textarea } from '@/app/components/ui/textarea';
+import { Label } from '@/app/components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/app/components/ui/tooltip';
 import { toast } from 'sonner';
 import { useAuth } from '@/app/contexts/AuthContext';
@@ -26,9 +28,14 @@ import { populateCRMToLocalStorage } from '@/utils/initializeAllData';
 
 const API_URL = 'https://mock-project-id.supabase.co/functions/v1/make-server-67367fc1'; // Disabled - using localStorage
 
+// Bab 10 gap #1 ("Client tanpa approval workflow", 23 Sep 2026) -- same
+// approver set as Distributor/Store (Bab 9), see DistributorStoreMap.tsx.
+const CLIENT_APPROVER_ROLES = new Set(['Super Admin', 'Sales Manager', 'Master Data Admin']);
+
 export function SalesTeam() {
   const confirm = useConfirm();
   const { user } = useAuth();
+  const isClientApprover = !!user?.role && CLIENT_APPROVER_ROLES.has(user.role);
   const [activeTab, setActiveTab] = useState('client');
   const [loading, setLoading] = useState(false);
   
@@ -48,6 +55,9 @@ export function SalesTeam() {
   const [clients, setClients] = useState<any[]>([]);
   const [showClientForm, setShowClientForm] = useState(false);
   const [editingClient, setEditingClient] = useState<any | null>(null);
+  const [decidingClientId, setDecidingClientId] = useState<string | null>(null);
+  const [rejectClientTarget, setRejectClientTarget] = useState<{ id: string; name: string } | null>(null);
+  const [rejectClientNote, setRejectClientNote] = useState('');
   const [selectedClient, setSelectedClient] = useState<any | null>(null);
   const [showClientDetailDialog, setShowClientDetailDialog] = useState(false);
   const [filterKategori, setFilterKategori] = useState('');
@@ -188,6 +198,49 @@ export function SalesTeam() {
       }
     } catch (error) {
       toast.error('Error deleting client');
+    }
+  };
+
+  // Bab 10 gap #1: approve/reject a PENDING client -- same shape as
+  // DistributorStoreMap.tsx's handleApprove/openReject/handleRejectSubmit.
+  const handleApproveClient = async (id: string) => {
+    setDecidingClientId(id);
+    try {
+      const result = await clientsRepository.decide(id, 'approved');
+      if (result.success) {
+        toast.success('Client disetujui');
+        fetchClients();
+      } else {
+        toast.error(result.error || 'Gagal menyetujui client');
+      }
+    } finally {
+      setDecidingClientId(null);
+    }
+  };
+
+  const openRejectClient = (id: string, name: string) => {
+    setRejectClientTarget({ id, name });
+    setRejectClientNote('');
+  };
+
+  const handleRejectClientSubmit = async () => {
+    if (!rejectClientTarget) return;
+    if (!rejectClientNote.trim()) {
+      toast.error('Alasan penolakan wajib diisi');
+      return;
+    }
+    setDecidingClientId(rejectClientTarget.id);
+    try {
+      const result = await clientsRepository.decide(rejectClientTarget.id, 'rejected', rejectClientNote.trim());
+      if (result.success) {
+        toast.success('Client ditolak');
+        setRejectClientTarget(null);
+        fetchClients();
+      } else {
+        toast.error(result.error || 'Gagal menolak client');
+      }
+    } finally {
+      setDecidingClientId(null);
     }
   };
 
@@ -491,11 +544,12 @@ export function SalesTeam() {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   >
                     <option value="">Semua Kategori</option>
-                    <option value="Rumah Sakit">Rumah Sakit</option>
-                    <option value="Puskesmas">Puskesmas</option>
-                    <option value="Klinik">Klinik</option>
-                    <option value="Praktek Dokter Pribadi">Praktek Dokter Pribadi</option>
-                    <option value="Faskes Lainnya">Faskes Lainnya</option>
+                    <option value="Toko Bangunan">Toko Bangunan</option>
+                    <option value="Distributor">Distributor</option>
+                    <option value="Kontraktor">Kontraktor</option>
+                    <option value="Developer">Developer / Proyek Perumahan</option>
+                    <option value="Instansi Pemerintah">Instansi Pemerintah / BUMN</option>
+                    <option value="End User">End User / Individu</option>
                   </select>
                 </div>
                 <div>
@@ -580,6 +634,13 @@ export function SalesTeam() {
                             <h3 className="text-lg font-semibold text-gray-900">{c.nama_entitas}</h3>
                             <p className="text-sm text-gray-500">{c.kategori_client}</p>
                           </div>
+                          {/* Bab 10 gap #1: approval status -- new clients start
+                              'pending', existing ones default 'approved'. */}
+                          <Badge
+                            variant={c.status === 'approved' ? 'default' : c.status === 'rejected' ? 'destructive' : 'secondary'}
+                          >
+                            {c.status === 'approved' ? 'Disetujui' : c.status === 'rejected' ? 'Ditolak' : 'Menunggu Approval'}
+                          </Badge>
                         </div>
                         
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -634,6 +695,30 @@ export function SalesTeam() {
                       </div>
                       
                       <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                        {isClientApprover && c.status === 'pending' && (
+                          <>
+                            <Button
+                              onClick={() => handleApproveClient(c.id)}
+                              disabled={decidingClientId === c.id}
+                              variant="ghost"
+                              size="sm"
+                              className="text-emerald-600 hover:text-emerald-700"
+                              title="Setujui client"
+                            >
+                              <Check className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              onClick={() => openRejectClient(c.id, c.nama_entitas)}
+                              disabled={decidingClientId === c.id}
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600 hover:text-red-700"
+                              title="Tolak client"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
                         <Button
                           onClick={() => {
                             setEditingClient(c);
@@ -854,6 +939,40 @@ export function SalesTeam() {
           }}
         />
       )}
+
+      {/* Bab 10 gap #1: reject-reason dialog, same shape as
+          DistributorStoreMap.tsx's reject dialog. */}
+      <Dialog open={!!rejectClientTarget} onOpenChange={(open) => !open && setRejectClientTarget(null)}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Tolak Client</DialogTitle>
+            <DialogDescription>
+              {rejectClientTarget && `Berikan alasan penolakan untuk "${rejectClientTarget.name}". Alasan ini akan tercatat pada data client.`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label>Alasan Penolakan</Label>
+            <Textarea
+              value={rejectClientNote}
+              onChange={(e) => setRejectClientNote(e.target.value)}
+              placeholder="Contoh: data PIC tidak lengkap, dokumen tidak valid, dsb."
+              rows={4}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectClientTarget(null)}>
+              Batal
+            </Button>
+            <Button
+              onClick={handleRejectClientSubmit}
+              disabled={!!rejectClientTarget && decidingClientId === rejectClientTarget.id}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Tolak Client
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {showClientForm && (
         <ClientFormModal
