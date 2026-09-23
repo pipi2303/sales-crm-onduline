@@ -32,73 +32,15 @@ const QUICK_ACTIONS: QuickAction[] = [
   { icon: Lightbulb, label: 'Upsell Opportunities', query: 'Show me upsell opportunities' }
 ];
 
-const AI_KNOWLEDGE_BASE = {
-  greetings: [
-    "Hello! I'm your AI Sales Assistant. How can I help you today?",
-    "Hi there! Ready to crush your sales goals? What can I do for you?",
-    "Hey! I'm here to help you close more deals. What do you need?"
-  ],
-  topLeads: {
-    response: "Based on AI analysis, here are your top 3 priority leads today:",
-    leads: [
-      { name: "Toko Bangunan Sinar Jaya", score: 92, probability: 87, value: "Rp 285 juta", reason: "Budget confirmed, decision maker met" },
-      { name: "CV Karya Konstruksi Mandiri", score: 78, probability: 73, value: "Rp 125 juta", reason: "High engagement, ready for demo" },
-      { name: "PT Graha Bangun Persada", score: 65, probability: 58, value: "Rp 450 juta", reason: "Large project, competitive bid" }
-    ],
-    suggestions: ["View detailed scoring", "Send follow-up email", "Schedule demos"]
-  },
-  forecast: {
-    response: "Here's your revenue forecast for this month:",
-    data: {
-      projected: "Rp 847 juta",
-      confidence: "±15%",
-      deals: 12,
-      avgDealSize: "Rp 70.5 juta",
-      topContributor: "Toko Bangunan Sinar Jaya (Rp 285 juta)"
-    },
-    suggestions: ["View detailed forecast", "See pipeline breakdown", "Adjust targets"]
-  },
-  atRisk: {
-    response: "⚠️ These clients need immediate attention:",
-    clients: [
-      { name: "Distributor Atap Nusantara", risk: 68, reason: "No activity in 14 days", action: "Re-engagement campaign" },
-      { name: "Toko Bangunan Berkah Jaya", risk: 45, reason: "Low order volume", action: "Check-in call" },
-      { name: "CV Mitra Atap Sejahtera", risk: 52, reason: "Support tickets increasing", action: "Success manager meeting" }
-    ],
-    suggestions: ["Send re-engagement emails", "Schedule check-in calls", "Create action plan"]
-  },
-  followUps: {
-    response: "📋 You have 5 follow-ups due today:",
-    tasks: [
-      { client: "Toko Bangunan Sinar Jaya", type: "Demo follow-up", priority: "High", daysOverdue: 0 },
-      { client: "CV Karya Konstruksi Mandiri", type: "Proposal sent", priority: "High", daysOverdue: 2 },
-      { client: "PT Graha Bangun Persada", type: "Budget discussion", priority: "Medium", daysOverdue: 0 },
-      { client: "Toko Bangunan Berkah Jaya", type: "Contract negotiation", priority: "Critical", daysOverdue: 1 },
-      { client: "Distributor Atap Nusantara", type: "Reference check", priority: "Low", daysOverdue: 0 }
-    ],
-    suggestions: ["Call now", "Send reminder emails", "Reschedule"]
-  },
-  bestTime: {
-    response: "⏰ Based on historical data, here are the best times to contact kontraktor & toko decision makers:",
-    schedule: {
-      best: "Tuesday & Thursday, 9-11 AM",
-      good: "Monday & Wednesday, 2-4 PM",
-      avoid: "Friday afternoons, weekends",
-      answerRate: "43% higher during optimal windows"
-    },
-    suggestions: ["Schedule calls now", "Set reminders", "View full calendar"]
-  },
-  upsell: {
-    response: "💰 I found 4 high-value upsell opportunities:",
-    opportunities: [
-      { client: "Toko Bangunan Makmur Abadi", module: "Onduvilla", value: "Rp 85 juta", probability: 78, reason: "Currently using entry-level product, high order volume" },
-      { client: "CV Mitra Atap Sejahtera", module: "Paket Aksesoris & Talang", value: "Rp 45 juta", probability: 65, reason: "Manual accessory ordering, ready to bundle" },
-      { client: "Distributor Bahan Bangunan Prima", module: "Onduline Easyfix", value: "Rp 35 juta", probability: 82, reason: "Requested feature multiple times" },
-      { client: "CV Karya Konstruksi Mandiri", module: "Garansi Extended", value: "Rp 25 juta", probability: 55, reason: "Growing project volume" }
-    ],
-    suggestions: ["Generate proposals", "Schedule demos", "Send ROI calculator"]
+function getAuthToken(): string | undefined {
+  try {
+    const raw = localStorage.getItem('salesMonitorUser');
+    if (!raw) return undefined;
+    return JSON.parse(raw)?.accessToken;
+  } catch {
+    return undefined;
   }
-};
+}
 
 export function AIChatAssistant() {
   const [isOpen, setIsOpen] = useState(false);
@@ -124,159 +66,15 @@ export function AIChatAssistant() {
     scrollToBottom();
   }, [messages]);
 
-  const generateAIResponse = (userQuery: string): Message => {
-    const query = userQuery.toLowerCase();
-    
-    // Greetings
-    if (query.match(/^(hi|hello|hey|halo)/)) {
-      return {
-        id: Date.now().toString(),
-        type: 'ai',
-        content: AI_KNOWLEDGE_BASE.greetings[Math.floor(Math.random() * AI_KNOWLEDGE_BASE.greetings.length)],
-        timestamp: new Date(),
-        suggestions: ['Top leads', 'Revenue forecast', 'At-risk clients']
-      };
-    }
 
-    // Top Leads
-    if (query.includes('top') && (query.includes('lead') || query.includes('priority'))) {
-      const leads = AI_KNOWLEDGE_BASE.topLeads;
-      let response = `${leads.response}\n\n`;
-      leads.leads.forEach((lead, idx) => {
-        response += `${idx + 1}. **${lead.name}**\n`;
-        response += `   • AI Score: ${lead.score}/100 🔥\n`;
-        response += `   • Close Probability: ${lead.probability}%\n`;
-        response += `   • Deal Value: ${lead.value}\n`;
-        response += `   • Why: ${lead.reason}\n\n`;
-      });
-      response += "💡 Focus on #1 and #2 today for maximum impact!";
-      
-      return {
-        id: Date.now().toString(),
-        type: 'ai',
-        content: response,
-        timestamp: new Date(),
-        suggestions: leads.suggestions
-      };
-    }
-
-    // Revenue Forecast
-    if (query.includes('forecast') || query.includes('revenue') || query.includes('prediction')) {
-      const forecast = AI_KNOWLEDGE_BASE.forecast;
-      let response = `${forecast.response}\n\n`;
-      response += `📊 **Projected Revenue:** ${forecast.data.projected}\n`;
-      response += `📈 **Confidence Level:** ${forecast.data.confidence}\n`;
-      response += `🎯 **Expected Deals:** ${forecast.data.deals} deals\n`;
-      response += `💰 **Avg Deal Size:** ${forecast.data.avgDealSize}\n`;
-      response += `🏆 **Top Contributor:** ${forecast.data.topContributor}\n\n`;
-      response += "You're on track to exceed your monthly target! 🚀";
-      
-      return {
-        id: Date.now().toString(),
-        type: 'ai',
-        content: response,
-        timestamp: new Date(),
-        suggestions: forecast.suggestions
-      };
-    }
-
-    // At-Risk Clients
-    if (query.includes('risk') || query.includes('churn') || query.includes('losing')) {
-      const atRisk = AI_KNOWLEDGE_BASE.atRisk;
-      let response = `${atRisk.response}\n\n`;
-      atRisk.clients.forEach((client, idx) => {
-        response += `${idx + 1}. **${client.name}** (${client.risk}% risk)\n`;
-        response += `   • Issue: ${client.reason}\n`;
-        response += `   • Action: ${client.action}\n\n`;
-      });
-      
-      return {
-        id: Date.now().toString(),
-        type: 'ai',
-        content: response,
-        timestamp: new Date(),
-        suggestions: atRisk.suggestions
-      };
-    }
-
-    // Follow-ups
-    if (query.includes('follow') || query.includes('due') || query.includes('reminder')) {
-      const followUps = AI_KNOWLEDGE_BASE.followUps;
-      let response = `${followUps.response}\n\n`;
-      followUps.tasks.forEach((task, idx) => {
-        const overdueText = task.daysOverdue > 0 ? ` ⚠️ ${task.daysOverdue} days overdue!` : '';
-        response += `${idx + 1}. **${task.client}**${overdueText}\n`;
-        response += `   • Task: ${task.type}\n`;
-        response += `   • Priority: ${task.priority}\n\n`;
-      });
-      
-      return {
-        id: Date.now().toString(),
-        type: 'ai',
-        content: response,
-        timestamp: new Date(),
-        suggestions: followUps.suggestions
-      };
-    }
-
-    // Best Time
-    if (query.includes('time') || query.includes('when') || query.includes('schedule')) {
-      const bestTime = AI_KNOWLEDGE_BASE.bestTime;
-      let response = `${bestTime.response}\n\n`;
-      response += `🟢 **Best Time:** ${bestTime.schedule.best}\n`;
-      response += `🟡 **Good Time:** ${bestTime.schedule.good}\n`;
-      response += `🔴 **Avoid:** ${bestTime.schedule.avoid}\n\n`;
-      response += `📈 ${bestTime.schedule.answerRate}\n\n`;
-      response += "Call your top leads between 9-11 AM for best results!";
-      
-      return {
-        id: Date.now().toString(),
-        type: 'ai',
-        content: response,
-        timestamp: new Date(),
-        suggestions: bestTime.suggestions
-      };
-    }
-
-    // Upsell
-    if (query.includes('upsell') || query.includes('cross-sell') || query.includes('expansion')) {
-      const upsell = AI_KNOWLEDGE_BASE.upsell;
-      let response = `${upsell.response}\n\n`;
-      upsell.opportunities.forEach((opp, idx) => {
-        response += `${idx + 1}. **${opp.client}** → ${opp.module}\n`;
-        response += `   • Value: ${opp.value}\n`;
-        response += `   • Success Probability: ${opp.probability}%\n`;
-        response += `   • Why: ${opp.reason}\n\n`;
-      });
-      response += `💰 **Total Potential:** Rp 190 juta in upsells!`;
-      
-      return {
-        id: Date.now().toString(),
-        type: 'ai',
-        content: response,
-        timestamp: new Date(),
-        suggestions: upsell.suggestions
-      };
-    }
-
-    // Default Response
-    return {
-      id: Date.now().toString(),
-      type: 'ai',
-      content: "I can help you with:\n\n• 🎯 Lead prioritization & scoring\n• 📊 Revenue forecasting\n• ⚠️ At-risk client detection\n• 📋 Follow-up reminders\n• ⏰ Best contact times\n• 💰 Upsell opportunities\n• ✉️ Email generation\n• 📈 Performance analytics\n\nWhat would you like to explore?",
-      timestamp: new Date(),
-      suggestions: ['Show top leads', 'Revenue forecast', 'Upsell opportunities']
-    };
-  };
-
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
 
-    // Add user message
+    const outgoingText = inputValue;
     const userMessage: Message = {
       id: Date.now().toString(),
       type: 'user',
-      content: inputValue,
+      content: outgoingText,
       timestamp: new Date()
     };
 
@@ -284,12 +82,47 @@ export function AIChatAssistant() {
     setInputValue('');
     setIsTyping(true);
 
-    // Simulate AI thinking
-    setTimeout(() => {
-      const aiResponse = generateAIResponse(inputValue);
-      setMessages(prev => [...prev, aiResponse]);
+    try {
+      // 10 giliran terakhir sebagai konteks percakapan untuk API --
+      // pesan sistem/error tidak ikut dikirim, hanya user/ai.
+      const history = messages
+        .filter(m => m.type === 'user' || m.type === 'ai')
+        .slice(-10)
+        .map(m => ({ role: (m.type === 'user' ? 'user' : 'assistant') as 'user' | 'assistant', content: m.content }));
+
+      const token = getAuthToken();
+      const res = await fetch('/api/ai-chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ message: outgoingText, history }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body.success) {
+        throw new Error(body.error || 'AI Assistant sedang bermasalah, coba lagi sebentar lagi.');
+      }
+
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        type: 'ai',
+        content: body.data?.reply || '(Tidak ada balasan dari AI Assistant)',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, aiMessage]);
+    } catch (error: any) {
+      const errorText = error?.message || 'Gagal menghubungi AI Assistant. Periksa koneksi Anda dan coba lagi.';
+      toast.error(errorText);
+      setMessages(prev => [...prev, {
+        id: (Date.now() + 1).toString(),
+        type: 'system',
+        content: errorText,
+        timestamp: new Date(),
+      }]);
+    } finally {
       setIsTyping(false);
-    }, 1000);
+    }
   };
 
   const handleQuickAction = (query: string) => {

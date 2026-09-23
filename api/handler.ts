@@ -2260,6 +2260,156 @@ async function handleAuditLogs(req: ApiRequest, res: ApiResponse) {
 }
 
 // ---------------------------------------------------------------------
+// /api/ai-chat -- Bab 14 Fase C: AI Assistant SUNGGUHAN, panggilan nyata
+// ke Anthropic Messages API (bukan AI_KNOWLEDGE_BASE hardcoded seperti
+// sebelumnya di AIChatAssistant.tsx). Konteks bisnis (opportunity
+// terbuka, kunjungan toko terlewat, produk stok menipis) diambil
+// langsung dari Prisma dan disuntikkan ke system prompt, supaya model
+// menjawab berdasarkan data nyata -- bukan mengarang. ANTHROPIC_API_KEY
+// HANYA dibaca di sini (server-side), tidak pernah dikirim ke client.
+// Pakai fetch mentah ke REST API (bukan SDK) supaya tidak menambah
+// dependency baru untuk satu endpoint ini.
+// ---------------------------------------------------------------------
+
+const AI_MODEL_ID = process.env.AI_MODEL_ID || 'claude-sonnet-5';
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
+
+async function buildAiBusinessContext(user: { id: string; role: Role }): Promise<string> {
+  const now = new Date();
+  const isRep = user.role === 'SALES_REPRESENTATIVE';
+
+  const [openOpps, overdueVisits, lowStockProducts] = await Promise.all([
+    prisma.opportunity.findMany({
+      where: { status: 'OPEN', ...(isRep ? { ownerId: user.id } : {}) },
+      orderBy: { closeDate: 'asc' },
+      take: 15,
+      select: { name: true, clientName: true, totalValue: true, stage: true, closeDate: true, ownerName: true },
+    }),
+    prisma.task.findMany({
+      where: {
+        type: 'VISIT',
+        checkInAt: null,
+        dueDate: { lt: now },
+        ...(isRep ? { ownerId: user.id } : {}),
+      },
+      orderBy: { dueDate: 'asc' },
+      take: 15,
+      include: { store: { select: { name: true } } },
+    }),
+    prisma.product.findMany({
+      where: { stock: { lte: 10 } },
+      orderBy: { stock: 'asc' },
+      take: 10,
+      select: { name: true, sku: true, stock: true, sold: true },
+    }),
+  ]);
+
+  const lines: string[] = [];
+  lines.push(`Tanggal hari ini: ${now.toISOString().slice(0, 10)}`);
+  lines.push('');
+  lines.push(`## Opportunity terbuka (${openOpps.length} ditampilkan, urut target close terdekat)`);
+  if (openOpps.length === 0) lines.push('(tidak ada opportunity terbuka)');
+  for (const o of openOpps) {
+    lines.push(
+      `- ${o.name} | Klien: ${o.clientName} | Nilai: Rp${Number(o.totalValue).toLocaleString('id-ID')} | Stage: ${o.stage} | Target close: ${o.closeDate.toISOString().slice(0, 10)} | Owner: ${o.ownerName}`
+    );
+  }
+  lines.push('');
+  lines.push(`## Kunjungan toko terlewat (belum check-in, sudah lewat jadwal) (${overdueVisits.length} ditampilkan)`);
+  if (overdueVisits.length === 0) lines.push('(tidak ada kunjungan yang terlewat)');
+  for (const t of overdueVisits) {
+    lines.push(`- ${t.title} | Toko: ${t.store?.name ?? '-'} | Jadwal: ${t.dueDate ? t.dueDate.toISOString().slice(0, 10) : '-'}`);
+  }
+  lines.push('');
+  lines.push(`## Produk stok menipis (<=10 unit) (${lowStockProducts.length} ditampilkan)`);
+  if (lowStockProducts.length === 0) lines.push('(tidak ada produk dengan stok menipis)');
+  for (const p of lowStockProducts) {
+    lines.push(`- ${p.name} (${p.sku}) | Stok: ${p.stock} | Terjual: ${p.sold}`);
+  }
+
+  return lines.join('\n');
+}
+
+async function handleAiChat(req: ApiRequest, res: ApiResponse) {
+  try {
+    const user = await getUserFromToken(extractBearerToken(req.headers.authorization));
+    requireAuth(user);
+
+    if (req.method !== 'POST') {
+      res.status(405).json({ success: false, error: 'Method not allowed' });
+      return;
+    }
+
+    if (!ANTHROPIC_API_KEY) {
+      res.status(503).json({
+        success: false,
+        error: 'AI Assistant belum aktif: ANTHROPIC_API_KEY belum di-set di environment variables.',
+      });
+      return;
+    }
+
+    const body = (req.body ?? {}) as {
+      message?: string;
+      history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+    };
+    const message = (body.message ?? '').trim();
+    if (!message) {
+      res.status(400).json({ success: false, error: 'message wajib diisi' });
+      return;
+    }
+    // Batasi 10 giliran terakhir supaya prompt tidak membengkak tanpa batas.
+    const history = Array.isArray(body.history) ? body.history.slice(-10) : [];
+
+    const context = await buildAiBusinessContext(user);
+    const systemPrompt = [
+      'Kamu adalah AI Sales Assistant untuk "Sales Monitoring Pro", aplikasi CRM distributor bahan bangunan Onduline (atap, waterproofing, panel surya, dst).',
+      'Jawab dalam Bahasa Indonesia, singkat dan actionable, HANYA berdasarkan data bisnis nyata di bawah ini -- jangan mengarang angka, nama, atau tanggal yang tidak ada di data ini.',
+      'Kalau data yang tersedia tidak cukup untuk menjawab pertanyaan, katakan terus terang bahwa datanya belum ada, jangan menebak.',
+      '',
+      `User yang bertanya: ${user.name} (${user.role}).`,
+      '',
+      'Data bisnis terkini:',
+      context,
+    ].join('\n');
+
+    const anthropicRes = await fetch(ANTHROPIC_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: AI_MODEL_ID,
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: [...history, { role: 'user', content: message }],
+      }),
+    });
+
+    if (!anthropicRes.ok) {
+      const errText = await anthropicRes.text();
+      console.error('[api/ai-chat] Anthropic API error:', anthropicRes.status, errText);
+      res.status(502).json({ success: false, error: 'AI Assistant sedang bermasalah, coba lagi sebentar lagi.' });
+      return;
+    }
+
+    const data = (await anthropicRes.json()) as { content?: Array<{ type: string; text?: string }> };
+    const reply = data.content?.find((block) => block.type === 'text')?.text ?? '';
+
+    res.status(200).json({ success: true, data: { reply } });
+  } catch (err) {
+    if (err instanceof UnauthorizedError || err instanceof ForbiddenError) {
+      res.status(err.status).json({ success: false, error: err.message });
+      return;
+    }
+    console.error('[api/ai-chat] unexpected error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
+// ---------------------------------------------------------------------
 // Top-level dispatch
 // ---------------------------------------------------------------------
 
@@ -2312,6 +2462,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return;
     case 'tasks':
       await handleTasks(sub, req, res);
+      return;
+    case 'ai-chat':
+      await handleAiChat(req, res);
       return;
     default:
       res.status(404).json({ success: false, error: 'Not found' });
