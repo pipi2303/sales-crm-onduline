@@ -25,7 +25,13 @@ if (typeof window !== 'undefined') {
     clear: clearDemosData,
     stats: getDemosStatistics,
     view: () => {
-      const demos = JSON.parse(localStorage.getItem('sales_monitoring_demos') || '[]');
+      let demos: any[] = [];
+      try {
+        demos = JSON.parse(localStorage.getItem('sales_monitoring_demos') || '[]');
+      } catch (error) {
+        console.error('Failed to parse sales_monitoring_demos from localStorage:', error);
+        return;
+      }
       console.log('📊 Demo Scheduler Data:');
       console.table(demos.map((d: any) => ({
         ID: d.id,

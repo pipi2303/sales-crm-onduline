@@ -65,23 +65,31 @@ export const AppNotifications = React.memo(function AppNotifications({ className
   useEffect(() => {
     const savedSettings = localStorage.getItem('notificationSettings');
     if (savedSettings) {
-      const parsed = JSON.parse(savedSettings);
-      // Force disable sound settings for all users
-      setSettings({
-        ...parsed,
-        soundEnabled: false,
-        urgentSoundEnabled: false,
-      });
+      try {
+        const parsed = JSON.parse(savedSettings);
+        // Force disable sound settings for all users
+        setSettings({
+          ...parsed,
+          soundEnabled: false,
+          urgentSoundEnabled: false,
+        });
+      } catch (error) {
+        console.error('Failed to parse notificationSettings from localStorage:', error);
+      }
     }
 
     // Load notifications from localStorage
     const savedNotifications = localStorage.getItem('notifications');
     if (savedNotifications) {
-      const parsed = JSON.parse(savedNotifications);
-      setNotifications(parsed.map((n: any) => ({
-        ...n,
-        timestamp: new Date(n.timestamp)
-      })));
+      try {
+        const parsed = JSON.parse(savedNotifications);
+        setNotifications(parsed.map((n: any) => ({
+          ...n,
+          timestamp: new Date(n.timestamp)
+        })));
+      } catch (error) {
+        console.error('Failed to parse notifications from localStorage:', error);
+      }
     }
   }, []);
 

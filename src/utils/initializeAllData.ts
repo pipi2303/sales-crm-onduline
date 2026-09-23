@@ -78,7 +78,19 @@ export function initializeAllData(): {
 export function needsDataInitialization(): boolean {
   const demosData = localStorage.getItem('sales_monitoring_demos');
   const kpiData = localStorage.getItem('sales_monitoring_kpi_targets');
-  
-  // If any data is missing, we need initialization
-  return !demosData || JSON.parse(demosData).length === 0 || !kpiData || JSON.parse(kpiData).length === 0;
+
+  // If any data is missing, we need initialization. Corrupted JSON in
+  // either key is treated the same as missing data (needs re-init),
+  // instead of throwing uncaught.
+  try {
+    return (
+      !demosData ||
+      JSON.parse(demosData).length === 0 ||
+      !kpiData ||
+      JSON.parse(kpiData).length === 0
+    );
+  } catch (error) {
+    console.error('Failed to parse stored demos/KPI data:', error);
+    return true;
+  }
 }
