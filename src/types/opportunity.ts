@@ -104,7 +104,18 @@ export interface Opportunity {
   whyBuyAnything?: string;
   whyBuyNow?: string;
   evaluationStarted?: boolean;
-  budgetStatus?: 'No' | 'Available' | 'Approved';
+  // Fase 1 (23 Sep 2026): this used to be named `budgetStatus` too, the
+  // same name as the Sales Process Details field above (line ~74), just
+  // with a different value set ('No'|'Available'|'Approved' vs 'Budget
+  // Proposed'|'Budget Approved'|'Budget Released'). TypeScript actually
+  // rejects a duplicate property (only caught because `vite build` skips
+  // type-checking), and at runtime OpportunityFormNew.tsx's handleSubmit
+  // spread `...salesDetails` then `...commercialDetails` into the same
+  // save payload, so this field silently overwrote/discarded whatever the
+  // Sales Process Details tab's Budget Status dropdown had just been set
+  // to. Renamed to make the two independent -- this is "23.04.04 Budget
+  // Status?" from the Commercial Detail tab.
+  budgetAvailabilityStatus?: 'No' | 'Available' | 'Approved';
   whyBuyIntramedika?: string;
   winStrategyBuyingProcess?: string;
   jointExecutionPlanCreated?: string;
