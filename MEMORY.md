@@ -1512,3 +1512,102 @@ bukan disebabkan perubahan sesi ini.
 - [ ] `git push origin main` untuk semua commit sesi ini yang belum
       di-push (`c041ae78`, `04b11b9e`, `7b4447c1`, `d092cd10`, dan
       commit sebelumnya yang juga belum di-push -- lihat section 15).
+
+## 17. Bab 11/12 follow-up -- 4 insight terakhir Peta Distributor & Toko (heatmap performa, coverage gap, penetrasi kategori, distribusi beban sales rep) -- 23 Sep 2026
+
+Konteks: setelah unifikasi menu CRM (section 16), user meminta insight
+lanjutan atas `DistributorStoreMap.tsx` -- komentar di kode file itu
+sendiri secara eksplisit menyebut 4 hal "sengaja DITUNDA" karena butuh
+agregasi lintas-tabel yang lebih berat daripada sekadar titik GPS +
+check-in: heatmap performa (#1), coverage gap vs Territory (#2),
+penetrasi kategori produk (#6), dan distribusi beban per sales rep (#7,
+belum ada sama sekali). User menyetujui rekomendasi ("kerjakan semuanya
+sesuai rekomendasi") untuk menutup keempatnya sekaligus.
+
+**Riset sebelum eksekusi** (penting untuk keputusan desain di bawah):
+- Dicek langsung lewat API produksi (browser yang sudah login sebagai
+  Super Admin): 4 Territory (Surabaya/Jatim, Bandung/Jabar, Jakarta
+  Selatan & Pusat/DKI), 11 Distributor + 19 Toko tersebar di ~20
+  provinsi Indonesia, 0 Client, 0 Opportunity, 29 Produk. Ini
+  memvalidasi bahwa heuristik substring-match Territory.region vs
+  alamat (untuk #2) memang menemukan sesuatu yang nyata di data
+  produksi, bukan cuma asumsi teoretis -- dan sekaligus mengungkap
+  temuan bisnis genuine: cakupan Territory jauh lebih sempit daripada
+  jejak distribusi riil.
+- 0 Client/Opportunity di produksi berarti kartu insight #1 dan #6
+  (yang butuh data itu) akan tampil kosong sampai data mulai diisi --
+  ini kondisi data yang jujur, bukan bug di kode baru.
+- Perbandingan 3 model "orang" di schema (User vs SalesRep vs Karyawan)
+  untuk #7: dipilih **User** (bukan SalesRep yang terpisah dari akun
+  login, cuma dipakai KPI/commission; bukan Karyawan yang bahkan tidak
+  punya tabel Prisma sama sekali, masih localStorage-only) supaya
+  konsisten dengan pola FK yang sudah ada (submittedById/decidedById)
+  dan dengan Opportunity/Task.ownerId.
+
+**Schema & backend (commit `160f0f28`)**:
+- `Distributor`/`Store` dapat kolom baru `salesRepId` (nullable, FK ke
+  `users.id`, `ON DELETE SET NULL`) + relasi `salesRep`. Migration SQL
+  hand-written di
+  `prisma/migrations/20260923110000_add_sales_rep_to_distributor_store/`
+  -- **WAJIB dijalankan manual**: `npx prisma migrate deploy` lalu
+  `npx prisma generate` (sandbox tidak bisa menjangkau Neon/
+  binaries.prisma.sh).
+- `api/handler.ts`: GET distributors/stores (list & detail) sekarang
+  `include: { salesRep: {...} }`; PUT menerima `salesRepId`. Role gate
+  `GET /api/users` dipecah dari SUPER_ADMIN-only jadi juga bisa diakses
+  SALES_MANAGER/MASTER_DATA_ADMIN (approver yang sama dengan
+  DISTRIBUTOR_APPROVER_ROLES/STORE_APPROVER_ROLES) supaya dropdown
+  penugasan PIC di frontend bisa mengambil daftar user --
+  `serializeUser()` sudah membuang `passwordHash` jadi aman diperluas.
+  `POST /api/users` tetap SUPER_ADMIN-only.
+- Celah kecil yang ikut ditutup (ditemukan saat riset #1/#6, dibutuhkan
+  untuk join Client -> Distributor/Store): `src/types/client.ts` &
+  `clientsRepository.ts`'s `FIELD_MAP` belum expose
+  `distributor_id`/`store_id` -- padahal Prisma model & `api/handler.ts`
+  (POST create + PUT editableFields) sudah dukung penuh sejak awal,
+  murni celah frontend.
+
+**UI (commit `a8b67963`)**, semua di `DistributorStoreMap.tsx`, dihitung
+client-side dari data yang sudah/baru dimuat -- tidak ada endpoint
+agregasi baru:
+
+- **#1 Heatmap performa**: mode peta baru `"performance"` mewarnai
+  titik berdasarkan total nilai Opportunity yang terhubung lewat
+  `Opportunity.clientId -> Client.distributorId/storeId`.
+  Dibucketkan (none/low/medium/high, relatif terhadap titik tertinggi
+  yang sedang tampil) mengikuti pola `STATUS_COLOR`/`VISIT_COLOR` yang
+  sudah ada, bukan gradien kontinu. Popup marker menampilkan nilai
+  Opportunity saat mode ini aktif.
+- **#2 Coverage gap**: kartu "Coverage Gap Wilayah" -- substring-match
+  case-insensitive `Territory.region` vs alamat Distributor/Toko (tidak
+  ada data batas wilayah/polygon di schema ini sama sekali, jadi ini
+  pendekatan pragmatis). Dua arah: Territory tanpa titik pendukung, dan
+  titik di luar Territory manapun.
+- **#6 Penetrasi kategori**: kartu "Penetrasi Kategori Produk" --
+  agregasi `Opportunity -> OpportunityProduct -> Product.category`,
+  dibatasi ke Opportunity yang klien-nya terhubung ke jaringan
+  distribusi yang sedang dilihat (tab Distributor/Toko/keduanya).
+- **#7 Distribusi beban sales rep**: kartu "Distribusi Beban Sales
+  Rep" -- ringkasan jumlah titik per rep (+ grup "Belum Ditugaskan")
+  untuk semua orang, plus daftar penugasan/pelepasan PIC (dropdown per
+  titik) khusus approver, memanggil `distributorsRepository`/
+  `storesRepository.update({ salesRepId })`.
+- Gap tambahan yang ikut ditutup: `Opportunity.clientId` sudah ada di
+  Prisma model sejak awal tapi belum pernah di-expose ke
+  `src/types/opportunity.ts`/`opportunitiesRepository.ts` -- dibutuhkan
+  sebagai kunci join untuk #1/#6.
+
+Verifikasi: `tsc --noEmit` terisolasi (tsconfig sementara, dihapus
+setelah dipakai -- proyek ini tidak punya `tsconfig.json` permanen di
+root) naik dari baseline 100 error ke 104, seluruhnya 4 error transient
+`salesRep does not exist in DistributorInclude/StoreInclude` yang akan
+hilang begitu `prisma generate` dijalankan -- commit UI berikutnya
+(`a8b67963`) menghasilkan error set yang identik persis (tidak ada
+tambahan sama sekali).
+
+**Belum dikerjakan / catatan untuk user**:
+- [ ] Migration di atas WAJIB dijalankan manual: `npx prisma migrate
+      deploy` lalu `npx prisma generate`, sebelum fitur penugasan PIC
+      sales rep berfungsi di produksi (sebelum itu, kolom `salesRepId`
+      belum ada di DB & Prisma Client belum tahu field ini ada).
+- [ ] `git push origin main` untuk commit `160f0f28` dan `a8b67963`.
