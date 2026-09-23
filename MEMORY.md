@@ -1836,3 +1836,104 @@ ke data nyata (kemungkinan jadi Fase tersendiri, cukup besar).
 - AdvancedAnalytics.tsx tetap full-mock (lihat "Keputusan scoping" di atas) --
   merombaknya ke data nyata adalah pekerjaan terpisah, belum diminta secara
   eksplisit.
+
+## 20. Fase C (Bab 14) -- AI Assistant sungguhan via Anthropic API, pilot AIChatAssistant -- 23 Sep 2026
+
+### Konteks
+
+Lanjutan dari Fase B (section 19). User diminta memilih lewat AskUserQuestion antara
+dua pendekatan yang sangat berbeda cakupan/biayanya untuk Bab 14: (1) sambungkan 10
+file "AI*"/"ai/AI*" yang sudah ada (rule-based, ~4.733 baris) ke data nyata tanpa
+LLM, vs (2) integrasi LLM sungguhan. **User memilih integrasi LLM sungguhan.**
+
+### Keputusan scoping
+
+10 file AI yang ditemukan di audit gap sebelumnya: `AIFeaturesSection.tsx` (508),
+`AIAssistant.tsx` (144), `ai/AIChatAssistant.tsx` (461), `ai/AIEmailGenerator.tsx`
+(457), `ai/AIInsightsDashboard.tsx` (515), `ai/AILeadScoring.tsx` (346),
+`ai/AISmartRecommendations.tsx` (430), `ai/OpportunityDetailDialog.tsx` (565),
+`ai/RecommendationDetailDialog.tsx` (672), `ai/RiskDetailDialog.tsx` (635) -- total
+4.733 baris. Mengintegrasikan LLM sungguhan ke SEMUANYA sekaligus dalam satu putaran
+tidak realistis (desain prompt, konteks data, error handling berbeda-beda per
+fitur). Putaran ini sengaja hanya mengerjakan **satu pilot end-to-end**:
+`ai/AIChatAssistant.tsx` -- dipilih karena UI chat-nya paling natural dipasangkan ke
+panggilan LLM (sudah ada message list, input, suggestion chips; tinggal ganti logika
+di baliknya), dan `AI_KNOWLEDGE_BASE`-nya paling jelas seluruhnya fiktif (nama klien
+palsu, skor palsu, forecast palsu).
+
+9 file AI lain **masih rule-based/mock, belum disentuh** -- didaftar sebagai roadmap
+lanjutan di bawah, bukan gap yang terlewat.
+
+### Yang dikerjakan
+
+- **`api/handler.ts`**: endpoint baru `POST /api/ai-chat` (`handleAiChat` +
+  `buildAiBusinessContext`), diwire di dispatch switch (`case 'ai-chat'`).
+  - Autentikasi wajib (`requireAuth`), pola sama seperti handler lain.
+  - `buildAiBusinessContext()` mengambil konteks bisnis NYATA dari Prisma sebelum
+    memanggil model: opportunity berstatus OPEN (difilter ke opportunity milik user
+    itu sendiri kalau role-nya SALES_REPRESENTATIVE, tidak difilter kalau
+    manager/admin), kunjungan toko yang terlewat (Task type=VISIT, checkInAt kosong,
+    dueDate sudah lewat -- data ini ada berkat seed Fase B), dan produk dengan stok
+    <=10 unit. Semua ini dirender jadi teks markdown-ish dan disuntikkan ke system
+    prompt, dengan instruksi eksplisit ke model: jangan mengarang angka/nama di luar
+    data ini.
+  - Memanggil REST API Anthropic (`https://api.anthropic.com/v1/messages`) langsung
+    via `fetch` mentah, BUKAN `@anthropic-ai/sdk` -- sengaja, supaya tidak menambah
+    dependency npm baru untuk satu endpoint.
+  - Model default `claude-sonnet-5` -- dikonfirmasi via WebFetch ke dokumentasi
+    resmi Anthropic (23 Sep 2026) bahwa ID ini masih valid, bukan tebakan.
+    Override-able lewat env var `AI_MODEL_ID`.
+  - `ANTHROPIC_API_KEY` HANYA dibaca server-side (`process.env`), tidak pernah
+    dikirim ke client. Kalau belum di-set, endpoint balas HTTP 503 dengan pesan
+    jelas ("AI Assistant belum aktif..."), bukan gagal diam-diam atau crash.
+- **`src/app/components/ai/AIChatAssistant.tsx`**: `AI_KNOWLEDGE_BASE` (canned
+  response fiktif) dan `generateAIResponse` (logika if/else rule-based) dihapus
+  total. `handleSendMessage` sekarang async, memanggil `POST /api/ai-chat`
+  sungguhan dengan token auth dari `localStorage` (pola `getAuthToken()` yang sama
+  seperti repository lain) dan histori 10 giliran terakhir (user/ai saja, pesan
+  sistem/error tidak ikut) sebagai konteks percakapan multi-turn. Error dari API
+  (termasuk 503 "belum di-set") ditampilkan sebagai toast + bubble pesan sistem,
+  bukan silent fail. UI/UX (quick action buttons, suggestion chips, bubble styling,
+  minimize/close) tidak diubah sama sekali -- murni ganti "otak"-nya.
+- **`.env.example`**: dokumentasikan `ANTHROPIC_API_KEY` (wajib) dan `AI_MODEL_ID`
+  (opsional, default `claude-sonnet-5`).
+
+### Verifikasi
+
+- Isolated `tsc --noEmit` identik byte-for-byte dengan baseline (`git stash` +
+  `diff`, 100 error, semua pre-existing, nol baru dari `api/handler.ts` atau
+  `AIChatAssistant.tsx`).
+- `npx vite build` (build produksi sungguhan) sukses tanpa error.
+- Digrep: tidak ada sisa referensi ke `AI_KNOWLEDGE_BASE`/`generateAIResponse` di
+  `src/` -- penghapusan bersih, tidak ada dead code yang tertinggal.
+- Commit: `5d5f7eaa`.
+
+### PENTING -- langkah manual yang wajib dijalankan user
+
+- [ ] `git push origin main` (5 commit lokal menunggu: `a699fd98`, `e4801e2b`,
+      `fd6080d6`, `811d7415`, `5d5f7eaa`).
+- [ ] **Set `ANTHROPIC_API_KEY` di Vercel Project Settings -> Environment
+      Variables** (ambil dari https://console.anthropic.com/). Tanpa ini,
+      AIChatAssistant di produksi akan selalu balas error "AI Assistant belum
+      aktif" -- bukan bug, memang sengaja fail jelas bukan fail diam-diam.
+  - Opsional: set `AI_MODEL_ID` kalau ingin pakai model lain selain default
+    `claude-sonnet-5`.
+- [ ] `npx prisma db seed` (kalau belum dari Fase A/B) -- AI Assistant butuh data
+      Opportunity/Task nyata di database supaya jawabannya bermakna, bukan
+      "(tidak ada opportunity terbuka)" dst.
+- [ ] Redeploy Vercel setelah env var di-set (Vercel butuh redeploy untuk env var
+      baru terbaca oleh function yang sudah ter-deploy).
+
+### Roadmap lanjutan (belum dikerjakan, di luar cakupan putaran ini)
+
+9 file AI lain masih rule-based/mock sepenuhnya, calon pilot berikutnya kalau user
+mau lanjutkan Fase C:
+- `ai/AIInsightsDashboard.tsx` (515 baris) -- kandidat kuat berikutnya, sama seperti
+  chat: sudah punya struktur UI insight card, tinggal isi dari LLM + data nyata.
+- `ai/AILeadScoring.tsx`, `ai/AISmartRecommendations.tsx` -- butuh desain prompt
+  terstruktur (skema JSON output) supaya skor/rekomendasi bisa dirender di UI yang
+  sudah ada, bukan cuma teks bebas seperti chat.
+- `ai/AIEmailGenerator.tsx` -- cocok untuk LLM (generative text), pola mirip chat.
+- `AIFeaturesSection.tsx`, `AIAssistant.tsx`, `ai/OpportunityDetailDialog.tsx`,
+  `ai/RecommendationDetailDialog.tsx`, `ai/RiskDetailDialog.tsx` -- belum dinilai
+  detail, perlu audit isi masing-masing dulu sebelum diprioritaskan.
