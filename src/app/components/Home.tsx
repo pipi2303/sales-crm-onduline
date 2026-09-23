@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, Users, Target, DollarSign, Calendar, FileText, Award, Activity, RefreshCw } from 'lucide-react';
+import { TrendingUp, Users, Target, DollarSign, Calendar, FileText, Award, Activity, RefreshCw, CheckCircle2, Percent } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -10,6 +10,8 @@ import {
 import { salesData, leadSourceData, performanceData } from '@/app/data/dummyData';
 import { demosApi, contractsApi, salesTeamApi } from '@/services/api';
 import { leadsRepository } from '@/services/leadsRepository';
+import { opportunitiesRepository } from '@/services/opportunitiesRepository';
+import { tasksRepository } from '@/services/tasksRepository';
 import { toast } from 'sonner';
 import { formatCurrency, formatNumber } from '@/utils/formatters';
 import { initializeDemosData } from '@/utils/initializeDemos';
@@ -28,12 +30,95 @@ export function Home() {
     forecast: 0,
   });
   const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  const [bab13Loading, setBab13Loading] = useState(true);
+  const [bab13, setBab13] = useState({
+    revenueMTD: 0,
+    revenueYTD: 0,
+    winRate: 0,
+    wonCount: 0,
+    lostCount: 0,
+    visitCompliance: 0,
+    visitCompliantCount: 0,
+    visitDueCount: 0,
+  });
 
   useEffect(() => {
     // Initialize demo data on app load
     initializeDemosData();
     fetchDashboardData();
+    fetchBab13Stats();
   }, []);
+
+  // Bab 13 -- Revenue MTD/YTD, Win Rate, Kepatuhan Visit Toko. Dihitung
+  // langsung dari data Opportunity/Task nyata (Fase A/B seed data,
+  // prisma/seed.ts), bukan dari PerformanceTarget.actual (field itu
+  // diisi manual lewat form Territory, bukan hasil agregasi -- lihat
+  // MEMORY.md bagian Fase A). Fetch & loading state terpisah dari
+  // fetchDashboardData (berbasis Lead) supaya kegagalan salah satu
+  // tidak menjatuhkan yang lain.
+  const fetchBab13Stats = async () => {
+    try {
+      setBab13Loading(true);
+      const [oppsResult, tasksResult] = await Promise.all([
+        opportunitiesRepository.getAll(),
+        tasksRepository.getAll(),
+      ]);
+
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+
+      let revenueMTD = 0;
+      let revenueYTD = 0;
+      let wonCount = 0;
+      let lostCount = 0;
+
+      if (oppsResult.success && oppsResult.data) {
+        for (const opp of oppsResult.data) {
+          if (opp.status === 'won') wonCount += 1;
+          if (opp.status === 'lost') lostCount += 1;
+
+          if (opp.status === 'won' && opp.actualCloseDate) {
+            const closed = new Date(opp.actualCloseDate);
+            if (closed.getFullYear() === currentYear) {
+              revenueYTD += opp.totalValue || 0;
+              if (closed.getMonth() === currentMonth) {
+                revenueMTD += opp.totalValue || 0;
+              }
+            }
+          }
+        }
+      }
+      const winRate = wonCount + lostCount > 0 ? (wonCount / (wonCount + lostCount)) * 100 : 0;
+
+      let visitCompliantCount = 0;
+      let visitDueCount = 0;
+      if (tasksResult.success && tasksResult.data) {
+        for (const task of tasksResult.data) {
+          if (task.type !== 'visit') continue;
+          if (!task.dueDate || new Date(task.dueDate) > now) continue; // belum jatuh tempo, jangan dihitung
+          visitDueCount += 1;
+          if (task.checkInAt) visitCompliantCount += 1;
+        }
+      }
+      const visitCompliance = visitDueCount > 0 ? (visitCompliantCount / visitDueCount) * 100 : 0;
+
+      setBab13({
+        revenueMTD,
+        revenueYTD,
+        winRate,
+        wonCount,
+        lostCount,
+        visitCompliance,
+        visitCompliantCount,
+        visitDueCount,
+      });
+    } catch (error: any) {
+      console.error('Error fetching Bab 13 stats:', error);
+    } finally {
+      setBab13Loading(false);
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -244,6 +329,66 @@ export function Home() {
           </Card>
         ))}
       </div>
+
+      {/* Bab 13 -- Revenue MTD/YTD, Win Rate, Kepatuhan Visit Toko (data nyata dari Opportunity/Task) */}
+      <Card className="hover:shadow-lg transition-shadow border-[#013E37]/20">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Percent className="h-5 w-5 text-[#013E37]" />
+            Ringkasan Bab 13
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {bab13Loading ? (
+            <div className="flex items-center justify-center h-20">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#013E37]"></div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-500 to-[#013E37] flex items-center justify-center flex-shrink-0">
+                  <DollarSign className="h-5 w-5 text-white" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide leading-snug">Revenue MTD</p>
+                  <p className="text-xl font-bold mt-1 truncate">{formatCurrency(bab13.revenueMTD)}</p>
+                  <p className="text-xs text-gray-400 mt-0.5 truncate">Bulan berjalan, deal WON</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#013E37] to-emerald-500 flex items-center justify-center flex-shrink-0">
+                  <DollarSign className="h-5 w-5 text-white" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide leading-snug">Revenue YTD</p>
+                  <p className="text-xl font-bold mt-1 truncate">{formatCurrency(bab13.revenueYTD)}</p>
+                  <p className="text-xs text-gray-400 mt-0.5 truncate">Tahun berjalan, deal WON</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-[#013E37] flex items-center justify-center flex-shrink-0">
+                  <TrendingUp className="h-5 w-5 text-white" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide leading-snug">Win Rate</p>
+                  <p className="text-xl font-bold mt-1 truncate">{bab13.winRate.toFixed(1)}%</p>
+                  <p className="text-xs text-gray-400 mt-0.5 truncate">{bab13.wonCount} won / {bab13.lostCount} lost</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-amber-500 to-[#013E37] flex items-center justify-center flex-shrink-0">
+                  <CheckCircle2 className="h-5 w-5 text-white" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide leading-snug">Kepatuhan Visit Toko</p>
+                  <p className="text-xl font-bold mt-1 truncate">{bab13.visitCompliance.toFixed(1)}%</p>
+                  <p className="text-xs text-gray-400 mt-0.5 truncate">{bab13.visitCompliantCount} check-in / {bab13.visitDueCount} jadwal</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

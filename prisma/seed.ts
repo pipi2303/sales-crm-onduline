@@ -13,6 +13,7 @@ import { hashPassword } from '../lib/auth.js';
 import { distributorSeeds, storeSeeds } from './seedData/distributorsAndStores.js';
 import { productCategorySeeds, productFamilySeeds, productInstanceSeeds } from './seedData/productCatalog.js';
 import { clientSeeds, opportunitySeeds } from './seedData/clientsAndOpportunities.js';
+import { visitTaskSeeds } from './seedData/visitTasks.js';
 
 const prisma = new PrismaClient();
 
@@ -387,6 +388,71 @@ async function seedOpportunities() {
   console.log(`Seeded ${created} opportunities (${skipped} already existed, dilewati) -- Fase A dummy data realistis`);
 }
 
+// Fase B (Bab 13) follow-up: kepatuhan visit KPI butuh Task nyata
+// bertipe VISIT dengan checkInAt terisi/kosong -- lihat seedData/visitTasks.ts
+// untuk rationale lengkap (31/38 = ~81.6% kepatuhan, sengaja tidak sempurna).
+async function seedVisitTasks() {
+  const storeCodeToId = new Map<string, string>();
+  for (const t of visitTaskSeeds) {
+    if (!storeCodeToId.has(t.storeCode)) {
+      const s = await prisma.store.findUnique({ where: { code: t.storeCode } });
+      if (!s) {
+        throw new Error(`seedVisitTasks: store code "${t.storeCode}" not found -- run seedDistributorsAndStores() first`);
+      }
+      storeCodeToId.set(t.storeCode, s.id);
+    }
+  }
+
+  const emailToUser = new Map<string, { id: string; name: string }>();
+  for (const email of new Set(visitTaskSeeds.map((t) => t.ownerEmail))) {
+    const u = await prisma.user.findUnique({ where: { email } });
+    if (!u) {
+      throw new Error(`seedVisitTasks: user email "${email}" not found -- run the demoUsers loop first`);
+    }
+    emailToUser.set(email, { id: u.id, name: u.name });
+  }
+
+  let created = 0;
+  let skipped = 0;
+  for (const t of visitTaskSeeds) {
+    const storeId = storeCodeToId.get(t.storeCode)!;
+    const owner = emailToUser.get(t.ownerEmail)!;
+    const dueDate = new Date(t.dueDate);
+
+    const existing = await prisma.task.findFirst({
+      where: { storeId, type: 'VISIT', dueDate },
+    });
+    if (existing) {
+      skipped += 1;
+      continue;
+    }
+
+    const checkInAt = t.checkedIn ? new Date(dueDate.getTime() + t.checkInOffsetHours * 60 * 60 * 1000) : null;
+
+    await prisma.task.create({
+      data: {
+        title: t.title,
+        category: t.category,
+        type: 'VISIT',
+        status: t.checkedIn ? 'COMPLETED' : 'TODO',
+        priority: 'MEDIUM',
+        dueDate,
+        completedDate: checkInAt,
+        assignedTo: t.assignedTo,
+        createdBy: owner.name,
+        storeId,
+        ownerId: owner.id,
+        checkInAt,
+        checkInLat: t.checkedIn ? t.gpsLat : null,
+        checkInLng: t.checkedIn ? t.gpsLng : null,
+        locationValidated: t.checkedIn ? true : null,
+      },
+    });
+    created += 1;
+  }
+  console.log(`Seeded ${created} visit tasks (${skipped} already existed, dilewati) -- Fase B kepatuhan visit`);
+}
+
 async function main() {
   for (const u of demoUsers) {
     const passwordHash = await hashPassword(u.password);
@@ -403,6 +469,7 @@ async function main() {
   await seedProductInstances();
   await seedClients();
   await seedOpportunities();
+  await seedVisitTasks();
 }
 
 main()
