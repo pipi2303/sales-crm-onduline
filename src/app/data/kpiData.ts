@@ -9,26 +9,28 @@ export const generateKPIData = (): SalesKPI[] => {
       kpi_id: 'KPI001',
       employee_id: '1',
       employee_name: 'Budi Santoso',
-      employee_email: 'budi.santoso@intramedika.com',
+      employee_email: 'budi.santoso@onduline.co.id',
       periode_bulan: periode,
       
       // Activity Metrics
-      total_kunjungan_faskes: 45,
+      total_kunjungan_toko: 45,
       total_sesi_demo: 32,
       jumlah_leads_baru: 28,
       
       // Output Metrics
       target_revenue_q: 500000000, // 500 juta
       actual_revenue_q: 575000000, // 575 juta (115%)
-      jumlah_closing_simrs: 3,
-      jumlah_closing_klinik: 5,
-      jumlah_closing_dokter: 8,
+      jumlah_closing_atap_bitumen: 6,
+      jumlah_closing_waterproofing: 4,
+      jumlah_closing_solar: 2,
+      jumlah_closing_green_roof: 1,
+      jumlah_closing_aksesoris: 3,
       conversion_rate: 50.0, // 16/32
       
       // Strategic Metrics
-      persentase_upsell_bpjs: 75.0,
-      unit_lis_sold: 4,
-      adopsi_esign_klien: 12,
+      persentase_cross_sell_aksesoris: 75.0,
+      unit_solar_terjual: 4,
+      adopsi_ecatalog_klien: 12,
       
       // Quality Metrics
       customer_satisfaction_score: 4.8,
@@ -48,23 +50,25 @@ export const generateKPIData = (): SalesKPI[] => {
       kpi_id: 'KPI002',
       employee_id: '2',
       employee_name: 'Siti Nurhaliza',
-      employee_email: 'siti.nurhaliza@intramedika.com',
+      employee_email: 'siti.nurhaliza@onduline.co.id',
       periode_bulan: periode,
       
-      total_kunjungan_faskes: 52,
+      total_kunjungan_toko: 52,
       total_sesi_demo: 38,
       jumlah_leads_baru: 35,
       
       target_revenue_q: 450000000,
       actual_revenue_q: 495000000, // 110%
-      jumlah_closing_simrs: 2,
-      jumlah_closing_klinik: 7,
-      jumlah_closing_dokter: 10,
+      jumlah_closing_atap_bitumen: 7,
+      jumlah_closing_waterproofing: 5,
+      jumlah_closing_solar: 2,
+      jumlah_closing_green_roof: 2,
+      jumlah_closing_aksesoris: 3,
       conversion_rate: 55.3,
       
-      persentase_upsell_bpjs: 80.0,
-      unit_lis_sold: 6,
-      adopsi_esign_klien: 15,
+      persentase_cross_sell_aksesoris: 80.0,
+      unit_solar_terjual: 6,
+      adopsi_ecatalog_klien: 15,
       
       customer_satisfaction_score: 4.9,
       churn_rate_client: 1.8,
@@ -82,23 +86,25 @@ export const generateKPIData = (): SalesKPI[] => {
       kpi_id: 'KPI003',
       employee_id: '3',
       employee_name: 'Ahmad Rizki',
-      employee_email: 'ahmad.rizki@intramedika.com',
+      employee_email: 'ahmad.rizki@onduline.co.id',
       periode_bulan: periode,
       
-      total_kunjungan_faskes: 38,
+      total_kunjungan_toko: 38,
       total_sesi_demo: 28,
       jumlah_leads_baru: 22,
       
       target_revenue_q: 400000000,
       actual_revenue_q: 420000000, // 105%
-      jumlah_closing_simrs: 2,
-      jumlah_closing_klinik: 4,
-      jumlah_closing_dokter: 7,
+      jumlah_closing_atap_bitumen: 5,
+      jumlah_closing_waterproofing: 3,
+      jumlah_closing_solar: 1,
+      jumlah_closing_green_roof: 1,
+      jumlah_closing_aksesoris: 3,
       conversion_rate: 46.4,
       
-      persentase_upsell_bpjs: 65.0,
-      unit_lis_sold: 3,
-      adopsi_esign_klien: 9,
+      persentase_cross_sell_aksesoris: 65.0,
+      unit_solar_terjual: 3,
+      adopsi_ecatalog_klien: 9,
       
       customer_satisfaction_score: 4.6,
       churn_rate_client: 3.2,
@@ -116,23 +122,25 @@ export const generateKPIData = (): SalesKPI[] => {
       kpi_id: 'KPI004',
       employee_id: '4',
       employee_name: 'Dewi Lestari',
-      employee_email: 'dewi.lestari@intramedika.com',
+      employee_email: 'dewi.lestari@onduline.co.id',
       periode_bulan: periode,
       
-      total_kunjungan_faskes: 42,
+      total_kunjungan_toko: 42,
       total_sesi_demo: 30,
       jumlah_leads_baru: 25,
       
       target_revenue_q: 450000000,
       actual_revenue_q: 427500000, // 95%
-      jumlah_closing_simrs: 1,
-      jumlah_closing_klinik: 6,
-      jumlah_closing_dokter: 8,
+      jumlah_closing_atap_bitumen: 6,
+      jumlah_closing_waterproofing: 4,
+      jumlah_closing_solar: 1,
+      jumlah_closing_green_roof: 1,
+      jumlah_closing_aksesoris: 3,
       conversion_rate: 50.0,
       
-      persentase_upsell_bpjs: 70.0,
-      unit_lis_sold: 5,
-      adopsi_esign_klien: 11,
+      persentase_cross_sell_aksesoris: 70.0,
+      unit_solar_terjual: 5,
+      adopsi_ecatalog_klien: 11,
       
       customer_satisfaction_score: 4.7,
       churn_rate_client: 2.0,
@@ -150,23 +158,25 @@ export const generateKPIData = (): SalesKPI[] => {
       kpi_id: 'KPI005',
       employee_id: '5',
       employee_name: 'Eko Prasetyo',
-      employee_email: 'eko.prasetyo@intramedika.com',
+      employee_email: 'eko.prasetyo@onduline.co.id',
       periode_bulan: periode,
       
-      total_kunjungan_faskes: 35,
+      total_kunjungan_toko: 35,
       total_sesi_demo: 25,
       jumlah_leads_baru: 20,
       
       target_revenue_q: 400000000,
       actual_revenue_q: 360000000, // 90%
-      jumlah_closing_simrs: 1,
-      jumlah_closing_klinik: 5,
-      jumlah_closing_dokter: 6,
+      jumlah_closing_atap_bitumen: 5,
+      jumlah_closing_waterproofing: 3,
+      jumlah_closing_solar: 1,
+      jumlah_closing_green_roof: 1,
+      jumlah_closing_aksesoris: 2,
       conversion_rate: 48.0,
       
-      persentase_upsell_bpjs: 60.0,
-      unit_lis_sold: 2,
-      adopsi_esign_klien: 8,
+      persentase_cross_sell_aksesoris: 60.0,
+      unit_solar_terjual: 2,
+      adopsi_ecatalog_klien: 8,
       
       customer_satisfaction_score: 4.5,
       churn_rate_client: 3.8,
@@ -184,23 +194,25 @@ export const generateKPIData = (): SalesKPI[] => {
       kpi_id: 'KPI006',
       employee_id: '6',
       employee_name: 'Rina Wijaya',
-      employee_email: 'rina.wijaya@intramedika.com',
+      employee_email: 'rina.wijaya@onduline.co.id',
       periode_bulan: periode,
       
-      total_kunjungan_faskes: 30,
+      total_kunjungan_toko: 30,
       total_sesi_demo: 22,
       jumlah_leads_baru: 18,
       
       target_revenue_q: 350000000,
       actual_revenue_q: 280000000, // 80%
-      jumlah_closing_simrs: 1,
-      jumlah_closing_klinik: 3,
-      jumlah_closing_dokter: 5,
+      jumlah_closing_atap_bitumen: 4,
+      jumlah_closing_waterproofing: 2,
+      jumlah_closing_solar: 1,
+      jumlah_closing_green_roof: 1,
+      jumlah_closing_aksesoris: 1,
       conversion_rate: 40.9,
       
-      persentase_upsell_bpjs: 55.0,
-      unit_lis_sold: 2,
-      adopsi_esign_klien: 6,
+      persentase_cross_sell_aksesoris: 55.0,
+      unit_solar_terjual: 2,
+      adopsi_ecatalog_klien: 6,
       
       customer_satisfaction_score: 4.4,
       churn_rate_client: 4.5,
@@ -223,9 +235,9 @@ export const generateLeaderboard = (kpiData: SalesKPI[]): LeaderboardEntry[] => 
       // Determine top module
       let topModule = '';
       const modules = [
-        { name: 'E-Sign', count: kpi.adopsi_esign_klien },
-        { name: 'LIS', count: kpi.unit_lis_sold },
-        { name: 'BPJS', count: Math.round(kpi.persentase_upsell_bpjs / 10) },
+        { name: 'E-Catalog', count: kpi.adopsi_ecatalog_klien },
+        { name: 'Solar', count: kpi.unit_solar_terjual },
+        { name: 'Aksesoris', count: Math.round(kpi.persentase_cross_sell_aksesoris / 10) },
       ];
       topModule = modules.reduce((a, b) => a.count > b.count ? a : b).name;
       
@@ -234,7 +246,7 @@ export const generateLeaderboard = (kpiData: SalesKPI[]): LeaderboardEntry[] => 
       if (kpi.status_elite_circle) badges.push('Elite Circle');
       if (kpi.customer_satisfaction_score >= 4.8) badges.push('Customer Champion');
       if (kpi.conversion_rate >= 50) badges.push('Conversion Master');
-      if (kpi.total_kunjungan_faskes >= 40) badges.push('Field Warrior');
+      if (kpi.total_kunjungan_toko >= 40) badges.push('Field Warrior');
       
       return {
         rank: index + 1,
@@ -243,7 +255,12 @@ export const generateLeaderboard = (kpiData: SalesKPI[]): LeaderboardEntry[] => 
         employee_avatar: kpi.employee_avatar,
         actual_revenue: kpi.actual_revenue_q,
         target_achieved_percent: kpi.pencapaian_target_persen,
-        total_closings: kpi.jumlah_closing_simrs + kpi.jumlah_closing_klinik + kpi.jumlah_closing_dokter,
+        total_closings:
+          kpi.jumlah_closing_atap_bitumen +
+          kpi.jumlah_closing_waterproofing +
+          kpi.jumlah_closing_solar +
+          kpi.jumlah_closing_green_roof +
+          kpi.jumlah_closing_aksesoris,
         top_module: topModule,
         badges,
         is_elite: kpi.status_elite_circle,

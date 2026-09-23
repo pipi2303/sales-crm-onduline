@@ -223,13 +223,13 @@ export function PerformanceHub() {
               </CardHeader>
               <CardContent className="pb-4">
                 <div className="text-2xl font-bold text-blue-600 mb-1">
-                  {currentUserKPI.total_kunjungan_faskes}
+                  {currentUserKPI.total_kunjungan_toko}
                 </div>
                 <p className="text-xs text-gray-600 mb-3">Total kunjungan via geo-tagging</p>
                 <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-gradient-to-r from-blue-500 to-[#013E37]"
-                    style={{ width: `${Math.min((currentUserKPI.total_kunjungan_faskes / 50) * 100, 100)}%` }}
+                    style={{ width: `${Math.min((currentUserKPI.total_kunjungan_toko / 50) * 100, 100)}%` }}
                   ></div>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">Target: 50 kunjungan/bulan</p>
@@ -247,7 +247,7 @@ export function PerformanceHub() {
                 <div className="text-2xl font-bold text-[#013E37] mb-1">
                   {currentUserKPI.total_sesi_demo}
                 </div>
-                <p className="text-xs text-gray-600 mb-3">Presentasi RME/LIS/BPJS</p>
+                <p className="text-xs text-gray-600 mb-3">Presentasi katalog & sampel produk Onduline</p>
                 <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-gradient-to-r from-[#013E37] to-[#025C52]"
@@ -297,27 +297,45 @@ export function PerformanceHub() {
                   <div className="flex items-center justify-between p-2 bg-blue-50 rounded-lg">
                     <div className="flex items-center gap-2">
                       <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm">
-                        {currentUserKPI.jumlah_closing_simrs}
+                        {currentUserKPI.jumlah_closing_atap_bitumen}
                       </div>
-                      <span className="font-semibold text-sm">Rumah Sakit (SIMRS)</span>
+                      <span className="font-semibold text-sm">Atap Bitumen</span>
                     </div>
-                    <Badge className="bg-blue-600 text-xs">High Value</Badge>
+                    <Badge className="bg-blue-600 text-xs">Volume Utama</Badge>
                   </div>
                   <div className="flex items-center justify-between p-2 bg-[#EEF7F5] rounded-lg">
                     <div className="flex items-center gap-2">
                       <div className="h-8 w-8 rounded-full bg-[#013E37] flex items-center justify-center text-white font-bold text-sm">
-                        {currentUserKPI.jumlah_closing_klinik}
+                        {currentUserKPI.jumlah_closing_waterproofing}
                       </div>
-                      <span className="font-semibold text-sm">Klinik</span>
+                      <span className="font-semibold text-sm">Waterproofing</span>
                     </div>
                     <Badge className="bg-[#013E37] text-xs">Medium Value</Badge>
+                  </div>
+                  <div className="flex items-center justify-between p-2 bg-amber-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-amber-500 flex items-center justify-center text-white font-bold text-sm">
+                        {currentUserKPI.jumlah_closing_solar}
+                      </div>
+                      <span className="font-semibold text-sm">Photovoltaic/Solar</span>
+                    </div>
+                    <Badge className="bg-amber-500 text-xs">High Margin</Badge>
+                  </div>
+                  <div className="flex items-center justify-between p-2 bg-emerald-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold text-sm">
+                        {currentUserKPI.jumlah_closing_green_roof}
+                      </div>
+                      <span className="font-semibold text-sm">Green Roof</span>
+                    </div>
+                    <Badge className="bg-emerald-600 text-xs">Strategic</Badge>
                   </div>
                   <div className="flex items-center justify-between p-2 bg-green-50 rounded-lg">
                     <div className="flex items-center gap-2">
                       <div className="h-8 w-8 rounded-full bg-green-600 flex items-center justify-center text-white font-bold text-sm">
-                        {currentUserKPI.jumlah_closing_dokter}
+                        {currentUserKPI.jumlah_closing_aksesoris}
                       </div>
-                      <span className="font-semibold text-sm">Praktek Mandiri</span>
+                      <span className="font-semibold text-sm">Aksesoris & Talang</span>
                     </div>
                     <Badge className="bg-green-600 text-xs">Volume Play</Badge>
                   </div>
@@ -347,7 +365,7 @@ export function PerformanceHub() {
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-600">Total Closing:</span>
                     <span className="font-semibold text-green-600">
-                      {currentUserKPI.jumlah_closing_simrs + currentUserKPI.jumlah_closing_klinik + currentUserKPI.jumlah_closing_dokter}
+                      {currentUserKPI.jumlah_closing_atap_bitumen + currentUserKPI.jumlah_closing_waterproofing + currentUserKPI.jumlah_closing_solar + currentUserKPI.jumlah_closing_green_roof + currentUserKPI.jumlah_closing_aksesoris}
                     </span>
                   </div>
                   <Progress value={currentUserKPI.conversion_rate} className="h-2" />
@@ -367,15 +385,15 @@ export function PerformanceHub() {
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm font-medium">
                   <Activity className="h-4 w-4 text-green-600" />
-                  Modul BPJS
+                  Cross-sell Aksesoris
                 </CardTitle>
               </CardHeader>
               <CardContent className="pb-4">
                 <div className="text-2xl font-bold text-green-600 mb-2">
-                  {currentUserKPI.persentase_upsell_bpjs.toFixed(0)}%
+                  {currentUserKPI.persentase_cross_sell_aksesoris.toFixed(0)}%
                 </div>
-                <p className="text-xs text-gray-600 mb-3">Rasio upsell BPJS Automation</p>
-                <Progress value={currentUserKPI.persentase_upsell_bpjs} className="h-1.5 mb-2" />
+                <p className="text-xs text-gray-600 mb-3">Rasio deal yang menyertakan Aksesoris & Talang</p>
+                <Progress value={currentUserKPI.persentase_cross_sell_aksesoris} className="h-1.5 mb-2" />
                 <Badge className="bg-green-100 text-green-800 text-xs">
                   <Zap className="h-3 w-3 mr-1" />
                   Strategic Product
@@ -387,18 +405,18 @@ export function PerformanceHub() {
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm font-medium">
                   <ShoppingCart className="h-4 w-4 text-blue-600" />
-                  Modul LIS
+                  Unit Solar Terjual
                 </CardTitle>
               </CardHeader>
               <CardContent className="pb-4">
                 <div className="text-2xl font-bold text-blue-600 mb-2">
-                  {currentUserKPI.unit_lis_sold}
+                  {currentUserKPI.unit_solar_terjual}
                 </div>
-                <p className="text-xs text-gray-600 mb-3">Laboratory Information System</p>
+                <p className="text-xs text-gray-600 mb-3">Photovoltaic/Solar (lintas semua lini)</p>
                 <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden mb-2">
                   <div 
                     className="h-full bg-gradient-to-r from-blue-500 to-[#013E37]"
-                    style={{ width: `${Math.min((currentUserKPI.unit_lis_sold / 10) * 100, 100)}%` }}
+                    style={{ width: `${Math.min((currentUserKPI.unit_solar_terjual / 10) * 100, 100)}%` }}
                   ></div>
                 </div>
                 <Badge className="bg-blue-100 text-blue-800 text-xs">
@@ -412,18 +430,18 @@ export function PerformanceHub() {
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm font-medium">
                   <FileSignature className="h-4 w-4 text-[#013E37]" />
-                  E-Sign
+                  E-Catalog
                 </CardTitle>
               </CardHeader>
               <CardContent className="pb-4">
                 <div className="text-2xl font-bold text-[#013E37] mb-2">
-                  {currentUserKPI.adopsi_esign_klien}
+                  {currentUserKPI.adopsi_ecatalog_klien}
                 </div>
-                <p className="text-xs text-gray-600 mb-3">Digital Integrity Adoption</p>
+                <p className="text-xs text-gray-600 mb-3">Adopsi Katalog Digital Onduline</p>
                 <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden mb-2">
                   <div 
                     className="h-full bg-gradient-to-r from-[#013E37] to-[#025C52]"
-                    style={{ width: `${Math.min((currentUserKPI.adopsi_esign_klien / 20) * 100, 100)}%` }}
+                    style={{ width: `${Math.min((currentUserKPI.adopsi_ecatalog_klien / 20) * 100, 100)}%` }}
                   ></div>
                 </div>
                 <Badge className="bg-[#DFF0EC] text-[#012D29] text-xs">

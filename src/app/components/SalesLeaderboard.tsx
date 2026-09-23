@@ -282,8 +282,8 @@ export function SalesLeaderboard() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <Badge 
                         className={
-                          entry.top_module === 'E-Sign' ? 'bg-[#013E37] text-white' :
-                          entry.top_module === 'LIS' ? 'bg-blue-600 text-white' :
+                          entry.top_module === 'E-Catalog' ? 'bg-[#013E37] text-white' :
+                          entry.top_module === 'Solar' ? 'bg-blue-600 text-white' :
                           'bg-green-600 text-white'
                         }
                       >
