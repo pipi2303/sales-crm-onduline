@@ -1725,3 +1725,114 @@ Commit: `a699fd98`.
   data Opportunity/Task hasil Fase A ini.
 - Fase C: fitur AI Bab 14 -- perlu keputusan bisnis dulu (sambungkan rule-based ke data
   nyata vs integrasi LLM sungguhan) sebelum eksekusi.
+
+## 19. Fase B (Bab 13) -- dashboard Revenue MTD/YTD, Win Rate, Kepatuhan Visit Toko -- 23 Sep 2026
+
+### Konteks
+
+Lanjutan langsung dari Fase A (section 18). User instruksikan "lanjut fase b". Fase
+B mengerjakan dashboard Bab 13 yang di audit gap sebelumnya terbukti belum ada sama
+sekali di `Home.tsx` (nol istilah MTD/YTD/win-rate/kepatuhan-visit).
+
+Saat mulai mengerjakan, dicek ulang live production (via browser fetch ke
+`/api/clients`, `/api/opportunities`, `/api/tasks`, `/api/products`): **masih 0
+Client, 0 Opportunity, 0 Task, dan stock/sold produk masih flat 200/5** -- artinya
+user BELUM menjalankan `npx prisma db seed` dari Fase A di mesin lokal, dan commit
+Fase A (`a699fd98`, `e4801e2b`) juga belum di-push ke `origin/main`. Ini tidak
+menghalangi pengerjaan kode Fase B (kode dashboard tetap benar dan akan menampilkan
+angka nyata begitu data ter-seed), tapi dicatat di sini supaya jelas kenapa dashboard
+baru ini akan tampil Rp0/0% dulu sampai langkah manual dijalankan.
+
+Temuan tambahan saat investigasi: KPI "kepatuhan visit" butuh data `Task` bertipe
+`VISIT` dengan `checkInAt` terisi/kosong (mekanisme check-in GPS dari Bab 8 gap 2
+sudah lengkap di backend sejak commit sebelumnya), tapi **0 Task pernah di-seed** --
+ini bukan bagian dari cakupan Fase A (yang eksplisit hanya Client+Opportunity+
+stock/sold), jadi ditambahkan sebagai bagian dari Fase B.
+
+### Yang dikerjakan
+
+- **`prisma/seedData/visitTasks.ts`** (baru): 38 Task VISIT (2 per toko x 19 toko),
+  dibangun deterministik dari `storeSeeds` yang sudah ada (bukan `Math.random()` --
+  reproducible, mudah di-review, konsisten dengan gaya seedData lain di proyek ini).
+  Tiap toko dapat: 1 kunjungan lama (38-44 hari lalu, selalu check-in -- riwayat
+  kunjungan yang sudah selesai) + 1 kunjungan baru (6-17 hari lalu; 7 dari 19 toko
+  SENGAJA tidak check-in). Hasil: kepatuhan visit ~81,6% (31/38) -- realistis, bukan
+  100% sempurna. Sales rep pemilik task dirotasi di antara 4 user
+  SALES_REPRESENTATIVE yang sudah ada (Pipi, Siti Nurhaliza, Andiko, Nikky).
+  `checkInLat`/`checkInLng` memakai koordinat toko itu sendiri.
+- **`prisma/seed.ts`**: tambah `seedVisitTasks()` -- upsert-safe (cek existing via
+  `findFirst({storeId, type: 'VISIT', dueDate})` sebelum create), validasi ketat kode
+  toko dan email sales rep (throw jika tidak ditemukan, pola sama seperti
+  `seedClients()`/`seedOpportunities()`). Dipanggil di `main()` setelah
+  `seedOpportunities()`.
+- **`src/app/components/Home.tsx`**: tambah section baru "Ringkasan Bab 13" (4 KPI
+  card) tepat setelah Stats Grid yang sudah ada:
+  - **Revenue MTD** -- total `Opportunity.totalValue` berstatus `won` yang
+    `actualCloseDate`-nya jatuh di bulan & tahun berjalan.
+  - **Revenue YTD** -- sama, tapi cakupan tahun berjalan penuh.
+  - **Win Rate** -- `won / (won + lost)` dari seluruh Opportunity yang sudah closed
+    (won atau lost; yang masih open tidak dihitung di penyebut).
+  - **Kepatuhan Visit Toko** -- Task bertipe VISIT yang `checkInAt`-nya terisi
+    dibagi Task VISIT yang sudah jatuh tempo (`dueDate <= sekarang`). Task yang
+    dueDate-nya di masa depan sengaja TIDAK dihitung (belum jatuh tempo, bukan
+    "gagal").
+  - Perhitungan 100% client-side (`opportunitiesRepository.getAll()` +
+    `tasksRepository.getAll()`, direduksi di `fetchBab13Stats()`) -- pola yang sama
+    seperti stats Lead yang sudah ada di file ini, bukan endpoint backend baru.
+    Fetch & loading state terpisah dari `fetchDashboardData()` (berbasis Lead) yang
+    sudah ada, supaya kegagalan salah satu tidak menjatuhkan yang lain.
+
+### Keputusan scoping -- AdvancedAnalytics.tsx SENGAJA tidak disentuh
+
+`AdvancedAnalytics.tsx` (958 baris) juga punya KPI card hardcoded literal ("Win Rate
+Tim" 72.4%, "Top Performer" Diana M.) yang ditemukan di audit gap sebelumnya. Fase B
+**sengaja tidak memperbaikinya**, karena:
+
+- Kedua KPICard itu terjalin erat dengan tab "Performance" yang seluruhnya dibangun
+  di atas array mock `teamPerformance` (nama fiktif "Ahmad S., Budi P., Citra R.,
+  Diana M., Eko W., Fani A." yang tidak cocok User manapun) dan beberapa chart lain
+  yang mereferensikan array itu.
+- Menyambungkan HANYA 2 KPICard ke data nyata sementara chart di sekitarnya (Stacked
+  Bar Deals by Rep, dst.) masih 100% fiktif akan menghasilkan halaman yang setengah
+  nyata setengah palsu -- lebih membingungkan bagi user daripada full-mock apa
+  adanya.
+- Menyambungkan SELURUH file (monthlyData, quarterlyData, teamPerformance,
+  leadSources, conversionFunnel, productData, dan seluruh tab lain) ke data nyata
+  adalah pekerjaan besar tersendiri, di luar cakupan spesifik Bab 13 (yang secara
+  eksplisit hanya menyebut revenue MTD/YTD, win rate, kepatuhan visit -- dan
+  `Home.tsx` adalah dashboard utama yang benar-benar kekurangan istilah-istilah itu).
+
+Ini dicatat di sini sebagai keputusan scoping eksplisit, bukan gap yang terlewat.
+Perlu didiskusikan lagi kalau user ingin `AdvancedAnalytics.tsx` juga dirombak total
+ke data nyata (kemungkinan jadi Fase tersendiri, cukup besar).
+
+### Verifikasi
+
+- Isolated `tsc --noEmit` (tsconfig sementara sama seperti Fase A, mencakup
+  `prisma/**/*.ts`) menghasilkan 100 error yang setelah dibandingkan via `git stash`
+  + `diff` PERSIS SAMA dengan baseline -- satu-satunya perbedaan adalah nomor baris
+  satu error pre-existing di `Home.tsx` yang bergeser dari baris 345 ke 490 karena
+  kode baru disisipkan di atasnya (bukan error baru).
+- `npx vite build` (build produksi sungguhan, bukan cuma type-check) dijalankan dan
+  sukses tanpa error.
+- Commit: `fd6080d6`.
+
+### PENTING -- langkah manual yang wajib dijalankan user
+
+- [ ] `git push origin main` (3 commit lokal belum ter-push: `a699fd98`, `e4801e2b`,
+      `fd6080d6` -- kredensial GitHub tidak tersedia di shell ini).
+- [ ] `npx prisma db seed` di mesin lokal (`DATABASE_URL` harus sudah di-set) --
+      dashboard "Ringkasan Bab 13" ini akan menampilkan Rp0/0%/0% sampai seed
+      dijalankan, karena produksi masih 0 Client/Opportunity/Task per pengecekan
+      live saat Fase B ini dikerjakan.
+- [ ] Setelah seed berhasil, cek dashboard Home menampilkan angka yang masuk akal:
+      Win Rate mendekati 68,75% (11 won / 16 closed dari Fase A), Kepatuhan Visit
+      Toko mendekati 81,6% (31/38 dari Fase B).
+
+### Belum dikerjakan (menunggu keputusan user)
+
+- Fase C: fitur AI Bab 14 -- masih perlu keputusan bisnis (sambungkan rule-based ke
+  data nyata vs integrasi LLM sungguhan).
+- AdvancedAnalytics.tsx tetap full-mock (lihat "Keputusan scoping" di atas) --
+  merombaknya ke data nyata adalah pekerjaan terpisah, belum diminta secara
+  eksplisit.
