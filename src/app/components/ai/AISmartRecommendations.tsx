@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/ca
 import { Button } from '@/app/components/ui/button';
 import { Badge } from '@/app/components/ui/badge';
 import { toast } from 'sonner';
+import { getClientSegmentProfile } from '@/utils/clientSegmentTier';
 
 interface Recommendation {
   id: string;
@@ -36,7 +37,6 @@ interface AISmartRecommendationsProps {
     interactionCount?: number;
     statusHubungan?: string;
     paketAktif?: string;
-    bedCount?: number;
   };
   onActionClick?: (action: string, leadId: string) => void;
 }
@@ -61,7 +61,7 @@ export function AISmartRecommendations({ leadData, onActionClick }: AISmartRecom
         : 999;
       const interactions = leadData.interactionCount || 0;
       const isActiveClient = leadData.paketAktif && leadData.paketAktif !== '-';
-      const bedCount = leadData.bedCount || 0;
+      const segment = getClientSegmentProfile(leadData.kategoriClient);
 
       // 1. URGENT: Follow-up needed
       if (daysSinceContact > 3 && daysSinceContact < 30 && !isActiveClient) {
@@ -84,17 +84,17 @@ export function AISmartRecommendations({ leadData, onActionClick }: AISmartRecom
 
       // 2. OPPORTUNITY: Upsell potential
       if (isActiveClient && leadData.paketAktif?.toLowerCase().includes('basic')) {
-        const upsellValue = bedCount > 50 ? 85000000 : 45000000;
+        const upsellValue = segment.upsellValue;
         recs.push({
           id: 'opportunity-upsell',
           type: 'opportunity',
           priority: 'high',
           title: '💰 High-Value Upsell Opportunity',
           description: `${leadData.organization} is on basic package - upsell potential detected`,
-          reasoning: `AI analysis shows similar ${leadData.kategoriClient} facilities upgrade to Premium/LIS module within 3-6 months. Current satisfaction indicators are positive.`,
+          reasoning: `AI analysis shows similar ${leadData.kategoriClient} clients often add complementary Onduline product lines (Waterproofing, Solar, Green Roof) within 3-6 months. Current satisfaction indicators are positive.`,
           impact: `Expected additional revenue: Rp ${(upsellValue / 1000000).toFixed(0)} juta`,
           suggestedActions: [
-            { label: 'Send LIS Proposal', action: 'proposal-lis', icon: FileText },
+            { label: 'Send Cross-sell Proposal', action: 'proposal-cross-sell', icon: FileText },
             { label: 'Schedule Upsell Demo', action: 'demo-upsell', icon: Target },
             { label: 'Share Success Story', action: 'case-study', icon: Award }
           ],
@@ -111,7 +111,7 @@ export function AISmartRecommendations({ leadData, onActionClick }: AISmartRecom
           title: '⚠️ Lead Going Cold - Re-engagement Needed',
           description: `${daysSinceContact} days without activity. 68% risk of losing this opportunity`,
           reasoning: `Pattern recognition indicates leads inactive for 14+ days have 68% chance of going to competitors. Immediate re-engagement campaign recommended.`,
-          impact: `Could lose potential deal worth Rp ${bedCount > 50 ? '150' : '75'} juta`,
+          impact: `Could lose potential deal worth Rp ${(segment.baseDealSize / 1000000).toFixed(0)} juta`,
           suggestedActions: [
             { label: 'Re-engagement Campaign', action: 'campaign', icon: Mail },
             { label: 'Special Offer Email', action: 'offer', icon: Award },

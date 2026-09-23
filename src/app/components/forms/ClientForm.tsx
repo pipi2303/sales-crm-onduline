@@ -2,13 +2,13 @@ import React from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { 
-  X, Hospital, FileText, Shield, User, Building2, 
+  X, FileText, Shield, User, Building2, 
   ChevronUp, ChevronDown, Clipboard, CreditCard, Info, Save, Percent,
   Clock, Send, CheckCircle, CalendarDays, Wallet, Package, Layers, AlertCircle,
   Globe, MapPin, Phone, Mail, Tag, Hash, Link,
-  Activity, FileCheck, Stethoscope, Monitor, Users, Bed,
+  Activity, FileCheck, Monitor,
   UserCircle, Briefcase, MessageSquare, Fingerprint, ExternalLink, FileSignature,
-  Database, ShieldCheck, Server, Cloud, Cpu
+  Database, Server
 } from 'lucide-react';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription 
@@ -68,13 +68,10 @@ export function ClientFormModal({ client, onClose, onSuccess }: ClientFormProps)
     nomor_telepon: '',
     email_resmi: '',
     website: '', // NEW FIELD
-    // Profiling Teknis & Regulasi
-    id_satusehat: '',
-    id_faskes_bpjs: '',
-    status_akreditasi: '',
-    sistem_lama: '',
-    volume_pasien: '',
-    jumlah_tempat_tidur: '',
+    // Riwayat Pengadaan (was "Profiling Teknis & Regulasi" -- Fase 1 item
+    // 5, unify Client data model, 23 Sep 2026: healthcare/BPJS-only
+    // fields removed, this one field kept & renamed from sistem_lama)
+    vendor_sebelumnya: '',
     // Decision Maker
     nama_pic: '',
     jabatan_pic: '',
@@ -94,7 +91,7 @@ export function ClientFormModal({ client, onClose, onSuccess }: ClientFormProps)
     // Legal
     file_kontrak_digital: '',
     status_esign: '',
-    npwp_faskes: '',
+    npwp: '',
   });
 
   React.useEffect(() => {
@@ -120,13 +117,8 @@ export function ClientFormModal({ client, onClose, onSuccess }: ClientFormProps)
         nomor_telepon: client.nomor_telepon || '',
         email_resmi: client.email_resmi || '',
         website: client.website || '', // NEW FIELD
-        // Profiling Teknis & Regulasi
-        id_satusehat: client.id_satusehat || '',
-        id_faskes_bpjs: client.id_faskes_bpjs || '',
-        status_akreditasi: client.status_akreditasi || '',
-        sistem_lama: client.sistem_lama || '',
-        volume_pasien: client.volume_pasien || '',
-        jumlah_tempat_tidur: client.jumlah_tempat_tidur || '',
+        // Riwayat Pengadaan
+        vendor_sebelumnya: client.vendor_sebelumnya || '',
         // Decision Maker
         nama_pic: client.nama_pic || '',
         jabatan_pic: client.jabatan_pic || '',
@@ -145,7 +137,7 @@ export function ClientFormModal({ client, onClose, onSuccess }: ClientFormProps)
         // Legal
         file_kontrak_digital: client.file_kontrak_digital || '',
         status_esign: client.status_esign || '',
-        npwp_faskes: client.npwp_faskes || '',
+        npwp: client.npwp || '',
       });
     }
   }, [client]);
@@ -242,7 +234,7 @@ export function ClientFormModal({ client, onClose, onSuccess }: ClientFormProps)
             {/* Icon & Title */}
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                <Hospital className="w-6 h-6" />
+                <Building2 className="w-6 h-6" />
               </div>
               <div>
                 <DialogTitle className="text-2xl font-bold leading-tight">
@@ -289,17 +281,17 @@ export function ClientFormModal({ client, onClose, onSuccess }: ClientFormProps)
                 <FileText className="w-5 h-5 text-blue-600" />
               </div>
               <div>
-                <p className="text-xs text-gray-500">ID SatuSehat</p>
-                <p className="font-semibold text-gray-900 text-sm">{formData.id_satusehat || '-'}</p>
+                <p className="text-xs text-gray-500">ID Customer</p>
+                <p className="font-semibold text-gray-900 text-sm">{formData.id_customer || '-'}</p>
               </div>
             </div>
             <div className="bg-white rounded-lg p-3 flex items-center gap-3 shadow-sm">
               <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
-                <Shield className="w-5 h-5 text-emerald-600" />
+                <Phone className="w-5 h-5 text-emerald-600" />
               </div>
               <div>
-                <p className="text-xs text-gray-500">Akreditasi</p>
-                <p className="font-semibold text-gray-900 text-sm">{formData.status_akreditasi || '-'}</p>
+                <p className="text-xs text-gray-500">Nomor Telepon</p>
+                <p className="font-semibold text-gray-900 text-sm">{formData.nomor_telepon || '-'}</p>
               </div>
             </div>
             <div className="bg-white rounded-lg p-3 flex items-center gap-3 shadow-sm">
@@ -307,8 +299,8 @@ export function ClientFormModal({ client, onClose, onSuccess }: ClientFormProps)
                 <User className="w-5 h-5 text-[#013E37]" />
               </div>
               <div>
-                <p className="text-xs text-gray-500">Volume Pasien</p>
-                <p className="font-semibold text-gray-900 text-sm">{formData.volume_pasien || '-'}</p>
+                <p className="text-xs text-gray-500">Vendor Sebelumnya</p>
+                <p className="font-semibold text-gray-900 text-sm">{formData.vendor_sebelumnya || '-'}</p>
               </div>
             </div>
           </div>
@@ -569,7 +561,17 @@ export function ClientFormModal({ client, onClose, onSuccess }: ClientFormProps)
               )}
             </div>
 
-            {/* SECTION 2: Profiling Teknis & Regulasi */}
+            {/* SECTION 2: Riwayat Pengadaan (renamed from "Profiling Teknis
+                & Regulasi" -- Fase 1 item 5, unify Client data model, 23
+                Sep 2026: the healthcare/BPJS-only fields this section held
+                (ID SatuSehat, ID Faskes BPJS, Status Akreditasi, Volume
+                Pasien, Kapasitas Tempat Tidur) were removed -- no Onduline
+                equivalent, and Kapasitas Tempat Tidur was silently feeding
+                AILeadScoring/AISmartRecommendations' deal-size math (see
+                src/utils/clientSegmentTier.ts, now based on kategori_client
+                instead). Only the renamed vendor_sebelumnya field survives
+                here, and it's now wired into AILeadScoring's
+                competition-level factor instead of sitting unused. */}
             <div className="bg-white rounded-xl border border-blue-100 overflow-hidden shadow-sm">
               <button
                 type="button"
@@ -578,11 +580,11 @@ export function ClientFormModal({ client, onClose, onSuccess }: ClientFormProps)
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-200">
-                    <Stethoscope className="w-5 h-5 text-white" />
+                    <Server className="w-5 h-5 text-white" />
                   </div>
                   <div className="text-left">
-                    <h3 className="text-base font-bold text-blue-900 leading-none">Profiling Teknis & Regulasi</h3>
-                    <p className="text-[10px] text-blue-700 mt-1 uppercase tracking-wider font-semibold opacity-70">INTEGRASI SATUSEHAT & INFRASTRUKTUR IT</p>
+                    <h3 className="text-base font-bold text-blue-900 leading-none">Riwayat Pengadaan</h3>
+                    <p className="text-[10px] text-blue-700 mt-1 uppercase tracking-wider font-semibold opacity-70">VENDOR / DISTRIBUTOR SEBELUMNYA</p>
                   </div>
                 </div>
                 {expandedSections.teknis ? (
@@ -593,129 +595,20 @@ export function ClientFormModal({ client, onClose, onSuccess }: ClientFormProps)
               </button>
               
               {expandedSections.teknis && (
-                <div className="p-6 space-y-8">
-                  {/* Sub-section: Kepatuhan Regulasi */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
-                      <ShieldCheck className="w-4 h-4 text-blue-600" />
-                      <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Kepatuhan Regulasi (SatuSehat)</h4>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-5">
-                      <div className="space-y-2">
-                        <Label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                          <Cloud className="w-3.5 h-3.5 text-blue-500" />
-                          ID SatuSehat (Organization ID)
-                        </Label>
-                        <Input
-                          name="id_satusehat"
-                          value={formData.id_satusehat}
-                          onChange={handleChange}
-                          placeholder="RSU-DKI-001-2023"
-                          className="bg-white border-gray-300 focus:border-blue-500 focus:ring-blue-500 h-11 font-mono text-xs"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                          <Activity className="w-3.5 h-3.5 text-blue-500" />
-                          ID Faskes BPJS
-                        </Label>
-                        <Input
-                          name="id_faskes_bpjs"
-                          value={formData.id_faskes_bpjs}
-                          onChange={handleChange}
-                          placeholder="0112R001"
-                          className="bg-white border-gray-300 focus:border-blue-500 focus:ring-blue-500 h-11 font-mono text-xs"
-                        />
-                      </div>
-
-                      <div className="col-span-2 space-y-2">
-                        <Label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                          <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />
-                          Status Akreditasi
-                        </Label>
-                        <Select
-                          value={formData.status_akreditasi}
-                          onValueChange={(value) => setFormData(prev => ({ ...prev, status_akreditasi: value }))}
-                        >
-                          <SelectTrigger className="bg-white border-gray-300 focus:border-blue-500 focus:ring-blue-500 h-11">
-                            <SelectValue placeholder="Pilih status akreditasi" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Paripurna">🌟 Paripurna (Bintang 5)</SelectItem>
-                            <SelectItem value="Utama">✨ Utama (Bintang 4)</SelectItem>
-                            <SelectItem value="Madya">⭐ Madya (Bintang 3)</SelectItem>
-                            <SelectItem value="Dasar">🔸 Dasar</SelectItem>
-                            <SelectItem value="Belum Terakreditasi">❌ Belum Terakreditasi</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Sub-section: Kapasitas & Sistem */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
-                      <Cpu className="w-4 h-4 text-blue-600" />
-                      <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Kapasitas & Sistem Eksisting</h4>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-5">
-                      <div className="space-y-2 col-span-2">
-                        <Label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                          <Server className="w-3.5 h-3.5 text-blue-500" />
-                          Sistem Lama / Eksisting (SIMRS)
-                        </Label>
-                        <Input
-                          name="sistem_lama"
-                          value={formData.sistem_lama}
-                          onChange={handleChange}
-                          placeholder="Contoh: Vendor X / Manual (Paper-based)"
-                          className="bg-white border-gray-300 focus:border-blue-500 focus:ring-blue-500 h-11"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                          <Users className="w-3.5 h-3.5 text-blue-500" />
-                          Volume Pasien Rata-rata
-                        </Label>
-                        <div className="relative">
-                          <Input
-                            type="number"
-                            name="volume_pasien"
-                            value={formData.volume_pasien}
-                            onChange={handleChange}
-                            placeholder="1500"
-                            className="bg-white border-gray-300 focus:border-blue-500 focus:ring-blue-500 h-11 pr-24"
-                          />
-                          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400 bg-gray-50 px-2 py-1 rounded border border-gray-200 uppercase pointer-events-none">
-                            Kunj/Bln
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                          <Bed className="w-3.5 h-3.5 text-blue-500" />
-                          Kapasitas Tempat Tidur
-                        </Label>
-                        <div className="relative">
-                          <Input
-                            type="number"
-                            name="jumlah_tempat_tidur"
-                            value={formData.jumlah_tempat_tidur}
-                            onChange={handleChange}
-                            placeholder="100"
-                            className="bg-white border-gray-300 focus:border-blue-500 focus:ring-blue-500 h-11 pr-16"
-                          />
-                          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400 bg-gray-50 px-2 py-1 rounded border border-gray-200 uppercase pointer-events-none">
-                            TT
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                <div className="p-6 space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                      <Server className="w-3.5 h-3.5 text-blue-500" />
+                      Vendor/Distributor Sebelumnya
+                    </Label>
+                    <Input
+                      name="vendor_sebelumnya"
+                      value={formData.vendor_sebelumnya}
+                      onChange={handleChange}
+                      placeholder="Contoh: Distributor Atap Nusantara / Belum ada distributor tetap"
+                      className="bg-white border-gray-300 focus:border-blue-500 focus:ring-blue-500 h-11"
+                    />
+                    <p className="text-xs text-gray-400">Membantu AI Lead Scoring menilai tingkat kompetisi untuk client ini.</p>
                   </div>
                 </div>
               )}
@@ -1106,11 +999,11 @@ export function ClientFormModal({ client, onClose, onSuccess }: ClientFormProps)
                     <div className="space-y-2">
                       <Label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                         <Fingerprint className="w-3.5 h-3.5 text-slate-500" />
-                        Nomor NPWP Faskes
+                        Nomor NPWP
                       </Label>
                       <Input
-                        name="npwp_faskes"
-                        value={formData.npwp_faskes}
+                        name="npwp"
+                        value={formData.npwp}
                         onChange={handleChange}
                         placeholder="01.234.567.8-012.000"
                         className="bg-white border-gray-300 focus:border-slate-500 focus:ring-slate-500 h-11 font-mono text-xs"

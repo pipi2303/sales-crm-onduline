@@ -209,12 +209,14 @@ model Client {
   koordinatGps          String?  @map("koordinat_gps")
   nomorTelepon          String?  @map("nomor_telepon")
   emailResmi            String?  @map("email_resmi")
-  idSatusehat           String?  @map("id_satusehat")
-  idFaskesBpjs          String?  @map("id_faskes_bpjs")
-  statusAkreditasi      String?  @map("status_akreditasi")
-  sistemLama            String?  @map("sistem_lama")
-  volumePasien          String?  @map("volume_pasien")
-  jumlahTempatTidur     String?  @map("jumlah_tempat_tidur")
+  // Fase 1 item 5 (unify Client data model, 23 Sep 2026): the healthcare/
+  // BPJS-only fields this app inherited (idSatusehat/idFaskesBpjs/
+  // statusAkreditasi/volumePasien/jumlahTempatTidur) were removed --
+  // Onduline has no equivalent concept, and jumlahTempatTidur (bed count)
+  // was silently feeding AILeadScoring/AISmartRecommendations' deal-size
+  // math. npwpFaskes/sistemLama were kept and renamed below (npwp/
+  // vendorSebelumnya) since they map to real, generic business concepts.
+  // See prisma/migrations/20260923100000_unify_client_data_model.
   namaPic               String?  @map("nama_pic")
   jabatanPic            String?  @map("jabatan_pic")
   whatsappPic           String?  @map("whatsapp_pic")
@@ -228,7 +230,8 @@ model Client {
   totalNilaiKontrak     String?  @map("total_nilai_kontrak")
   fileKontrakDigital    String?  @map("file_kontrak_digital")
   statusEsign           String?  @map("status_esign")
-  npwpFaskes            String?  @map("npwp_faskes")
+  npwp                  String?  @map("npwp")
+  vendorSebelumnya      String?  @map("vendor_sebelumnya")
 
   // New with Fase 1: which hierarchy/flow this client belongs to (Bab 4/5).
   salesFlow     SalesFlow?

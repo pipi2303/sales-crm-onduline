@@ -484,12 +484,15 @@ async function handleLeads(id: string | undefined, req: ApiRequest, res: ApiResp
 // src/services/api.ts's clientsApi (ClientForm.tsx, SalesTeam.tsx,
 // OpportunityFormNew.tsx) even though the Client model has existed in
 // prisma/schema.prisma from the start (it just had no route). That meant
-// every browser had its own private, never-shared list of clients -- and
-// since the template this app started from was healthcare software, the
-// model's optional fields (idSatusehat/idFaskesBpjs/statusAkreditasi/
-// volumePasien/jumlahTempatTidur/npwpFaskes) are healthcare-shaped. They
-// stay on the model as-is here (Fase 1 item 5, unifying the data model,
-// is a separate piece of work) -- any client can simply leave them blank.
+// every browser had its own private, never-shared list of clients.
+//
+// Fase 1 item 5 (unify Client data model, 23 Sep 2026): the model's
+// healthcare-shaped fields (idSatusehat/idFaskesBpjs/statusAkreditasi/
+// volumePasien/jumlahTempatTidur) have been removed -- no Onduline
+// equivalent, and jumlahTempatTidur was silently feeding AI lead-scoring
+// math (see src/utils/clientSegmentTier.ts). npwpFaskes/sistemLama were
+// kept and renamed to npwp/vendorSebelumnya -- generic business concepts,
+// not healthcare-specific.
 // ---------------------------------------------------------------------
 
 function generateCustomerId(): string {
@@ -533,12 +536,6 @@ async function handleClients(id: string | undefined, req: ApiRequest, res: ApiRe
             koordinatGps: (body.koordinatGps as string) ?? null,
             nomorTelepon: (body.nomorTelepon as string) ?? null,
             emailResmi: (body.emailResmi as string) ?? null,
-            idSatusehat: (body.idSatusehat as string) ?? null,
-            idFaskesBpjs: (body.idFaskesBpjs as string) ?? null,
-            statusAkreditasi: (body.statusAkreditasi as string) ?? null,
-            sistemLama: (body.sistemLama as string) ?? null,
-            volumePasien: (body.volumePasien as string) ?? null,
-            jumlahTempatTidur: (body.jumlahTempatTidur as string) ?? null,
             namaPic: (body.namaPic as string) ?? null,
             jabatanPic: (body.jabatanPic as string) ?? null,
             whatsappPic: (body.whatsappPic as string) ?? null,
@@ -552,7 +549,8 @@ async function handleClients(id: string | undefined, req: ApiRequest, res: ApiRe
             totalNilaiKontrak: (body.totalNilaiKontrak as string) ?? null,
             fileKontrakDigital: (body.fileKontrakDigital as string) ?? null,
             statusEsign: (body.statusEsign as string) ?? null,
-            npwpFaskes: (body.npwpFaskes as string) ?? null,
+            npwp: (body.npwp as string) ?? null,
+            vendorSebelumnya: (body.vendorSebelumnya as string) ?? null,
             salesFlow: (body.salesFlow as 'PROJECT' | 'RETAIL') ?? null,
             distributorId: (body.distributorId as string) ?? null,
             storeId: (body.storeId as string) ?? null,
@@ -586,11 +584,10 @@ async function handleClients(id: string | undefined, req: ApiRequest, res: ApiRe
       const body = (req.body ?? {}) as Record<string, unknown>;
       const editableFields = [
         'namaEntitas', 'kategoriClient', 'owner', 'alamatLengkap', 'koordinatGps',
-        'nomorTelepon', 'emailResmi', 'idSatusehat', 'idFaskesBpjs', 'statusAkreditasi',
-        'sistemLama', 'volumePasien', 'jumlahTempatTidur', 'namaPic', 'jabatanPic',
+        'nomorTelepon', 'emailResmi', 'namaPic', 'jabatanPic',
         'whatsappPic', 'statusHubungan', 'paketAktif', 'modulTambahan', 'statusKontrak',
         'statusSubscription', 'tanggalMulaiLangganan', 'tanggalHabisKontrak',
-        'totalNilaiKontrak', 'fileKontrakDigital', 'statusEsign', 'npwpFaskes',
+        'totalNilaiKontrak', 'fileKontrakDigital', 'statusEsign', 'npwp', 'vendorSebelumnya',
         'salesFlow', 'distributorId', 'storeId',
       ] as const;
 

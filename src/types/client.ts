@@ -1,8 +1,16 @@
-// Client model -- moved out of ClientDetailDialog.tsx (Fase 1 item 5: one
+// Client model -- moved out of ClientDetailDialog.tsx (Fase 1 item 2: one
 // consistent definition in src/types instead of scattered across component
-// files). Hospital/distributor-specific fields (koordinat_gps, id_satusehat,
-// id_faskes_bpjs, etc.) per the Onduline FSD schema discussion (Bab 5).
-// No field changes -- straight move, now exported for reuse.
+// files).
+//
+// Fase 1 item 5 (unify Client data model, 23 Sep 2026): the healthcare/
+// BPJS-only fields this interface used to carry (id_satusehat,
+// id_faskes_bpjs, status_akreditasi, volume_pasien, jumlah_tempat_tidur)
+// were removed -- Onduline sells building materials, not healthcare
+// software, and has no equivalent concept. npwp_faskes and sistem_lama
+// were kept and renamed (npwp, vendor_sebelumnya) since they map to real,
+// generic business concepts every client has. See
+// prisma/migrations/20260923100000_unify_client_data_model and
+// src/utils/clientSegmentTier.ts.
 
 export interface Client {
   id: string;
@@ -14,12 +22,6 @@ export interface Client {
   koordinat_gps: string;
   nomor_telepon: string;
   email_resmi: string;
-  id_satusehat: string;
-  id_faskes_bpjs: string;
-  status_akreditasi: string;
-  sistem_lama: string;
-  volume_pasien: string;
-  jumlah_tempat_tidur: string;
   nama_pic: string;
   jabatan_pic: string;
   whatsapp_pic: string;
@@ -33,7 +35,8 @@ export interface Client {
   total_nilai_kontrak: string;
   file_kontrak_digital: string;
   status_esign: string;
-  npwp_faskes: string;
+  npwp: string;
+  vendor_sebelumnya: string;
 
   // Bab 10 gap #1 ("Client tanpa approval workflow", 23 Sep 2026) -- same
   // shape as Distributor/Store's Bab 9 workflow, kept as plain strings

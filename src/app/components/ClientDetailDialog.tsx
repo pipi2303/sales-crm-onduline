@@ -9,7 +9,7 @@ import { Textarea } from '@/app/components/ui/textarea';
 import { toast } from 'sonner';
 import {
   X, Check, Mail, Phone, MapPin, Calendar, Briefcase, 
-  Shield, Building2, FileText, Hospital, Users, Package, Stethoscope,
+  Shield, Building2, FileText, Hospital, Users, Package,
   Sparkles, Target, Lightbulb, Clipboard, MessageSquare, Send, ChevronDown, ChevronUp,
   Percent, Clock, AlertCircle
 } from 'lucide-react';
@@ -150,7 +150,7 @@ export function ClientDetailDialog({ open, onOpenChange, client, onEdit }: Clien
     name: client.nama_pic || 'Contact Person',
     organization: client.nama_entitas,
     kategoriClient: client.kategori_client,
-    bedCount: parseInt(client.jumlah_tempat_tidur) || undefined,
+    vendorSebelumnya: client.vendor_sebelumnya,
     budgetStatus: client.status_kontrak,
     lastContactDate: client.tanggal_mulai_langganan,
     interactionCount: 3,
@@ -243,11 +243,11 @@ export function ClientDetailDialog({ open, onOpenChange, client, onEdit }: Clien
               <div className="bg-gradient-to-br from-emerald-50 to-[#EEF7F5] rounded-lg p-4 border border-emerald-100">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-lg bg-emerald-600 flex items-center justify-center flex-shrink-0">
-                    <Shield className="h-5 w-5 text-white" />
+                    <Phone className="h-5 w-5 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs text-gray-500">Akreditasi</p>
-                    <p className="font-bold text-gray-900 truncate">{client.status_akreditasi || '-'}</p>
+                    <p className="text-xs text-gray-500">Nomor Telepon</p>
+                    <p className="font-bold text-gray-900 truncate">{client.nomor_telepon || '-'}</p>
                   </div>
                 </div>
               </div>
@@ -258,8 +258,8 @@ export function ClientDetailDialog({ open, onOpenChange, client, onEdit }: Clien
                     <Users className="h-5 w-5 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs text-gray-500">Volume Pasien</p>
-                    <p className="font-bold text-gray-900 truncate">{client.volume_pasien || '-'}</p>
+                    <p className="text-xs text-gray-500">Vendor Sebelumnya</p>
+                    <p className="font-bold text-gray-900 truncate">{client.vendor_sebelumnya || '-'}</p>
                   </div>
                 </div>
               </div>
@@ -374,7 +374,15 @@ export function ClientDetailDialog({ open, onOpenChange, client, onEdit }: Clien
               </div>
             </div>
 
-            {/* Profiling Teknis & Regulasi */}
+            {/* Riwayat Pengadaan (renamed from "Profiling Teknis & Regulasi" --
+                Fase 1 item 5, unify Client data model, 23 Sep 2026: the
+                healthcare/BPJS-only fields this section showed (ID
+                SatuSehat, ID Faskes BPJS, Status Akreditasi, Volume
+                Pasien, Jumlah Tempat Tidur) were removed -- no Onduline
+                equivalent. Only vendor_sebelumnya (renamed from
+                sistem_lama) survives, since it's a real, generic signal
+                (who supplied this client before Onduline) that also now
+                feeds AILeadScoring's competition-level factor. */}
             <div className="bg-gradient-to-br from-blue-50 to-[#EEF7F5] rounded-xl border border-blue-100 overflow-hidden">
               <button
                 type="button"
@@ -383,11 +391,11 @@ export function ClientDetailDialog({ open, onOpenChange, client, onEdit }: Clien
               >
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-lg bg-blue-600 flex items-center justify-center">
-                    <Stethoscope className="h-5 w-5 text-white" />
+                    <Briefcase className="h-5 w-5 text-white" />
                   </div>
                   <div className="text-left">
-                    <h3 className="text-xl font-bold text-gray-900 leading-none">Profiling Teknis & Regulasi</h3>
-                    <p className="text-[10px] text-blue-700 mt-1 uppercase tracking-wider font-semibold opacity-70">INTEGRASI SATUSEHAT & INFRASTRUKTUR IT</p>
+                    <h3 className="text-xl font-bold text-gray-900 leading-none">Riwayat Pengadaan</h3>
+                    <p className="text-[10px] text-blue-700 mt-1 uppercase tracking-wider font-semibold opacity-70">VENDOR / DISTRIBUTOR SEBELUMNYA</p>
                   </div>
                 </div>
                 {expandedSections.profilingTeknis ? (
@@ -399,59 +407,12 @@ export function ClientDetailDialog({ open, onOpenChange, client, onEdit }: Clien
               
               {expandedSections.profilingTeknis && (
                 <div className="px-6 pb-6 pt-2">
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="bg-white rounded-lg p-4">
-                      <div className="flex items-start gap-3">
-                        <Hospital className="h-5 w-5 text-blue-600 mt-0.5" />
-                        <div>
-                          <p className="text-sm text-gray-500 mb-1">ID SatuSehat</p>
-                          <p className="font-semibold text-gray-900">{client.id_satusehat || '-'}</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-white rounded-lg p-4">
-                      <div className="flex items-start gap-3">
-                        <Shield className="h-5 w-5 text-blue-600 mt-0.5" />
-                        <div>
-                          <p className="text-sm text-gray-500 mb-1">ID Faskes BPJS</p>
-                          <p className="font-semibold text-gray-900">{client.id_faskes_bpjs || '-'}</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-white rounded-lg p-4">
-                      <div className="flex items-start gap-3">
-                        <Shield className="h-5 w-5 text-blue-600 mt-0.5" />
-                        <div>
-                          <p className="text-sm text-gray-500 mb-1">Status Akreditasi</p>
-                          <Badge variant="outline" className="mt-1">{client.status_akreditasi || '-'}</Badge>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-white rounded-lg p-4">
-                      <div className="flex items-start gap-3">
-                        <Briefcase className="h-5 w-5 text-blue-600 mt-0.5" />
-                        <div>
-                          <p className="text-sm text-gray-500 mb-1">Sistem Lama</p>
-                          <p className="font-semibold text-gray-900">{client.sistem_lama || '-'}</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-white rounded-lg p-4">
-                      <div className="flex items-start gap-3">
-                        <Users className="h-5 w-5 text-blue-600 mt-0.5" />
-                        <div>
-                          <p className="text-sm text-gray-500 mb-1">Volume Pasien</p>
-                          <p className="font-semibold text-gray-900">{client.volume_pasien || '/bulan'}</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-white rounded-lg p-4">
-                      <div className="flex items-start gap-3">
-                        <Hospital className="h-5 w-5 text-blue-600 mt-0.5" />
-                        <div>
-                          <p className="text-sm text-gray-500 mb-1">Jumlah Tempat Tidur</p>
-                          <p className="font-semibold text-gray-900">{client.jumlah_tempat_tidur || '-'}</p>
-                        </div>
+                  <div className="bg-white rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <Briefcase className="h-5 w-5 text-blue-600 mt-0.5" />
+                      <div>
+                        <p className="text-sm text-gray-500 mb-1">Vendor/Distributor Sebelumnya</p>
+                        <p className="font-semibold text-gray-900">{client.vendor_sebelumnya || '-'}</p>
                       </div>
                     </div>
                   </div>
@@ -793,8 +754,8 @@ export function ClientDetailDialog({ open, onOpenChange, client, onEdit }: Clien
                       <div className="flex items-start gap-3">
                         <FileText className="h-5 w-5 text-red-600 mt-0.5" />
                         <div>
-                          <p className="text-sm text-gray-500 mb-1">NPWP Faskes</p>
-                          <p className="font-semibold text-gray-900">{client.npwp_faskes || '-'}</p>
+                          <p className="text-sm text-gray-500 mb-1">NPWP</p>
+                          <p className="font-semibold text-gray-900">{client.npwp || '-'}</p>
                         </div>
                       </div>
                     </div>

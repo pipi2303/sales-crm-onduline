@@ -6,9 +6,10 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
 import { Progress } from '@/app/components/ui/progress';
+import { getClientSegmentProfile, hasExistingVendorSignal } from '@/utils/clientSegmentTier';
 
 interface LeadScoringFactors {
-  hospitalSize: number;
+  segmentSize: number;
   budgetConfirmed: number;
   decisionMakerAccess: number;
   engagementLevel: number;
@@ -34,7 +35,7 @@ interface AILeadScoringProps {
     name: string;
     organization: string;
     kategoriClient: string;
-    bedCount?: number;
+    vendorSebelumnya?: string;
     budgetStatus?: string;
     lastContactDate?: string;
     interactionCount?: number;
@@ -55,18 +56,22 @@ export function AILeadScoring({ leadData }: AILeadScoringProps) {
     
     // Simulate AI scoring algorithm
     setTimeout(() => {
-      const bedCount = leadData.bedCount || 50;
+      const segment = getClientSegmentProfile(leadData.kategoriClient);
+      const hasVendorSignal = hasExistingVendorSignal(leadData.vendorSebelumnya);
       const isBudgetConfirmed = leadData.budgetStatus?.toLowerCase().includes('confirmed') || false;
       const hasMetDM = leadData.hasMetDecisionMaker || false;
       const interactions = leadData.interactionCount || 0;
       
       // Calculate scoring factors
       const factors: LeadScoringFactors = {
-        hospitalSize: Math.min((bedCount / 100) * 25, 25), // Max 25 points
+        segmentSize: segment.tierScore, // Max 25 points -- Onduline kategori_client tier (see clientSegmentTier.ts)
         budgetConfirmed: isBudgetConfirmed ? 25 : 8, // 25 or 8 points
         decisionMakerAccess: hasMetDM ? 20 : 5, // 20 or 5 points
         engagementLevel: Math.min(interactions * 3, 15), // Max 15 points
-        competitionLevel: Math.floor(Math.random() * 10) + 5, // 5-15 points (random for demo)
+        // 10-15 if vendor_sebelumnya signals an existing competitor/vendor
+        // relationship, 5-10 otherwise -- still randomized within the band
+        // (demo-grade estimate), but no longer pure noise.
+        competitionLevel: hasVendorSignal ? Math.floor(Math.random() * 5) + 10 : Math.floor(Math.random() * 5) + 5,
         timeline: Math.floor(Math.random() * 10) + 5, // 5-15 points
         painPointSeverity: Math.floor(Math.random() * 10) + 5 // 5-15 points
       };
@@ -74,15 +79,8 @@ export function AILeadScoring({ leadData }: AILeadScoringProps) {
       const totalScore = Object.values(factors).reduce((sum, val) => sum + val, 0);
       const closingProbability = Math.min((totalScore / 100) * 100, 95);
       
-      // Predict deal size based on category
-      let baseDealSize = 50000000; // 50 juta
-      if (leadData.kategoriClient?.toLowerCase().includes('rumah sakit')) {
-        baseDealSize = 150000000 + (bedCount * 1500000); // Base + per bed
-      } else if (leadData.kategoriClient?.toLowerCase().includes('klinik')) {
-        baseDealSize = 75000000;
-      }
-      
-      const predictedDealSize = baseDealSize * (1 + (totalScore / 500));
+      // Predict deal size based on Onduline business segment (kategori_client)
+      const predictedDealSize = segment.baseDealSize * (1 + (totalScore / 500));
       
       // Estimate closing time
       const baseClosingDays = 45;
@@ -101,7 +99,7 @@ export function AILeadScoring({ leadData }: AILeadScoringProps) {
       if (isBudgetConfirmed) strengths.push('Budget confirmed and allocated');
       if (hasMetDM) strengths.push('Direct access to decision maker');
       if (interactions >= 5) strengths.push('High engagement and interest');
-      if (bedCount > 75) strengths.push('Large facility with high deal value');
+      if (segment.tierScore >= 18) strengths.push(`${leadData.kategoriClient} segment -- high deal-size potential`);
 
       // Generate recommendations
       const recommendations: string[] = [];
@@ -247,7 +245,7 @@ export function AILeadScoring({ leadData }: AILeadScoringProps) {
         </CardHeader>
         <CardContent className="space-y-3">
           {Object.entries(aiScore.scoreBreakdown).map(([key, value]) => {
-            const maxPoints = key === 'hospitalSize' || key === 'budgetConfirmed' ? 25 : key === 'decisionMakerAccess' ? 20 : 15;
+            const maxPoints = key === 'segmentSize' || key === 'budgetConfirmed' ? 25 : key === 'decisionMakerAccess' ? 20 : 15;
             const percentage = (value / maxPoints) * 100;
             const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase());
             
