@@ -260,9 +260,18 @@ kosong.)
 
 ## 6. Referensi lain
 
-- Deploy production yang **sebenarnya** dipakai sehari-hari tetap lewat
-  VPS + Portainer + GHCR, lihat `DEPLOY.md` — jalur Vercel ini sifatnya
-  opsional/paralel, bukan pengganti.
+- Deploy VPS + Portainer + GHCR ada (lihat `DEPLOY.md`), tapi
+  **dikonfirmasi user 23 Sep 2026: tidak dipakai** -- aplikasi ini
+  cuma untuk demo, dan jalur yang benar-benar dipakai untuk demo adalah
+  Vercel (`salesappv20.vercel.app` / `sales-crm.intramedika.co.id`).
+  Koreksi dari catatan sebelumnya di section ini yang bilang VPS itu
+  "production yang sebenarnya" -- itu keliru. (Catatan: `server.ts`
+  yang dipakai jalur VPS ini sempat rusak total sejak 22 Sep karena
+  masih import file api/*.ts lama yang sudah dihapus refactor
+  api/handler.ts -- sudah diperbaiki di commit `0b779d0d` (section 25)
+  waktu itu belum tahu jalur ini tidak dipakai, tapi perbaikannya tetap
+  dibiarkan di kode karena benar & tidak ada ruginya, cuma tidak perlu
+  buru-buru redeploy VPS untuk ini.)
 
 ## 7. Fase 0 (hapus Quick Login) & Fase 1 item 4 (RBAC sisi UI) — 22-23 Sep 2026
 
