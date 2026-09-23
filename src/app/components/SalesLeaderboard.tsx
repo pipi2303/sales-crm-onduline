@@ -39,44 +39,44 @@ export function SalesLeaderboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-6">
+    <div className="min-h-screen bg-transparent p-6">
       {/* Header */}
       <div className="mb-8 text-center">
         <div className="flex items-center justify-center gap-3 mb-4">
-          <Trophy className="h-10 w-10 text-yellow-400" />
-          <h1 className="text-4xl font-bold text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <Trophy className="h-10 w-10 text-yellow-500" />
+          <h1 className="text-4xl font-bold text-[#013E37]" style={{ fontFamily: 'Poppins, sans-serif' }}>
             Sales Leaderboard
           </h1>
-          <Trophy className="h-10 w-10 text-yellow-400" />
+          <Trophy className="h-10 w-10 text-yellow-500" />
         </div>
-        <p className="text-blue-200 text-lg">IntraMedika Sales Excellence Program - {selectedPeriod}</p>
+        <p className="text-gray-500 text-lg">IntraMedika Sales Excellence Program - {selectedPeriod}</p>
       </div>
 
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <Card className="bg-gradient-to-br from-blue-800 to-blue-900 border-blue-700">
+        <Card className="hover:shadow-lg transition-shadow">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-full bg-blue-600/50 flex items-center justify-center">
-                <Users className="h-6 w-6 text-blue-200" />
+              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
+                <Users className="h-6 w-6 text-white" />
               </div>
               <div>
-                <p className="text-blue-200 text-sm">Total Sales Team</p>
-                <p className="text-2xl font-bold text-white">{kpiSummary.total_sales_team}</p>
+                <p className="text-gray-500 text-sm">Total Sales Team</p>
+                <p className="text-2xl font-bold text-gray-900">{kpiSummary.total_sales_team}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-green-800 to-green-900 border-green-700">
+        <Card className="hover:shadow-lg transition-shadow">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-full bg-green-600/50 flex items-center justify-center">
-                <DollarSign className="h-6 w-6 text-green-200" />
+              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center">
+                <DollarSign className="h-6 w-6 text-white" />
               </div>
               <div>
-                <p className="text-green-200 text-sm">Total Revenue</p>
-                <p className="text-xl font-bold text-white">
+                <p className="text-gray-500 text-sm">Total Revenue</p>
+                <p className="text-xl font-bold text-gray-900">
                   {formatCurrency(kpiSummary.total_revenue_achieved).replace('Rp', 'Rp ')}
                 </p>
               </div>
@@ -84,29 +84,29 @@ export function SalesLeaderboard() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-[#012D29] to-[#012D29] border-[#013E37]">
+        <Card className="hover:shadow-lg transition-shadow">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-full bg-[#013E37]/50 flex items-center justify-center">
-                <Target className="h-6 w-6 text-[#C3DDD9]" />
+              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-[#013E37] to-emerald-500 flex items-center justify-center">
+                <Target className="h-6 w-6 text-white" />
               </div>
               <div>
-                <p className="text-[#C3DDD9] text-sm">Avg Achievement</p>
-                <p className="text-2xl font-bold text-white">{kpiSummary.average_achievement.toFixed(1)}%</p>
+                <p className="text-gray-500 text-sm">Avg Achievement</p>
+                <p className="text-2xl font-bold text-gray-900">{kpiSummary.average_achievement.toFixed(1)}%</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-yellow-700 to-yellow-800 border-yellow-600">
+        <Card className="hover:shadow-lg transition-shadow">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-full bg-yellow-600/50 flex items-center justify-center">
-                <Crown className="h-6 w-6 text-yellow-200" />
+              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center">
+                <Crown className="h-6 w-6 text-white" />
               </div>
               <div>
-                <p className="text-yellow-200 text-sm">Elite Circle</p>
-                <p className="text-2xl font-bold text-white">{kpiSummary.elite_circle_members} Members</p>
+                <p className="text-gray-500 text-sm">Elite Circle</p>
+                <p className="text-2xl font-bold text-gray-900">{kpiSummary.elite_circle_members} Members</p>
               </div>
             </div>
           </CardContent>
@@ -114,12 +114,12 @@ export function SalesLeaderboard() {
       </div>
 
       {/* Podium - Top 3 */}
-      <Card className="bg-slate-800/50 border-slate-700 mb-8 backdrop-blur-sm">
+      <Card className="mb-8">
         <CardHeader>
-          <CardTitle className="text-white text-center flex items-center justify-center gap-2">
-            <Star className="h-5 w-5 text-yellow-400" />
+          <CardTitle className="text-gray-900 text-center flex items-center justify-center gap-2">
+            <Star className="h-5 w-5 text-yellow-500" />
             Hall of Champions
-            <Star className="h-5 w-5 text-yellow-400" />
+            <Star className="h-5 w-5 text-yellow-500" />
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -132,17 +132,17 @@ export function SalesLeaderboard() {
                     <img
                       src={getAvatarUrl(topThree[1].employee_name)}
                       alt={topThree[1].employee_name}
-                      className="h-full w-full rounded-full border-4 border-slate-700"
+                      className="h-full w-full rounded-full border-4 border-white shadow-md"
                     />
                   </div>
-                  <div className="absolute -top-2 -right-2 h-10 w-10 rounded-full bg-gradient-to-br from-gray-300 to-gray-500 flex items-center justify-center border-2 border-slate-700">
+                  <div className="absolute -top-2 -right-2 h-10 w-10 rounded-full bg-gradient-to-br from-gray-300 to-gray-500 flex items-center justify-center border-2 border-white shadow-md">
                     <span className="text-white font-bold text-lg">2</span>
                   </div>
                 </div>
-                <h3 className="text-white font-bold text-lg mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                <h3 className="text-gray-900 font-bold text-lg mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
                   {topThree[1].employee_name}
                 </h3>
-                <p className="text-gray-300 text-sm mb-2">{formatCurrency(topThree[1].actual_revenue)}</p>
+                <p className="text-gray-500 text-sm mb-2">{formatCurrency(topThree[1].actual_revenue)}</p>
                 <Badge className="bg-gray-400 text-white">{topThree[1].target_achieved_percent}% Target</Badge>
               </div>
             )}
@@ -160,16 +160,16 @@ export function SalesLeaderboard() {
                     />
                   </div>
                   <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                    <Crown className="h-12 w-12 text-yellow-400 drop-shadow-lg" />
+                    <Crown className="h-12 w-12 text-yellow-500 drop-shadow-lg" />
                   </div>
-                  <div className="absolute -bottom-2 -right-2 h-12 w-12 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center border-2 border-yellow-300 shadow-lg">
+                  <div className="absolute -bottom-2 -right-2 h-12 w-12 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center border-2 border-white shadow-lg">
                     <span className="text-white font-bold text-xl">1</span>
                   </div>
                 </div>
-                <h3 className="text-yellow-400 font-bold text-xl mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                <h3 className="text-yellow-600 font-bold text-xl mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
                   {topThree[0].employee_name}
                 </h3>
-                <p className="text-yellow-200 text-base font-semibold mb-2">{formatCurrency(topThree[0].actual_revenue)}</p>
+                <p className="text-yellow-700 text-base font-semibold mb-2">{formatCurrency(topThree[0].actual_revenue)}</p>
                 <Badge className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-white text-sm px-3 py-1">
                   🏆 {topThree[0].target_achieved_percent}% Target
                 </Badge>
@@ -184,17 +184,17 @@ export function SalesLeaderboard() {
                     <img
                       src={getAvatarUrl(topThree[2].employee_name)}
                       alt={topThree[2].employee_name}
-                      className="h-full w-full rounded-full border-4 border-slate-700"
+                      className="h-full w-full rounded-full border-4 border-white shadow-md"
                     />
                   </div>
-                  <div className="absolute -top-2 -right-2 h-10 w-10 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center border-2 border-slate-700">
+                  <div className="absolute -top-2 -right-2 h-10 w-10 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center border-2 border-white shadow-md">
                     <span className="text-white font-bold text-lg">3</span>
                   </div>
                 </div>
-                <h3 className="text-white font-bold text-lg mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                <h3 className="text-gray-900 font-bold text-lg mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
                   {topThree[2].employee_name}
                 </h3>
-                <p className="text-gray-300 text-sm mb-2">{formatCurrency(topThree[2].actual_revenue)}</p>
+                <p className="text-gray-500 text-sm mb-2">{formatCurrency(topThree[2].actual_revenue)}</p>
                 <Badge className="bg-orange-400 text-white">{topThree[2].target_achieved_percent}% Target</Badge>
               </div>
             )}
@@ -203,31 +203,31 @@ export function SalesLeaderboard() {
       </Card>
 
       {/* Full Leaderboard Table */}
-      <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-blue-400" />
+          <CardTitle className="text-gray-900 flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-blue-500" />
             Complete Rankings
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-slate-900/50">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200 uppercase tracking-wider">Rank</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200 uppercase tracking-wider">Sales Representative</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200 uppercase tracking-wider">Target Achieved</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200 uppercase tracking-wider">Total Revenue</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200 uppercase tracking-wider">Top Module</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-blue-200 uppercase tracking-wider">Achievements</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Rank</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Sales Representative</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Target Achieved</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Revenue</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Top Module</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Achievements</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-700">
+              <tbody className="divide-y divide-gray-200">
                 {leaderboardData.map((entry) => (
                   <tr 
                     key={entry.employee_id} 
-                    className={`hover:bg-slate-700/30 transition-colors ${entry.rank <= 3 ? 'bg-slate-700/20' : ''}`}
+                    className={`hover:bg-gray-50 transition-colors ${entry.rank <= 3 ? 'bg-yellow-50/60' : ''}`}
                   >
                     {/* Rank */}
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -247,10 +247,10 @@ export function SalesLeaderboard() {
                           className="h-10 w-10 rounded-full border-2 border-blue-500"
                         />
                         <div>
-                          <div className="text-white font-semibold" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                          <div className="text-gray-900 font-semibold" style={{ fontFamily: 'Poppins, sans-serif' }}>
                             {entry.employee_name}
                           </div>
-                          <div className="text-gray-400 text-xs">{entry.total_closings} Closings</div>
+                          <div className="text-gray-500 text-xs">{entry.total_closings} Closings</div>
                         </div>
                       </div>
                     </td>
@@ -259,10 +259,10 @@ export function SalesLeaderboard() {
                     <td className="px-6 py-4">
                       <div className="w-48">
                         <div className="flex items-center justify-between mb-1">
-                          <span className={`text-sm font-semibold ${entry.is_elite ? 'text-yellow-400' : 'text-white'}`}>
+                          <span className={`text-sm font-semibold ${entry.is_elite ? 'text-yellow-600' : 'text-gray-900'}`}>
                             {entry.target_achieved_percent}%
                           </span>
-                          {entry.is_elite && <Crown className="h-4 w-4 text-yellow-400" />}
+                          {entry.is_elite && <Crown className="h-4 w-4 text-yellow-500" />}
                         </div>
                         <Progress 
                           value={Math.min(entry.target_achieved_percent, 100)} 
@@ -273,7 +273,7 @@ export function SalesLeaderboard() {
 
                     {/* Revenue */}
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-white font-semibold">
+                      <div className="text-gray-900 font-semibold">
                         {formatCurrency(entry.actual_revenue)}
                       </div>
                     </td>
@@ -296,13 +296,13 @@ export function SalesLeaderboard() {
                     <td className="px-6 py-4">
                       <div className="flex flex-wrap gap-1">
                         {entry.badges.slice(0, 2).map((badge, idx) => (
-                          <Badge key={idx} variant="outline" className="text-xs bg-slate-700 text-blue-200 border-blue-500">
+                          <Badge key={idx} variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
                             <Award className="h-3 w-3 mr-1" />
                             {badge}
                           </Badge>
                         ))}
                         {entry.badges.length > 2 && (
-                          <Badge variant="outline" className="text-xs bg-slate-700 text-gray-300">
+                          <Badge variant="outline" className="text-xs bg-gray-100 text-gray-600">
                             +{entry.badges.length - 2}
                           </Badge>
                         )}
