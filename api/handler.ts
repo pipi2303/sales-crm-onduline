@@ -2261,19 +2261,26 @@ async function handleAuditLogs(req: ApiRequest, res: ApiResponse) {
 
 // ---------------------------------------------------------------------
 // /api/ai-chat -- Bab 14 Fase C: AI Assistant SUNGGUHAN, panggilan nyata
-// ke Anthropic Messages API (bukan AI_KNOWLEDGE_BASE hardcoded seperti
-// sebelumnya di AIChatAssistant.tsx). Konteks bisnis (opportunity
-// terbuka, kunjungan toko terlewat, produk stok menipis) diambil
-// langsung dari Prisma dan disuntikkan ke system prompt, supaya model
-// menjawab berdasarkan data nyata -- bukan mengarang. ANTHROPIC_API_KEY
-// HANYA dibaca di sini (server-side), tidak pernah dikirim ke client.
-// Pakai fetch mentah ke REST API (bukan SDK) supaya tidak menambah
-// dependency baru untuk satu endpoint ini.
+// ke Gemini API (bukan AI_KNOWLEDGE_BASE hardcoded seperti sebelumnya di
+// AIChatAssistant.tsx). Konteks bisnis (opportunity terbuka, kunjungan
+// toko terlewat, produk stok menipis) diambil langsung dari Prisma dan
+// disuntikkan ke system prompt, supaya model menjawab berdasarkan data
+// nyata -- bukan mengarang. GEMINI_API_KEY HANYA dibaca di sini
+// (server-side), tidak pernah dikirim ke client. Pakai fetch mentah ke
+// REST API (bukan SDK) supaya tidak menambah dependency baru untuk satu
+// endpoint ini.
+//
+// 23 Sep 2026: awalnya pakai Anthropic Messages API, diganti ke Gemini
+// karena akun Anthropic yang dipakai belum ada credit billing-nya (dan
+// key generic sempat kena error "not scoped to a workspace" sebelum
+// itu) -- Gemini API punya free tier yang lebih mudah diakses. Kode
+// buildAiBusinessContext() dan system prompt tidak berubah, cuma bagian
+// pemanggilan API-nya.
 // ---------------------------------------------------------------------
 
-const AI_MODEL_ID = process.env.AI_MODEL_ID || 'claude-sonnet-5';
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
+const AI_MODEL_ID = process.env.AI_MODEL_ID || 'gemini-3.8-flash';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 async function buildAiBusinessContext(user: { id: string; role: Role }): Promise<string> {
   const now = new Date();
@@ -2341,10 +2348,10 @@ async function handleAiChat(req: ApiRequest, res: ApiResponse) {
       return;
     }
 
-    if (!ANTHROPIC_API_KEY) {
+    if (!GEMINI_API_KEY) {
       res.status(503).json({
         success: false,
-        error: 'AI Assistant belum aktif: ANTHROPIC_API_KEY belum di-set di environment variables.',
+        error: 'AI Assistant belum aktif: GEMINI_API_KEY belum di-set di environment variables.',
       });
       return;
     }
@@ -2373,30 +2380,41 @@ async function handleAiChat(req: ApiRequest, res: ApiResponse) {
       context,
     ].join('\n');
 
-    const anthropicRes = await fetch(ANTHROPIC_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: AI_MODEL_ID,
-        max_tokens: 1024,
-        system: systemPrompt,
-        messages: [...history, { role: 'user', content: message }],
-      }),
-    });
+    // Gemini pakai role "model" untuk giliran AI (bukan "assistant" seperti
+    // Anthropic), dan tiap giliran percakapan dibungkus { parts: [{ text }] }
+    // bukan { content: string } polos.
+    const geminiContents = [
+      ...history.map((turn) => ({
+        role: turn.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: turn.content }],
+      })),
+      { role: 'user', parts: [{ text: message }] },
+    ];
 
-    if (!anthropicRes.ok) {
-      const errText = await anthropicRes.text();
-      console.error('[api/ai-chat] Anthropic API error:', anthropicRes.status, errText);
+    const geminiRes = await fetch(
+      `${GEMINI_API_URL}/${encodeURIComponent(AI_MODEL_ID)}:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: geminiContents,
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          generationConfig: { maxOutputTokens: 1024 },
+        }),
+      }
+    );
+
+    if (!geminiRes.ok) {
+      const errText = await geminiRes.text();
+      console.error('[api/ai-chat] Gemini API error:', geminiRes.status, errText);
       res.status(502).json({ success: false, error: 'AI Assistant sedang bermasalah, coba lagi sebentar lagi.' });
       return;
     }
 
-    const data = (await anthropicRes.json()) as { content?: Array<{ type: string; text?: string }> };
-    const reply = data.content?.find((block) => block.type === 'text')?.text ?? '';
+    const data = (await geminiRes.json()) as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    };
+    const reply = data.candidates?.[0]?.content?.parts?.find((p) => typeof p.text === 'string')?.text ?? '';
 
     res.status(200).json({ success: true, data: { reply } });
   } catch (err) {
