@@ -1622,6 +1622,19 @@ function discountLevelForPercent(pct: number): number {
   return 4;
 }
 
+// Business decision (Bab 10 #3 follow-up, confirmed with user): level 2
+// decisions require Sales Manager (or Super Admin as override); levels 3
+// and 4 -- "Sales Director"/"C-Level" in the UI's own policy labels,
+// which don't exist as real login roles -- escalate to Super Admin only.
+// Level 1 is auto-self-approved at creation (see handleDiscountApprovals'
+// POST) and should never reach a PUT decision in practice; SUPER_ADMIN is
+// kept as a permissive fallback there rather than blocking entirely.
+function discountApproverRolesForLevel(level: number): Role[] {
+  if (level >= 3) return ['SUPER_ADMIN'];
+  if (level === 2) return ['SUPER_ADMIN', 'SALES_MANAGER'];
+  return ['SUPER_ADMIN', 'SALES_MANAGER', 'SALES_EXECUTIVE', 'SALES_REPRESENTATIVE', 'MASTER_DATA_ADMIN'];
+}
+
 // ---------------------------------------------------------------------
 // /api/discount-approvals, /api/discount-approvals/:id
 //
@@ -1774,6 +1787,7 @@ async function handleDiscountApprovals(id: string | undefined, req: ApiRequest, 
         res.status(404).json({ success: false, error: 'Discount request not found' });
         return;
       }
+      requireRole(user, discountApproverRolesForLevel(current.approvalLevel));
       if (current.status !== 'pending') {
         res.status(400).json({
           success: false,
