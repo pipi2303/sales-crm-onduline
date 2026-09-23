@@ -1302,3 +1302,68 @@ folder ini untuk membersihkan lock file itu, approved, sudah beres.
       di-push.
 - [ ] Di luar scope, kalau mau dilanjutkan: dropdown "Technology Partner
       (OCI/SatuSehat)" di SalesTeam.tsx (entity Partner, bukan Client).
+
+## 15. Hapus toggle Grid View (list-only), permintaan tambah user "demo" -- 23 Sep 2026
+
+Dua permintaan terpisah dalam satu turn.
+
+### 15.1 Hapus fitur Grid View, list-only -- commit `00e3585f`
+
+Permintaan: semua tabel yang punya opsi tampilan grid dihapus, sisakan
+list saja, "secara teliti agar tidak ada yang terlewat". Sapuan
+repo-wide (viewMode/displayMode/isGrid, ikon LayoutGrid/Grid3X3/Table2,
+literal `'grid'`, teks "Grid View"/"Tampilan Grid") menemukan PERSIS 2
+toggle grid-vs-list yang genuine:
+
+- `ProductCatalog.tsx` -- viewMode state + persist ke localStorage +
+  tombol toggle Grid/List dihapus total; tab produk sekarang selalu
+  render `ProductListView` (tabel). Markup kartu grid dihapus (bukan
+  cuma disembunyikan), import ikon `LayoutGrid`/`List` yang jadi tidak
+  terpakai ikut dibuang.
+- `KPIAIEnhanced.tsx` (Performance Hub) -- tab 3-arah Analytics/Grid/List
+  dipangkas jadi Analytics/List. TabsTrigger+TabsContent "Grid View"
+  (kartu KPI dalam grid) dihapus, tipe `viewMode` disempitkan jadi
+  `'list' | 'analytics'`. Import `BarChart3`/`Maximize2` yang jadi tidak
+  terpakai dibuang.
+
+**Sengaja TIDAK disentuh** (bukan fitur "grid", konsep beda): tab
+"Pipeline" di `OpportunityManagement.tsx` dan tampilan "Board" di
+`TaskManagement.tsx` sama-sama Kanban (kolom per stage/status), bukan
+duplikat card-grid dari list yang sama. `TerritoryMap.tsx` punya string
+`grid` tapi itu id `<pattern>` SVG untuk background peta, bukan toggle
+tampilan data.
+
+Verifikasi: `tsc --noEmit` terisolasi -- 100 error, persis baseline
+pra-eksisting, nol baru di kedua file yang diubah. Verifikasi ini
+SEKALIAN mengonfirmasi migrasi Client dari commit sebelumnya
+(`20260923100000_unify_client_data_model`) sudah live -- Prisma Client
+lokal sudah tidak lagi punya `npwpFaskes`/`sistemLama`, jadi 1 error
+transient yang diharapkan di section 14 sudah hilang sendiri (user
+sudah `prisma generate` ulang di antar sesi). `npx vite build` sukses;
+`dist/` bersih dari string tombol toggle yang dihapus.
+
+- [ ] `git push origin main` untuk semua commit sesi ini yang belum
+      di-push (termasuk `12014f22`, `864e6406`, `00e3585f`).
+
+### 15.2 Tambah user "demo" (role admin) -- BELUM dieksekusi, password tidak valid
+
+Password yang diminta, `D3m0321`, cuma **7 karakter** -- validasi
+`/api/users` POST (`validatePassword()` di `api/handler.ts`) mewajibkan
+minimal 8 karakter, jadi permintaan ini akan ditolak API kalau
+dieksekusi apa adanya. Belum dieksekusi, menunggu password yang
+diperbaiki dari user (lihat percakapan).
+
+Rencana begitu password valid didapat (mengikuti pola section 11.3 --
+`/api/users` POST adalah SATU-SATUNYA jalur bikin akun baru, bukan lewat
+`prisma/seed.ts`, karena itu untuk akun historis/demo bawaan, bukan akun
+baru yang diminta user langsung):
+- role "admin" dipetakan ke `SUPER_ADMIN` (satu-satunya role yang
+  namanya cocok "admin" secara langsung -- `MASTER_DATA_ADMIN` beda
+  konsep).
+- email diasumsikan `demo@onduline.co.id` (user cuma sebut "demo", tidak
+  kasih email) -- bisa diedit lagi lewat AdminSystem > Users kalau salah.
+- eksekusi lewat `fetch()` POST `/api/users` di browser bawaan Claude
+  dengan sesi Super Admin yang sudah login (pola sama seperti testing
+  production sebelumnya di section 4-5), bukan lewat `prisma/seed.ts`.
+
+- [ ] Tambah user "demo" setelah dapat password 8+ karakter dari user.
