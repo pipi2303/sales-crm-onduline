@@ -334,7 +334,6 @@ export function SalesTeam() {
               <Building2 className="h-4 w-4" />
               <span className="font-bold text-sm">Client</span>
             </div>
-            <span className="text-[10px] uppercase tracking-wider font-semibold opacity-60">FASKES & INSTITUSI</span>
           </TabsTrigger>
           <TabsTrigger value="partner" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700">
             <div className="flex items-center gap-2">
