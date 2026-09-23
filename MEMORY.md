@@ -1367,3 +1367,28 @@ baru yang diminta user langsung):
   production sebelumnya di section 4-5), bukan lewat `prisma/seed.ts`.
 
 - [ ] Tambah user "demo" setelah dapat password 8+ karakter dari user.
+
+### 15.2 update -- user "demo" berhasil dibuat di production, 1 koreksi email
+
+Password `D3m0321#` (8 karakter, lolos validasi) dan role Super Admin
+dikonfirmasi user. Dieksekusi lewat browser bawaan Claude: login sebagai
+`admin@salesmonitor.com` (Super Admin) untuk dapat Bearer token, lalu
+`POST /api/users` langsung ke `https://salesappv20.vercel.app` (pola sama
+seperti testing production sebelumnya) -- bukan lewat `prisma/seed.ts`,
+sesuai catatan section 15.2 di atas.
+
+Percobaan pertama pakai email `demo@onduline.co.id` (asumsi saya karena
+user cuma bilang "demo" tanpa email) -- user koreksi ke `demo@gmail.com`
+setelah akun pertama terlanjur dibuat. Karena `PUT /api/users/:id` tidak
+mendukung ubah email (cuma name/role/isActive/password, lihat
+`handleUsers` di `api/handler.ts`) dan tidak ada endpoint DELETE user
+sama sekali (by design, lihat section 11.3 -- demi audit trail), akun
+`demo@onduline.co.id` yang salah **di-nonaktifkan** (`isActive: false`,
+bukan dihapus) lalu dibuat akun baru `demo@gmail.com` dengan role &
+password yang sama. Diverifikasi login `demo@gmail.com` /
+`D3m0321#` -> 200, role SUPER_ADMIN.
+
+Akun `demo@onduline.co.id` (nonaktif) masih ada di tabel `users` untuk
+jejak audit -- kalau mau benar-benar dibersihkan dari DB, perlu query
+manual dari Mac (bukan lewat aplikasi, karena memang sengaja tidak ada
+jalur hapus user).
