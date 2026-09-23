@@ -484,32 +484,20 @@ model Task {
 }
 
 // ---------------------------------------------------------------------
-// Product — ported as-is from db/migrations/0001_unified_product_model.sql
-// (same supertype/subtype split, same rationale). RBAC + audit apply on
-// top of this via User/AuditLogEntry, which didn't exist when that file
-// was written.
+// Product — ported from db/migrations/0001_unified_product_model.sql,
+// originally a software/physical supertype-subtype split. The software
+// line (ProductType, ProductSoftwareAttrs, BillingCycle, DeploymentType)
+// was removed 23 Sep 2026: Onduline is a physical building-materials
+// distributor only, zero software products were ever seeded (see
+// prisma/seed.ts history), and the concept was inherited from an
+// earlier healthcare-software assumption that never applied to this
+// business. RBAC + audit apply on top of this via User/AuditLogEntry,
+// which didn't exist when the original file was written.
 // ---------------------------------------------------------------------
-
-enum ProductType {
-  SOFTWARE @map("software")
-  PHYSICAL @map("physical")
-}
 
 enum ProductStatus {
   ACTIVE       @map("active")
   DISCONTINUED @map("discontinued")
-}
-
-enum BillingCycle {
-  MONTHLY  @map("monthly")
-  YEARLY   @map("yearly")
-  ONE_TIME @map("one-time")
-}
-
-enum DeploymentType {
-  CLOUD      @map("cloud")
-  ON_PREMISE @map("on-premise")
-  HYBRID     @map("hybrid")
 }
 
 // ---------------------------------------------------------------------
@@ -538,9 +526,10 @@ enum DeploymentType {
 //   own SKU codes as unverified ("bukan SKU resmi Onduline"). Adding six
 //   empty tables now would be modeling ahead of any real requirement —
 //   revisit once there's an actual UOM/packaging/barcode need.
-// - Software products (ProductSoftwareAttrs) are untouched, per explicit
-//   instruction — this hierarchy only ever gets used via the new
-//   optional familyId, which software rows simply never set.
+// - The software product line (ProductSoftwareAttrs) that used to sit
+//   alongside this was removed 23 Sep 2026 — see the Product model
+//   comment above. This hierarchy only ever applies via the optional
+//   familyId on Product.
 // ---------------------------------------------------------------------
 
 model ProductCategory {
@@ -569,11 +558,9 @@ model ProductFamily {
 // Bab 16: "SKU Lifecycle: Draft -> Pending Approval -> Active ->
 // Temporarily Unavailable -> Discontinued -> Archived" — a second,
 // SKU-specific approval gate alongside Bab 9's distributor/store one.
-// Deliberately separate from ProductStatus (which stays ACTIVE/
-// DISCONTINUED and untouched for the software line): this only applies
-// to physical/family-linked products, so widening the shared enum to
-// six values that software products would never use isn't worth the
-// coupling.
+// Deliberately separate from ProductStatus: this only applies to
+// physical/family-linked products, so widening the shared enum to six
+// values every product would never use isn't worth the coupling.
 enum SkuLifecycleStatus {
   DRAFT
   PENDING_APPROVAL
@@ -592,7 +579,6 @@ model Product {
   currency    String        @default("IDR")
   description String?
   status      ProductStatus @default(ACTIVE)
-  productType ProductType   @map("product_type")
   stock       Int           @default(0)
   features    String[]      @default([])
   sold        Int           @default(0)
@@ -607,28 +593,14 @@ model Product {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  softwareAttrs      ProductSoftwareAttrs?
   physicalAttrs      ProductPhysicalAttrs?
   performanceTargets PerformanceTarget[]
   opportunityLines   OpportunityProduct[]
 
   @@map("products")
   @@index([category])
-  @@index([productType])
   @@index([status])
   @@index([familyId])
-}
-
-model ProductSoftwareAttrs {
-  productId      String          @id @map("product_id")
-  product        Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
-  licenseTier    String?         @map("license_tier")
-  billingCycle   BillingCycle?   @map("billing_cycle")
-  modules        String[]        @default([])
-  seatLimit      Int?            @map("seat_limit")
-  deploymentType DeploymentType? @map("deployment_type")
-
-  @@map("product_software_attrs")
 }
 
 model ProductPhysicalAttrs {

@@ -1065,3 +1065,120 @@ build` sukses (`dist/` dihapus setelahnya, bukan bagian dari commit).
       infrastruktur, bukan kode); Fase 1 item 5 unify data model Client
       (field faskes/BPJS yang masih schema-tied).
 
+
+## 13. Hapus konsep `productType: 'software'` warisan bisnis kesehatan -- 23 Sep 2026
+
+User secara eksplisit minta: "hapus konsep `productType: 'software'`
+warisan bisnis kesehatan, yang kemungkinan besar sudah tidak relevan
+untuk Onduline" -- ini adalah follow-up dari temuan section 12.5 di
+atas, dan kali ini dieksekusi penuh (bukan sekadar diflag).
+
+### Konfirmasi sebelum eksekusi
+
+- `prisma/seed.ts` (`seedProductInstances()`) tidak pernah membuat satu
+  pun produk `productType: 'SOFTWARE'` -- katalog demo 100% fisik.
+- `db/migrations/0001_unified_product_model.sql` dikonfirmasi dokumen
+  desain BASI/tidak pernah dieksekusi (isinya sendiri bilang "belum ada
+  project Postgres/Supabase" -- ditulis sebelum app pindah ke
+  Prisma+Neon). Sumber skema live yang sebenarnya adalah
+  `prisma/migrations/20260920010056_init/migration.sql`, yang MEMANG
+  punya kolom `product_type` NOT NULL + tabel `product_software_attrs`
+  yang sudah live di Neon.
+- Karena ini mutasi skema Postgres produksi yang live (drop kolom NOT
+  NULL + 1 tabel + 3 enum), tidak bisa diverifikasi terhadap data
+  produksi asli dari sandbox ini -- keputusan proceed diambil karena
+  instruksi user eksplisit & tidak ambigu, dan tiga fakta di atas semua
+  mengarah ke arah yang sama.
+
+### Yang diubah
+
+1. **`prisma/migrations/20260923090000_remove_product_software_line/migration.sql`**
+   (baru, ditulis tangan -- sandbox ini tidak bisa menjangkau
+   `binaries.prisma.sh` atau Neon untuk generate migrasi otomatis):
+   drop index `products_product_type_idx`, drop FK
+   `product_software_attrs_product_id_fkey`, drop tabel
+   `product_software_attrs`, drop kolom `products.product_type`, drop
+   enum `ProductType`/`BillingCycle`/`DeploymentType`.
+   **`ProductPhysicalAttrs`/`ProductStatus` TIDAK disentuh.**
+2. **`prisma/schema.prisma`**: `Product.productType` + `@@index([productType])`
+   dihapus, model `ProductSoftwareAttrs` dihapus, relasi
+   `Product.softwareAttrs` dihapus, enum `ProductType`/`BillingCycle`/
+   `DeploymentType` dihapus. Komentar header Product model & 2 komentar
+   lain yang merujuk konsep software diupdate untuk mencatat kapan &
+   kenapa dihapus.
+3. **`src/types/product.ts`**: union `SoftwareProduct | PhysicalProduct`
+   diratakan jadi satu interface `Product` (field fisik yang dulu hanya
+   di `PhysicalProduct` -- `unitOfMeasure`/`color`/`specification`/
+   `weightKg` -- sekarang langsung field `Product`). `isSoftwareProduct`/
+   `isPhysicalProduct` dihapus (tidak ada lagi yang perlu di-narrow).
+4. **`api/handler.ts`** (`handleProducts`): semua percabangan
+   `productType`/`softwareAttrs` di POST/PUT dihapus, `include` di
+   GET/POST/PUT hanya `physicalAttrs` sekarang.
+5. **`src/services/productsRepository.ts`**: `BILLING_CYCLE_*`/
+   `DEPLOYMENT_TYPE_*` map dihapus, `toApiPayload`/`fromApiProduct`/
+   `validate` disederhanakan jadi satu jalur (fisik saja, tidak ada
+   percabangan lagi).
+6. **`src/app/components/forms/ProductForm.tsx`**: selector "Tipe
+   Produk" (Software/Fisik) dihapus total, field License Tier/Billing
+   Cycle/Seat Limit + validasinya dihapus, field fisik (Unit of
+   Measure/Warna/Berat/Spesifikasi) sekarang selalu tampil (bukan
+   kondisional). Sekalian: default `DialogDescription` fallback
+   `'Healthcare Solution'` -> `'Onduline Product'` (dummy leftover yang
+   kelewat di sapuan section 12).
+7. **`src/app/components/ProductCatalog.tsx`**: kolom tabel "Tipe"
+   (badge Software/Fisik) dihapus total -- sudah tidak ada informasi
+   yang dibedakan.
+8. **`prisma/seed.ts`**: baris `productType: 'PHYSICAL'` di
+   `seedProductInstances()` dihapus (field sudah tidak ada di skema).
+
+**Sengaja TIDAK disentuh** (konsep lain yang tidak berhubungan, sudah
+dikonfirmasi sebelumnya): `type: 'room'|'equipment'|'software'` di
+`DemoScheduler.tsx`/`DemoAdvancedInfo.tsx`/`src/app/data/dummyData.ts`/
+`src/utils/initializeDemos.ts` -- itu tipe resource meeting demo, bukan
+`Product.productType`.
+
+### PENTING -- migrasi manual wajib dijalankan user
+
+Sama seperti setiap perubahan skema Prisma di sesi ini: sandbox ini
+TIDAK BISA menjangkau `binaries.prisma.sh` maupun host Postgres Neon,
+jadi migrasi di atas belum diterapkan ke database manapun. User WAJIB
+menjalankan secara manual, di luar sandbox ini:
+
+```
+npx prisma migrate deploy
+npx prisma generate
+```
+
+Sebelum menjalankan `migrate deploy`, disarankan cek dulu (query
+read-only) apakah ada baris `products` yang `product_type = 'software'`
+di database live -- kalau ada, migrasi ini akan menghapus permanen baris
+`product_software_attrs`-nya. Berdasarkan seed data & investigasi di
+atas, secara historis tidak ada baris seperti itu, tapi sandbox ini
+tidak bisa memverifikasi data produksi aktual.
+
+### Verifikasi
+
+`tsc --noEmit` terisolasi: total **101 error** -- persis 100 baseline
+pra-eksisting (sama seperti section 12) + **1 error baru yang
+DIHARAPKAN & transient**: `api/handler.ts(1232)` komplain
+`productType` hilang dari `ProductCreateInput` Prisma. Ini BUKAN bug --
+ini karena `node_modules/.prisma/client` di sandbox ini masih ter-generate
+dari skema LAMA (belum bisa `prisma generate` ulang di sini), jadi
+tipe Prisma Client belum tahu `productType` sudah dihapus. Error ini
+akan hilang otomatis begitu user menjalankan `npx prisma generate`
+setelah `migrate deploy` di atas -- pola yang sama seperti setiap
+perubahan skema Prisma lain di sesi ini. `npx vite build` sukses (esbuild
+tidak type-check penuh, jadi tidak kena error transient ini) -- `dist/`
+& `tsconfig.tmpcheck.json` dihapus setelahnya, bukan bagian commit.
+
+- [ ] `npx prisma migrate deploy` + `npx prisma generate` untuk migrasi
+      `20260923090000_remove_product_software_line` -- WAJIB, baru
+      hilang error transient `productType` di atas.
+- [ ] Setelah generate ulang, jalankan `tsc --noEmit` sekali lagi untuk
+      pastikan total error kembali ke 100 (baseline lama, tanpa 1 error
+      transient di atas).
+- [ ] Smoke-test Tambah/Edit Produk di ProductCatalog setelah deploy --
+      pastikan field fisik (Unit of Measure/Spesifikasi) tetap
+      tersimpan & tampil benar tanpa toggle Tipe Produk.
+- [ ] `git push origin main` untuk semua commit sesi ini yang belum
+      di-push (termasuk commit section 12 & commit section 13 ini).

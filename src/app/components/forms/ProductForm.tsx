@@ -8,18 +8,22 @@ import { Badge } from '@/app/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
 import { Button } from '@/app/components/ui/button';
 import { productsRepository } from '@/services/productsRepository';
-import type { Product, NewProduct, ProductType, BillingCycle } from '@/types/product';
+import type { Product, NewProduct } from '@/types/product';
 
 // FIXED (was broken): this form used to call `fetch()` against a dead mock
 // Supabase Edge Function URL (https://mock-project-id.supabase.co/...), so
 // Tambah/Edit Product always silently failed in the deployed app — there was
 // no real backend behind that endpoint. It now goes through productsRepository
-// (localStorage-backed, unified Product model) like the rest of ProductCatalog.
+// (real backend, Product model) like the rest of ProductCatalog.
 //
-// Also added: SKU field (required + unique, enforced by the repository) and
-// a Tipe Produk selector — the previous form had no concept of productType at
-// all, but the unified Product model requires it to know which type-specific
-// fields (license tier vs unit of measure, etc.) apply.
+// Also added: SKU field (required + unique, enforced by the repository).
+//
+// History (23 Sep 2026): this form used to also have a "Tipe Produk"
+// software/physical selector with type-specific fields (license tier vs.
+// unit of measure, etc.), inherited from a discriminated-union Product
+// model. That concept was removed — Onduline only ever sells physical
+// products — so the form now always represents a physical product; see
+// src/types/product.ts's header comment for the full rationale.
 
 interface ProductFormProps {
   product: Product | null;
@@ -37,12 +41,6 @@ interface FormState {
   sold: string;
   features: string; // newline-separated in the textarea, split to string[] on submit
   status: 'active' | 'discontinued';
-  productType: ProductType;
-  // Software-only
-  licenseTier: string;
-  billingCycle: BillingCycle;
-  seatLimit: string;
-  // Physical-only
   unitOfMeasure: string;
   color: string;
   specification: string;
@@ -51,8 +49,7 @@ interface FormState {
 
 const emptyForm: FormState = {
   sku: '', name: '', category: '', description: '', price: '', stock: '', sold: '0',
-  features: '', status: 'active', productType: 'software',
-  licenseTier: '', billingCycle: 'yearly', seatLimit: '',
+  features: '', status: 'active',
   unitOfMeasure: '', color: '', specification: '', weightKg: '',
 };
 
@@ -72,14 +69,10 @@ export function ProductFormModal({ product, onClose, onSuccess }: ProductFormPro
         sold: product.sold?.toString() || '0',
         features: Array.isArray(product.features) ? product.features.join('\n') : '',
         status: product.status || 'active',
-        productType: product.productType || 'software',
-        licenseTier: product.productType === 'software' ? product.licenseTier || '' : '',
-        billingCycle: product.productType === 'software' ? (product.billingCycle || 'yearly') : 'yearly',
-        seatLimit: product.productType === 'software' && product.seatLimit ? product.seatLimit.toString() : '',
-        unitOfMeasure: product.productType === 'physical' ? product.unitOfMeasure || '' : '',
-        color: product.productType === 'physical' ? product.color || '' : '',
-        specification: product.productType === 'physical' ? product.specification || '' : '',
-        weightKg: product.productType === 'physical' && product.weightKg ? product.weightKg.toString() : '',
+        unitOfMeasure: product.unitOfMeasure || '',
+        color: product.color || '',
+        specification: product.specification || '',
+        weightKg: product.weightKg ? product.weightKg.toString() : '',
       });
     } else {
       setFormData(emptyForm);
@@ -98,12 +91,8 @@ export function ProductFormModal({ product, onClose, onSuccess }: ProductFormPro
       toast.error('Harap isi semua field yang wajib (SKU, Nama, Kategori, Harga)!');
       return;
     }
-    if (formData.productType === 'software' && !formData.licenseTier) {
-      toast.error('License Tier wajib diisi untuk produk software!');
-      return;
-    }
-    if (formData.productType === 'physical' && (!formData.unitOfMeasure || !formData.specification)) {
-      toast.error('Unit of Measure dan Spesifikasi wajib diisi untuk produk fisik!');
+    if (!formData.unitOfMeasure || !formData.specification) {
+      toast.error('Unit of Measure dan Spesifikasi wajib diisi!');
       return;
     }
 
@@ -115,7 +104,7 @@ export function ProductFormModal({ product, onClose, onSuccess }: ProductFormPro
         .map(f => f.trim())
         .filter(f => f.length > 0);
 
-      const basePayload = {
+      const payload: NewProduct = {
         sku: formData.sku,
         name: formData.name,
         category: formData.category,
@@ -126,25 +115,11 @@ export function ProductFormModal({ product, onClose, onSuccess }: ProductFormPro
         stock: parseInt(formData.stock) || 0,
         sold: parseInt(formData.sold) || 0,
         features: featuresArray,
+        unitOfMeasure: formData.unitOfMeasure,
+        color: formData.color || undefined,
+        specification: formData.specification,
+        weightKg: formData.weightKg ? parseFloat(formData.weightKg) : undefined,
       };
-
-      const payload: NewProduct = formData.productType === 'software'
-        ? {
-            ...basePayload,
-            productType: 'software',
-            licenseTier: formData.licenseTier,
-            billingCycle: formData.billingCycle,
-            modules: featuresArray,
-            seatLimit: formData.seatLimit ? parseInt(formData.seatLimit) : undefined,
-          }
-        : {
-            ...basePayload,
-            productType: 'physical',
-            unitOfMeasure: formData.unitOfMeasure,
-            color: formData.color || undefined,
-            specification: formData.specification,
-            weightKg: formData.weightKg ? parseFloat(formData.weightKg) : undefined,
-          };
 
       const result = product
         ? await productsRepository.update(product.id, payload)
@@ -187,7 +162,7 @@ export function ProductFormModal({ product, onClose, onSuccess }: ProductFormPro
                   {formData.name || (product ? 'Edit Product' : 'Tambah Product Baru')}
                 </DialogTitle>
                 <DialogDescription className="text-white/80 text-sm mt-1 leading-tight">
-                  {formData.category || 'Healthcare Solution'}
+                  {formData.category || 'Onduline Product'}
                 </DialogDescription>
               </div>
             </div>
@@ -280,24 +255,6 @@ export function ProductFormModal({ product, onClose, onSuccess }: ProductFormPro
                   {product && <p className="text-xs text-gray-500">SKU tidak bisa diubah setelah dibuat</p>}
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-sm font-semibold text-gray-700">
-                    Tipe Produk <span className="text-red-500">*</span>
-                  </Label>
-                  <Select
-                    value={formData.productType}
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, productType: value as 'software' | 'physical' }))}
-                  >
-                    <SelectTrigger className="bg-white border-gray-300">
-                      <SelectValue placeholder="Pilih tipe produk" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="software">Software / Sistem</SelectItem>
-                      <SelectItem value="physical">Produk Fisik</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
                 <div className="space-y-2 col-span-2">
                   <Label className="text-sm font-semibold text-gray-700">
                     Nama Produk <span className="text-red-500">*</span>
@@ -351,7 +308,7 @@ export function ProductFormModal({ product, onClose, onSuccess }: ProductFormPro
 
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold text-gray-700">
-                    Stock {formData.productType === 'software' ? '(Kuota Lisensi)' : '(Gudang)'}
+                    Stock (Gudang)
                   </Label>
                   <Input
                     type="number"
@@ -375,98 +332,52 @@ export function ProductFormModal({ product, onClose, onSuccess }: ProductFormPro
                   />
                 </div>
 
-                {formData.productType === 'software' ? (
-                  <>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold text-gray-700">
-                        License Tier <span className="text-red-500">*</span>
-                      </Label>
-                      <Input
-                        name="licenseTier"
-                        value={formData.licenseTier}
-                        onChange={handleChange}
-                        placeholder="Standard / Professional / Enterprise"
-                        className="bg-white border-gray-300"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold text-gray-700">Billing Cycle</Label>
-                      <Select
-                        value={formData.billingCycle}
-                        onValueChange={(value) => setFormData(prev => ({ ...prev, billingCycle: value as FormState['billingCycle'] }))}
-                      >
-                        <SelectTrigger className="bg-white border-gray-300">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="monthly">Bulanan</SelectItem>
-                          <SelectItem value="yearly">Tahunan</SelectItem>
-                          <SelectItem value="one-time">Sekali Bayar</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold text-gray-700">Seat Limit (opsional)</Label>
-                      <Input
-                        type="number"
-                        name="seatLimit"
-                        value={formData.seatLimit}
-                        onChange={handleChange}
-                        placeholder="Kosongkan jika unlimited"
-                        className="bg-white border-gray-300"
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold text-gray-700">
-                        Unit of Measure <span className="text-red-500">*</span>
-                      </Label>
-                      <Input
-                        name="unitOfMeasure"
-                        value={formData.unitOfMeasure}
-                        onChange={handleChange}
-                        placeholder="m2, pcs, roll"
-                        className="bg-white border-gray-300"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold text-gray-700">Warna (opsional)</Label>
-                      <Input
-                        name="color"
-                        value={formData.color}
-                        onChange={handleChange}
-                        placeholder="Merah Bata"
-                        className="bg-white border-gray-300"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold text-gray-700">Berat (kg, opsional)</Label>
-                      <Input
-                        type="number"
-                        name="weightKg"
-                        value={formData.weightKg}
-                        onChange={handleChange}
-                        placeholder="12.5"
-                        className="bg-white border-gray-300"
-                      />
-                    </div>
-                    <div className="space-y-2 col-span-2">
-                      <Label className="text-sm font-semibold text-gray-700">
-                        Spesifikasi <span className="text-red-500">*</span>
-                      </Label>
-                      <textarea
-                        name="specification"
-                        value={formData.specification}
-                        onChange={handleChange}
-                        rows={2}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#EEF7F5]0 focus:border-[#EEF7F5]0 text-sm bg-white"
-                        placeholder="Ukuran 80x180cm, ketebalan 5mm..."
-                      />
-                    </div>
-                  </>
-                )}
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold text-gray-700">
+                    Unit of Measure <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    name="unitOfMeasure"
+                    value={formData.unitOfMeasure}
+                    onChange={handleChange}
+                    placeholder="m2, pcs, roll"
+                    className="bg-white border-gray-300"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold text-gray-700">Warna (opsional)</Label>
+                  <Input
+                    name="color"
+                    value={formData.color}
+                    onChange={handleChange}
+                    placeholder="Merah Bata"
+                    className="bg-white border-gray-300"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold text-gray-700">Berat (kg, opsional)</Label>
+                  <Input
+                    type="number"
+                    name="weightKg"
+                    value={formData.weightKg}
+                    onChange={handleChange}
+                    placeholder="12.5"
+                    className="bg-white border-gray-300"
+                  />
+                </div>
+                <div className="space-y-2 col-span-2">
+                  <Label className="text-sm font-semibold text-gray-700">
+                    Spesifikasi <span className="text-red-500">*</span>
+                  </Label>
+                  <textarea
+                    name="specification"
+                    value={formData.specification}
+                    onChange={handleChange}
+                    rows={2}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#EEF7F5]0 focus:border-[#EEF7F5]0 text-sm bg-white"
+                    placeholder="Ukuran 80x180cm, ketebalan 5mm..."
+                  />
+                </div>
 
                 <div className="space-y-2 col-span-2">
                   <Label className="text-sm font-semibold text-gray-700">Deskripsi</Label>
@@ -494,7 +405,6 @@ export function ProductFormModal({ product, onClose, onSuccess }: ProductFormPro
                   />
                   <p className="text-xs text-gray-500">
                     Masukkan setiap fitur di baris baru. Contoh di atas akan menjadi 5 fitur terpisah.
-                    {formData.productType === 'software' && ' Untuk produk software, daftar ini juga dipakai sebagai daftar modul.'}
                   </p>
                 </div>
               </div>

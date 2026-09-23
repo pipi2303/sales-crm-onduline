@@ -1,26 +1,30 @@
-// Products repository — adapter layer over the unified Product model.
+// Products repository — adapter layer over the Product model.
 //
 // Fase 1 item 2: this used to read/write localStorage directly. It now
 // calls the real backend (GET/POST/PUT/DELETE /api/products, prisma/
-// schema.prisma's Product + ProductSoftwareAttrs/ProductPhysicalAttrs).
+// schema.prisma's Product + ProductPhysicalAttrs).
 // The point of having pulled this into its own repository earlier (see
 // git history) was exactly so that this swap would only touch this file
 // — every component that imports `productsRepository` keeps calling the
 // same methods with the same Result<T> shape, unaffected by the swap.
 //
-// Two shape gaps between the frontend's flat Product union and the
-// backend's Prisma-native shape, bridged here in both directions:
-// - Prisma's Role/ProductType/ProductStatus/BillingCycle/DeploymentType
-//   enums are SCREAMING_SNAKE_CASE JS-side; the frontend types use the
-//   lower-case string literals ('software', 'active', 'one-time', ...).
+// Shape gaps between the frontend's flat Product shape and the backend's
+// Prisma-native shape, bridged here in both directions:
+// - Prisma's Role/ProductStatus enums are SCREAMING_SNAKE_CASE JS-side;
+//   the frontend types use lower-case string literals ('active', ...).
 // - price/weightKg are Prisma `Decimal` columns, which serialize to JSON
 //   as strings, not numbers — every read converts them back with Number().
-// softwareAttrs/physicalAttrs are separate tables server-side (the
-// exclusive-arc subtype pattern) but a single flat object client-side;
-// toApiPayload nests one of them on the way out, fromApiProduct flattens
-// it back on the way in.
+// - physicalAttrs is a separate table server-side (a 1:1 extension of
+//   Product) but a flat object client-side; toApiPayload nests it on the
+//   way out, fromApiProduct flattens it back on the way in.
+//
+// History (23 Sep 2026): this file used to also branch on a `productType`
+// discriminant ('software' | 'physical') with a parallel softwareAttrs
+// path — that concept was removed since Onduline never sells software
+// products (see src/types/product.ts's header comment for the full
+// rationale). Only the physical-product path remains below.
 
-import type { Product, NewProduct, SoftwareProduct, PhysicalProduct, BillingCycle, DeploymentType } from '@/types/product';
+import type { Product, NewProduct } from '@/types/product';
 import type { Result } from '@/types/result';
 
 function getAuthToken(): string | undefined {
@@ -62,68 +66,30 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<Res
   }
 }
 
-const BILLING_CYCLE_OUT: Record<BillingCycle, string> = {
-  monthly: 'MONTHLY',
-  yearly: 'YEARLY',
-  'one-time': 'ONE_TIME',
-};
-const BILLING_CYCLE_IN: Record<string, BillingCycle> = {
-  MONTHLY: 'monthly',
-  YEARLY: 'yearly',
-  ONE_TIME: 'one-time',
-};
-const DEPLOYMENT_TYPE_OUT: Record<DeploymentType, string> = {
-  cloud: 'CLOUD',
-  'on-premise': 'ON_PREMISE',
-  hybrid: 'HYBRID',
-};
-const DEPLOYMENT_TYPE_IN: Record<string, DeploymentType> = {
-  CLOUD: 'cloud',
-  ON_PREMISE: 'on-premise',
-  HYBRID: 'hybrid',
-};
-
 /** Frontend NewProduct/Product shape -> the wire shape api/products/*.ts expects. */
 function toApiPayload(input: Partial<NewProduct>): Record<string, unknown> {
-  const { productType, status, ...rest } = input as Record<string, unknown> & {
-    productType?: 'software' | 'physical';
+  const { status, ...rest } = input as Record<string, unknown> & {
     status?: 'active' | 'discontinued';
   };
   const payload: Record<string, unknown> = { ...rest };
-  if (productType) payload.productType = productType === 'software' ? 'SOFTWARE' : 'PHYSICAL';
   if (status) payload.status = status === 'active' ? 'ACTIVE' : 'DISCONTINUED';
 
-  if (productType === 'software') {
-    const p = input as Partial<SoftwareProduct>;
-    payload.softwareAttrs = {
-      licenseTier: p.licenseTier,
-      billingCycle: p.billingCycle ? BILLING_CYCLE_OUT[p.billingCycle] : undefined,
-      modules: p.modules ?? [],
-      seatLimit: p.seatLimit,
-      deploymentType: p.deploymentType ? DEPLOYMENT_TYPE_OUT[p.deploymentType] : undefined,
-    };
-    delete payload.licenseTier;
-    delete payload.billingCycle;
-    delete payload.modules;
-    delete payload.seatLimit;
-    delete payload.deploymentType;
-  } else if (productType === 'physical') {
-    const p = input as Partial<PhysicalProduct>;
-    payload.physicalAttrs = {
-      unitOfMeasure: p.unitOfMeasure,
-      color: p.color,
-      specification: p.specification,
-      weightKg: p.weightKg,
-    };
-    delete payload.unitOfMeasure;
-    delete payload.color;
-    delete payload.specification;
-    delete payload.weightKg;
-  }
+  const p = input as Partial<Product>;
+  payload.physicalAttrs = {
+    unitOfMeasure: p.unitOfMeasure,
+    color: p.color,
+    specification: p.specification,
+    weightKg: p.weightKg,
+  };
+  delete payload.unitOfMeasure;
+  delete payload.color;
+  delete payload.specification;
+  delete payload.weightKg;
+
   return payload;
 }
 
-/** api/products/*.ts's Prisma-shaped row -> the frontend's flat Product union. */
+/** api/products/*.ts's Prisma-shaped row -> the frontend's flat Product shape. */
 function fromApiProduct(row: any): Product {
   const base = {
     id: row.id,
@@ -141,28 +107,14 @@ function fromApiProduct(row: any): Product {
     updatedAt: row.updatedAt,
   };
 
-  if (row.productType === 'SOFTWARE') {
-    const attrs = row.softwareAttrs ?? {};
-    return {
-      ...base,
-      productType: 'software',
-      licenseTier: attrs.licenseTier ?? '',
-      billingCycle: BILLING_CYCLE_IN[attrs.billingCycle] ?? 'monthly',
-      modules: attrs.modules ?? [],
-      seatLimit: attrs.seatLimit ?? undefined,
-      deploymentType: attrs.deploymentType ? DEPLOYMENT_TYPE_IN[attrs.deploymentType] : undefined,
-    } as SoftwareProduct;
-  }
-
   const attrs = row.physicalAttrs ?? {};
   return {
     ...base,
-    productType: 'physical',
     unitOfMeasure: attrs.unitOfMeasure ?? '',
     color: attrs.color ?? undefined,
     specification: attrs.specification ?? '',
     weightKg: attrs.weightKg != null ? Number(attrs.weightKg) : undefined,
-  } as PhysicalProduct;
+  } as Product;
 }
 
 /** Runtime shape validation — TypeScript types disappear at runtime, and
@@ -179,19 +131,8 @@ function validate(input: NewProduct): string | null {
   if (!Array.isArray(input.features)) return 'Features harus berupa array (boleh kosong)';
   if (typeof input.stock !== 'number' || input.stock < 0) return 'Stock harus angka >= 0';
   if (typeof input.sold !== 'number' || input.sold < 0) return 'Sold harus angka >= 0';
-
-  if (input.productType === 'software') {
-    const p = input as Omit<SoftwareProduct, 'id' | 'createdAt' | 'updatedAt'>;
-    if (!p.licenseTier?.trim()) return 'License tier wajib diisi untuk produk software';
-    if (!p.billingCycle) return 'Billing cycle wajib diisi untuk produk software';
-    if (!Array.isArray(p.modules)) return 'Modules harus berupa array (boleh kosong)';
-  } else if (input.productType === 'physical') {
-    const p = input as Omit<PhysicalProduct, 'id' | 'createdAt' | 'updatedAt'>;
-    if (!p.unitOfMeasure?.trim()) return 'Unit of measure wajib diisi untuk produk fisik';
-    if (!p.specification?.trim()) return 'Spesifikasi wajib diisi untuk produk fisik';
-  } else {
-    return 'productType harus "software" atau "physical"';
-  }
+  if (!input.unitOfMeasure?.trim()) return 'Unit of measure wajib diisi';
+  if (!input.specification?.trim()) return 'Spesifikasi wajib diisi';
 
   return null;
 }

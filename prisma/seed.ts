@@ -160,7 +160,6 @@ async function seedProductInstances() {
         currency: 'IDR',
         description: p.description,
         status: 'ACTIVE',
-        productType: 'PHYSICAL',
         stock: 200,
         sold: 5,
         features: p.features,

@@ -647,7 +647,6 @@ function ProductListView({
               <TableRow className="bg-gray-50/80">
                 <TableHead className="min-w-[240px]">Produk</TableHead>
                 <TableHead>Kategori</TableHead>
-                <TableHead>Tipe</TableHead>
                 <TableHead className="text-right">Harga</TableHead>
                 <TableHead className="text-right">Stock</TableHead>
                 <TableHead className="text-right">Terjual</TableHead>
@@ -678,18 +677,6 @@ function ProductListView({
                     </TableCell>
                     <TableCell>
                       <Badge className="bg-[#EEF7F5] text-[#013E37] whitespace-nowrap">{product.category}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={
-                          product.productType === 'software'
-                            ? 'border-blue-200 text-blue-700 bg-blue-50'
-                            : 'border-amber-200 text-amber-700 bg-amber-50'
-                        }
-                      >
-                        {product.productType === 'software' ? 'Software' : 'Fisik'}
-                      </Badge>
                     </TableCell>
                     <TableCell className="text-right font-semibold text-[#013E37] whitespace-nowrap">
                       {formatCurrency(product.price)}

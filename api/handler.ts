@@ -1214,7 +1214,7 @@ async function handleProducts(id: string | undefined, req: ApiRequest, res: ApiR
         // Any authenticated role can read the catalog.
         requireAuth(user);
         const products = await prisma.product.findMany({
-          include: { softwareAttrs: true, physicalAttrs: true },
+          include: { physicalAttrs: true },
           orderBy: { createdAt: 'desc' },
         });
         res.status(200).json({ success: true, data: products });
@@ -1226,8 +1226,6 @@ async function handleProducts(id: string | undefined, req: ApiRequest, res: ApiR
         // day-to-day sales action — restrict it accordingly.
         requireRole(user, ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADMIN']);
         const body = (req.body ?? {}) as Record<string, unknown>;
-        const productType = body.productType as 'SOFTWARE' | 'PHYSICAL';
-        const softwareAttrs = body.softwareAttrs as Record<string, unknown> | undefined;
         const physicalAttrs = body.physicalAttrs as Record<string, unknown> | undefined;
 
         const product = await prisma.product.create({
@@ -1239,35 +1237,10 @@ async function handleProducts(id: string | undefined, req: ApiRequest, res: ApiR
             currency: (body.currency as string) ?? 'IDR',
             description: (body.description as string | undefined) ?? null,
             status: (body.status as 'ACTIVE' | 'DISCONTINUED') ?? 'ACTIVE',
-            productType,
             stock: (body.stock as number) ?? 0,
             sold: (body.sold as number) ?? 0,
             features: (body.features as string[]) ?? [],
-            // Fase 1 item 5: same create call, exclusive-arc subtype row —
-            // src/services/productsRepository.ts sends exactly one of
-            // these depending on productType.
-            ...(productType === 'SOFTWARE' && softwareAttrs
-              ? {
-                  softwareAttrs: {
-                    create: {
-                      licenseTier: softwareAttrs.licenseTier as string | undefined,
-                      billingCycle: softwareAttrs.billingCycle as
-                        | 'MONTHLY'
-                        | 'YEARLY'
-                        | 'ONE_TIME'
-                        | undefined,
-                      modules: (softwareAttrs.modules as string[]) ?? [],
-                      seatLimit: softwareAttrs.seatLimit as number | undefined,
-                      deploymentType: softwareAttrs.deploymentType as
-                        | 'CLOUD'
-                        | 'ON_PREMISE'
-                        | 'HYBRID'
-                        | undefined,
-                    },
-                  },
-                }
-              : {}),
-            ...(productType === 'PHYSICAL' && physicalAttrs
+            ...(physicalAttrs
               ? {
                   physicalAttrs: {
                     create: {
@@ -1280,7 +1253,7 @@ async function handleProducts(id: string | undefined, req: ApiRequest, res: ApiR
                 }
               : {}),
           },
-          include: { softwareAttrs: true, physicalAttrs: true },
+          include: { physicalAttrs: true },
         });
         res.status(201).json({ success: true, data: product });
         return;
@@ -1295,7 +1268,7 @@ async function handleProducts(id: string | undefined, req: ApiRequest, res: ApiR
       requireAuth(user);
       const product = await prisma.product.findUnique({
         where: { id },
-        include: { softwareAttrs: true, physicalAttrs: true },
+        include: { physicalAttrs: true },
       });
       if (!product) {
         res.status(404).json({ success: false, error: 'Product not found' });
@@ -1308,7 +1281,6 @@ async function handleProducts(id: string | undefined, req: ApiRequest, res: ApiR
     if (req.method === 'PUT') {
       requireRole(user, ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADMIN']);
       const body = (req.body ?? {}) as Record<string, unknown>;
-      const softwareAttrs = body.softwareAttrs as Record<string, unknown> | undefined;
       const physicalAttrs = body.physicalAttrs as Record<string, unknown> | undefined;
       const product = await prisma.product.update({
         where: { id },
@@ -1323,44 +1295,7 @@ async function handleProducts(id: string | undefined, req: ApiRequest, res: ApiR
           ...(body.sold !== undefined && { sold: body.sold as number }),
           ...(body.features !== undefined && { features: body.features as string[] }),
           // upsert rather than update: a product created before this
-          // field existed (or the exclusive-arc row was skipped for some
-          // reason) may not have a subtype row yet.
-          ...(softwareAttrs !== undefined && {
-            softwareAttrs: {
-              upsert: {
-                create: {
-                  licenseTier: softwareAttrs.licenseTier as string | undefined,
-                  billingCycle: softwareAttrs.billingCycle as
-                    | 'MONTHLY'
-                    | 'YEARLY'
-                    | 'ONE_TIME'
-                    | undefined,
-                  modules: (softwareAttrs.modules as string[]) ?? [],
-                  seatLimit: softwareAttrs.seatLimit as number | undefined,
-                  deploymentType: softwareAttrs.deploymentType as
-                    | 'CLOUD'
-                    | 'ON_PREMISE'
-                    | 'HYBRID'
-                    | undefined,
-                },
-                update: {
-                  licenseTier: softwareAttrs.licenseTier as string | undefined,
-                  billingCycle: softwareAttrs.billingCycle as
-                    | 'MONTHLY'
-                    | 'YEARLY'
-                    | 'ONE_TIME'
-                    | undefined,
-                  modules: (softwareAttrs.modules as string[]) ?? [],
-                  seatLimit: softwareAttrs.seatLimit as number | undefined,
-                  deploymentType: softwareAttrs.deploymentType as
-                    | 'CLOUD'
-                    | 'ON_PREMISE'
-                    | 'HYBRID'
-                    | undefined,
-                },
-              },
-            },
-          }),
+          // field existed may not have a physicalAttrs row yet.
           ...(physicalAttrs !== undefined && {
             physicalAttrs: {
               upsert: {
@@ -1380,7 +1315,7 @@ async function handleProducts(id: string | undefined, req: ApiRequest, res: ApiR
             },
           }),
         },
-        include: { softwareAttrs: true, physicalAttrs: true },
+        include: { physicalAttrs: true },
       });
       res.status(200).json({ success: true, data: product });
       return;

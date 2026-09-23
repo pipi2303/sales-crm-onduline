@@ -1,46 +1,35 @@
-// Unified product model — single source of truth for both product lines
-// Salesappv20 sells: software packages (hospital systems) and physical
-// building-material goods (inherited from the original Onduline FSD).
+// Product model — single source of truth for Onduline's physical
+// building-material catalog.
 //
-// Design rationale (agreed with product owner, see chat discussion):
-// - One shared identity (ProductBase fields) so Opportunity/Quotation/
-//   Discount Approval/Commission modules can reference "a product"
-//   generically via `id`, without caring which line of business it's from.
-// - Type-specific fields live only on the matching variant, enforced by
-//   TypeScript's discriminated union on `productType` — so
-//   `product.productType === 'physical'` narrows the type and gives you
-//   `color`/`weightKg` with compiler-checked safety, not `any`.
-// - This mirrors the Postgres schema in
-//   db/migrations/0001_unified_product_model.sql: ProductBase ~
-//   the `products` table, SoftwareProduct/PhysicalProduct-only fields ~
-//   the `product_software_attrs` / `product_physical_attrs` extension
-//   tables.
+// History (23 Sep 2026): this file used to be a discriminated union of
+// SoftwareProduct | PhysicalProduct, mirroring a Postgres supertype/
+// subtype split (products + product_software_attrs/product_physical_attrs)
+// inherited from an earlier assumption that the business also sold
+// software packages (e.g. hospital systems). That software line was
+// removed: Onduline is a physical building-materials distributor only,
+// and prisma/seed.ts never seeded a single software-typed product. The
+// physical-only fields below (previously on PhysicalProduct) are now
+// just Product fields, since there is no longer a second variant to
+// distinguish them from. See prisma/schema.prisma's Product model
+// comment and prisma/migrations/20260923090000_remove_product_software_line
+// for the corresponding schema change.
 //
-// Revision note (post-review against the actual ProductCatalog.tsx /
-// ConfigurePriceQuote.tsx code, not just the original discussion):
-// the real UI already depends on three fields for EVERY product,
-// regardless of productType — these were missing from the first draft
-// of this file and have been moved here to ProductBase:
-//   - `stock`      : available quota (for software: license/seat quota
-//                    available to sell; for physical: warehouse stock).
-//                    Confirmed with product owner — same field, same
-//                    business meaning ("units still sellable"), not two
-//                    different concepts that happen to share a name.
+// Revision note (kept from the original design, still accurate): the UI
+// depends on three fields for every product — these live directly on
+// Product:
+//   - `stock`      : available warehouse quota ("units still sellable").
 //   - `features`   : marketing/spec bullet list shown on the product
 //                    card and in the quote builder (ConfigurePriceQuote
-//                    reads `product.features` directly). Distinct from
-//                    SoftwareProduct.modules (which is a licensing/
-//                    entitlement concept, not a display list) even
-//                    though the two can overlap in content.
-//   - `sold`       : cumulative units/licenses sold to date, used for
-//                    the "Best Seller" stat and revenue-to-date display
-//                    in ProductCatalog. This is really an aggregate
-//                    derived from sales/performance data, not a true
-//                    product attribute — kept here for now only because
-//                    that's how the current UI already models it, and
-//                    replacing it with a real aggregation over
-//                    performance_targets is out of scope for Tahap A.
-//                    Flagged as an improvement candidate for Tahap B.
+//                    reads `product.features` directly).
+//   - `sold`       : cumulative units sold to date, used for the "Best
+//                    Seller" stat and revenue-to-date display in
+//                    ProductCatalog. This is really an aggregate derived
+//                    from sales/performance data, not a true product
+//                    attribute — kept here for now only because that's
+//                    how the current UI already models it; replacing it
+//                    with a real aggregation over performance_targets is
+//                    out of scope for Tahap A. Flagged as an improvement
+//                    candidate for Tahap B.
 //
 // This file replaces the divergent local `interface Product` definitions
 // previously scattered across src/app/data/dummyData.ts and individual
@@ -48,9 +37,8 @@
 // own shape.
 
 export type ProductStatus = 'active' | 'discontinued';
-export type ProductType = 'software' | 'physical';
 
-interface ProductBase {
+export interface Product {
   id: string;
   sku: string;
   name: string;
@@ -61,45 +49,17 @@ interface ProductBase {
   status: ProductStatus;
   /** Marketing/spec bullet points shown on the product card and in quote builders. */
   features: string[];
-  /** Available quota: license/seat slots for software, warehouse units for physical. */
+  /** Available warehouse stock. */
   stock: number;
-  /** Cumulative units/licenses sold to date (aggregate display field — see revision note above). */
+  /** Cumulative units sold to date (aggregate display field — see revision note above). */
   sold: number;
-  createdAt: string; // ISO 8601
-  updatedAt: string; // ISO 8601
-}
-
-export type BillingCycle = 'monthly' | 'yearly' | 'one-time';
-export type DeploymentType = 'cloud' | 'on-premise' | 'hybrid';
-
-export interface SoftwareProduct extends ProductBase {
-  productType: 'software';
-  licenseTier: string;
-  billingCycle: BillingCycle;
-  modules: string[];
-  seatLimit?: number;
-  deploymentType?: DeploymentType;
-}
-
-export interface PhysicalProduct extends ProductBase {
-  productType: 'physical';
   unitOfMeasure: string; // e.g. 'm2', 'pcs', 'roll'
   color?: string;
   specification: string;
   weightKg?: number;
+  createdAt: string; // ISO 8601
+  updatedAt: string; // ISO 8601
 }
-
-export type Product = SoftwareProduct | PhysicalProduct;
 
 /** Fields accepted when creating a product — id/createdAt/updatedAt are assigned by the repository. */
-export type NewProduct =
-  | Omit<SoftwareProduct, 'id' | 'createdAt' | 'updatedAt'>
-  | Omit<PhysicalProduct, 'id' | 'createdAt' | 'updatedAt'>;
-
-export function isSoftwareProduct(p: Product): p is SoftwareProduct {
-  return p.productType === 'software';
-}
-
-export function isPhysicalProduct(p: Product): p is PhysicalProduct {
-  return p.productType === 'physical';
-}
+export type NewProduct = Omit<Product, 'id' | 'createdAt' | 'updatedAt'>;
