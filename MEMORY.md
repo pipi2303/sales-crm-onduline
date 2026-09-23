@@ -2066,3 +2066,110 @@ dari section 21 sudah selesai.
       dikonfirmasi langsung dari respons 503 endpoint, bukan dugaan lagi.
 
 git push tidak perlu diulang lagi -- sudah selesai.
+
+## 23. Investigasi taskCount=0 -- ditemukan schema drift lama di tabel Task -- 23 Sep 2026
+
+### Konteks
+
+User bilang "dome"/"done" (tidak jelas merujuk ke langkah mana). Dicek ulang live
+production (bukan percaya klaim mentah): `clientCount:12` dan `oppCount:24` sudah
+BENAR (persis sesuai desain Fase A/B) dan stock/sold produk sudah bervariasi --
+membuktikan `npx prisma db seed` SUDAH dijalankan user dan berhasil untuk
+Client/Opportunity/Product. Tapi `taskCount` masih 0, padahal `seedVisitTasks()`
+(Fase B, section 19) berjalan di urutan `main()` yang sama persis setelah
+`seedOpportunities()`, pakai store code & email sales rep yang sama-sama sudah
+terbukti ada.
+
+### Investigasi
+
+1. Ditinjau ulang manual kode `seedVisitTasks()` dan `prisma/seedData/visitTasks.ts`
+   -- tidak ditemukan bug logika.
+2. Test isolasi PERTAMA (`npx tsx -e "import ... from './seedData/visitTasks.js'"`)
+   gagal `MODULE_NOT_FOUND` -- dicurigai artefak resolusi path `tsx -e` (eval), bukan
+   bug sungguhan.
+3. Test isolasi KEDUA yang benar: file debug sungguhan (`prisma/_debug_check_visit_seeds.ts`,
+   dihapus setelah dipakai) dijalankan via `npx tsx prisma/_debug_check_visit_seeds.ts`
+   (path file asli, bukan `-e`) -- **berhasil**, mengonfirmasi `visitTaskSeeds`
+   berisi PERSIS 38 entri valid (31 checked-in, 7 tidak, 19 kode toko unik, 4 email
+   unik). Jadi data seed & modul-nya terbukti benar -- masalahnya bukan di situ.
+4. Dicoba test langsung ke database via Prisma Client (`prisma.task.create()`) dari
+   sandbox Claude (`device_bash`) -- gagal dengan
+   `PrismaClientInitializationError: ... generated for "darwin-arm64", but the
+   actual deployment required "linux-arm64-openssl-3.0.x"`. Ini murni keterbatasan
+   sandbox Claude (VM Linux terpisah dari Mac asli user, tidak bisa download engine
+   binary linux-arm64 -- 403 Forbidden dari binaries.prisma.sh), BUKAN bug di kode
+   atau di environment user yang sesungguhnya (Client/Opportunity/Product sudah
+   terbukti berhasil di-seed oleh user dari Terminal asli mereka).
+5. **Dicek langsung API production live** (`GET /api/tasks` via browser fetch dengan
+   token auth) -- balas **HTTP 500 "Internal server error"**, BUKAN array kosong.
+   Ini kunci: taskCount=0 sebelumnya salah diinterpretasikan sebagai "0 baris data",
+   padahal sebenarnya endpoint-nya ERROR total.
+6. **Root cause ditemukan**: `grep` ke SEMUA file migration (`prisma/migrations/*/migration.sql`)
+   membuktikan tabel `tasks` di database production HANYA punya kolom dari migration
+   awal (`20260920010056_init`): `id, title, description, opportunity_id, store_id,
+   owner_id, check_in_lat, check_in_lng, check_in_at, check_in_photo_url, created_at,
+   updated_at`. Field-field yang ADA di `schema.prisma` (`status, priority, type,
+   category, due_date, completed_date, assigned_to, created_by, check_in_accuracy,
+   location_validated, extra`) dan 3 enum (`TaskStatus, TaskPriority, TaskType`)
+   **TIDAK PERNAH ADA di migration manapun** -- tidak pernah di-`CREATE TYPE`/
+   `ALTER TABLE ADD COLUMN`. Field-field ini kemungkinan besar ditambahkan ke
+   `schema.prisma` saat fitur check-in Bab 8 gap 2 dikerjakan (di sesi sebelum
+   segmen yang terlihat di percakapan ini), tapi migration-nya lupa/tidak pernah
+   dibuat -- **schema drift lama, bukan disebabkan oleh Fase B**.
+   Dicek juga `api/handler.ts` (`prisma.task.findMany()` polos, tanpa logika custom)
+   -- mengonfirmasi 500 berasal dari level database (kolom tidak ada), bukan bug
+   aplikasi.
+
+Ini SEKALIGUS menjelaskan kenapa `seedVisitTasks()` membuat 0 baris (setiap
+`prisma.task.create()`/`findFirst()` gagal di level database sebelum baris manapun
+sempat ditulis) DAN kenapa fitur check-in Bab 8 kemungkinan besar tidak pernah
+benar-benar berfungsi di production sampai sekarang.
+
+### Perbaikan
+
+Dibuat migration baru **`prisma/migrations/20260923120000_add_task_workflow_fields/migration.sql`**:
+- `CREATE TYPE` untuk 3 enum yang hilang (`TaskStatus`, `TaskPriority`, `TaskType`),
+  memakai nilai `@map` lowercase yang sama seperti enum lain di schema ini
+  (konsisten dengan `LeadStatus`, dst.).
+- `ALTER TABLE "tasks" ADD COLUMN` untuk 11 kolom yang hilang, dengan `DEFAULT` yang
+  cocok dengan `@default` di schema.prisma (`status` default `'todo'`, `priority`
+  default `'medium'`) -- aman dijalankan walau tabel sudah punya baris (saat ini 0
+  baris, jadi tidak ada masalah backfill).
+- 2 `CREATE INDEX` yang di schema.prisma (`@@index([status])`, `@@index([ownerId])`)
+  tapi belum pernah dibuat.
+
+Commit: `5fd7d589`.
+
+**Tidak bisa dicoba-jalankan langsung dari sandbox Claude** (`prisma migrate deploy`
+gagal dengan alasan sama seperti poin 4 di atas -- binary engine Linux tidak bisa
+di-download di sandbox ini). Harus dijalankan user dari Terminal asli mereka, sama
+seperti `npx prisma db seed` sebelumnya.
+
+### PENTING -- urutan langkah manual yang WAJIB dijalankan user (revisi)
+
+Urutan ini penting -- migration harus jalan SEBELUM seed ulang, supaya
+`seedVisitTasks()` bisa sukses:
+
+- [ ] **`git pull`** (ambil commit `5fd7d589` yang berisi migration baru).
+- [ ] **`npx prisma migrate deploy`** -- menjalankan migration yang baru dibuat ini.
+      Tanpa langkah ini, `GET /api/tasks` akan TERUS balas 500 dan Task/visit
+      compliance TIDAK AKAN PERNAH bisa berfungsi, terlepas dari seed atau kode
+      apapun.
+- [ ] **`npx prisma db seed`** ulang -- SEKARANG `seedVisitTasks()` seharusnya
+      berhasil (38 Task akan dibuat), karena kolom yang dibutuhkannya sudah ada.
+      (Client/Opportunity/Product tidak akan berubah -- seed sudah upsert-safe,
+      tidak duplikat.)
+- [ ] Redeploy Vercel (supaya `prisma generate` di build step membaca schema yang
+      sudah konsisten dengan migration baru -- sebenarnya `prisma generate` tidak
+      berubah dari migration ini karena `schema.prisma` sendiri tidak diubah, cuma
+      DB-nya yang disamakan, tapi redeploy tetap disarankan supaya Vercel Postgres
+      connection pooling tidak nyangkut cache lama).
+- [ ] Set `ANTHROPIC_API_KEY` di Vercel Environment Variables -- **masih belum
+      aktif**, dicek ulang `POST /api/ai-chat` di putaran ini juga masih balas 503.
+      Belum ada perubahan status untuk item ini.
+
+### Catatan
+
+Temuan ini murni hasil verifikasi terhadap live production (bukan asumsi dari
+laporan "done" user) -- sesuai pola kerja yang sudah konsisten dipakai sepanjang
+sesi ini: jangan percaya klaim "selesai" tanpa mengecek data/API sungguhan.
