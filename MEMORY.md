@@ -1182,3 +1182,123 @@ tidak type-check penuh, jadi tidak kena error transient ini) -- `dist/`
       tersimpan & tampil benar tanpa toggle Tipe Produk.
 - [ ] `git push origin main` untuk semua commit sesi ini yang belum
       di-push (termasuk commit section 12 & commit section 13 ini).
+
+## 14. Fase 1 item 5 -- unify Client data model (field faskes/BPJS) -- 23 Sep 2026
+
+User memilih opsi "full removal + reuse" untuk item yang sebelumnya cuma
+di-flag (section 12.5/13): 6 field `Client` yang healthcare/BPJS-shaped
+(`idSatusehat`, `idFaskesBpjs`, `statusAkreditasi`, `sistemLama`,
+`volumePasien`, `jumlahTempatTidur`, `npwpFaskes`), dengan syarat tambahan
+eksplisit: hasil akhirnya harus "disesuaikan dengan bisnis Onduline dan
+saling berhubungan" -- bukan cuma dihapus/direname secara terisolasi.
+
+### Temuan sebelum eksekusi
+
+`jumlahTempatTidur` (bed count) ternyata bukan cuma field UI mati -- dia
+aktif dipakai sebagai input di `AILeadScoring.tsx`
+(`hospitalSize`, 25/100 poin) dan `AISmartRecommendations.tsx` (estimasi
+upsell value). Dan karena `kategoriClient` sudah di-rename ke kategori
+Onduline sejak commit `15b467c3` (section 11.1), cek
+`kategoriClient.includes('rumah sakit')` di `predictedDealSize`
+AILeadScoring sudah tidak pernah match lagi -- setiap client, apapun
+kategorinya, jatuh ke base deal size generik yang sama. Ini bukan cuma
+"field nganggur", tapi AI Lead Scoring & AI Smart Recommendations yang
+dilihat sales rep sudah diam-diam memberi angka yang tidak berarti untuk
+SEMUA client sejak kategori di-rename.
+
+### Keputusan desain
+
+- **5 field dihapus total** (tidak ada padanan bisnis Onduline):
+  `idSatusehat`, `idFaskesBpjs`, `statusAkreditasi`, `volumePasien`,
+  `jumlahTempatTidur`.
+- **2 field di-rename & dipertahankan** (bernilai bisnis generik, cuma
+  salah nama):
+  - `npwpFaskes` -> `npwp` -- NPWP itu berlaku untuk semua badan usaha,
+    bukan cuma faskes (konsisten dengan field `npwp` generik yang sudah
+    ada di `Karyawan`).
+  - `sistemLama` -> `vendorSebelumnya` -- label lama "Sistem Lama /
+    Eksisting (SIMRS)", tapi isi dummy data yang sudah ada ("Kompetitor
+    (distributor atap lain)", "Belum ada distributor tetap", dst) selalu
+    soal vendor/cara beli sebelumnya, bukan software.
+- **"Saling berhubungan"**: dibuat `src/utils/clientSegmentTier.ts` (baru)
+  sebagai satu sumber kebenaran tiering deal-size berdasar `kategoriClient`
+  Onduline (Developer/Instansi Pemerintah tertinggi, lalu
+  Distributor/Kontraktor, lalu Toko Bangunan/End User), dipakai bareng
+  oleh `AILeadScoring.tsx` DAN `AISmartRecommendations.tsx` supaya angka
+  di kedua komponen konsisten. `vendorSebelumnya` sekarang juga dipakai
+  untuk `competitionLevel` (10-15 kalau ada sinyal vendor/kompetitor
+  eksisting, 5-10 kalau tidak) -- sebelumnya field ini cuma tampil di UI,
+  tidak pernah dibaca AI sama sekali.
+- Sekalian diperbaiki di file yang sama (`AISmartRecommendations.tsx`):
+  copy "upgrade ke Premium/LIS module" / tombol "Send LIS Proposal" (dead
+  code juga -- `paketAktif.includes('basic')` tidak pernah match data
+  Onduline yang sebenarnya) diganti jadi bahasa cross-sell produk Onduline
+  (Waterproofing/Solar/Green Roof).
+- 1 leftover data dummy ketemu saat sapuan: `sistem_lama: 'Kompetitor (HMS
+  ABC Roofing)'` di `populateCRMData.ts` (brand "HMS" lolos dari sapuan
+  section 12.5 karena bukan nama rumah sakit) -> `'Kompetitor (Atap Metal
+  Prima)'`.
+
+### File yang diubah
+
+`prisma/schema.prisma`, migration baru
+`prisma/migrations/20260923100000_unify_client_data_model/` (drop 5 kolom
++ rename 2 kolom, SEMUA nullable jadi lebih rendah risiko dibanding
+migrasi productType sebelumnya -- tapi tetap DESTRUCTIVE untuk 5 kolom
+yang di-drop), `api/handler.ts` (POST create + PUT whitelist +
+komentar), `src/types/client.ts`, `src/services/clientsRepository.ts`
+(FIELD_MAP), `src/app/components/forms/ClientForm.tsx` (SECTION 2
+"Profiling Teknis & Regulasi" -> "Riwayat Pengadaan", quick-info cards,
+icon imports dirapikan -- `Hospital`/`Stethoscope`/`ShieldCheck`/
+`Cloud`/`Cpu`/`Bed`/`Users` yang cuma dipakai di block yang dihapus ikut
+di-drop dari import), `src/app/components/ClientDetailDialog.tsx` (section
+sama + leadData mapping + quick-info cards), `src/app/components/ai/
+AILeadScoring.tsx`, `src/app/components/ai/AISmartRecommendations.tsx`,
+`src/utils/populateCRMData.ts`, dan file baru
+`src/utils/clientSegmentTier.ts`.
+
+**Di luar scope, sengaja tidak disentuh** (ditemukan saat cek `dist/`
+setelah build): dropdown "Technology Partner (OCI/**SatuSehat**)" di
+`SalesTeam.tsx` -- itu field entity **Partner** (masih localStorage-only,
+lihat section 8), bukan `Client`, jadi beda item pekerjaan.
+
+### Verifikasi
+
+`tsc --noEmit` terisolasi (tsconfig sementara seperti biasa, dihapus
+setelah cek): 101 error total, persis 100 baseline pra-eksisting
+(dikonfirmasi bersih dari transient `productType` migrasi sebelumnya --
+user sudah `prisma generate` ulang) + **1 error baru yang DIHARAPKAN &
+transient**: `api/handler.ts` komplain `npwp` tidak ada di
+`ClientCreateInput` -- sama persis pola "Prisma client belum
+di-regenerate" seperti setiap migrasi schema lain di sesi ini, hilang
+otomatis setelah `prisma generate`. `npx vite build` sukses; `dist/`
+dicek tidak mengandung string SatuSehat/Faskes BPJS/Akreditasi/SIMRS/
+Volume Pasien/Tempat Tidur/npwp_faskes/HMS ABC dari perubahan sesi ini
+(satu-satunya sisa string "SatuSehat" di dist ada di dropdown Partner
+yang di luar scope di atas). `dist/` & `tsconfig.tmpcheck.json` dihapus
+setelahnya, bukan bagian commit.
+
+**Catatan insiden kecil**: sempat mencoba `git stash` untuk isolasi
+verifikasi baseline, gagal di tengah jalan karena sandbox ini tidak boleh
+menghapus file sampai user approve (`.git/index.lock` nyangkut). Tidak
+ada perubahan yang hilang (dikonfirmasi lewat `git status`/`git stash
+list` sebelum lanjut) -- user sempat diminta approve izin hapus file di
+folder ini untuk membersihkan lock file itu, approved, sudah beres.
+
+- [ ] `npx prisma migrate deploy` + `npx prisma generate` untuk migrasi
+      `20260923100000_unify_client_data_model` -- WAJIB dari Mac, sandbox
+      tidak bisa reach Neon/binaries.prisma.sh. Sebelum apply, cek dulu
+      (read-only) apakah ada data di 5 kolom yang di-drop yang masih
+      ingin disimpan -- migrasi ini permanen untuk kolom tsb (2 kolom
+      lain di-rename, datanya aman/tidak hilang).
+- [ ] Setelah generate ulang, `tsc --noEmit` sekali lagi -- pastikan
+      total kembali ke 100 (tanpa 1 transient `npwp` di atas).
+- [ ] Smoke-test form Tambah/Edit Client (field "Vendor/Distributor
+      Sebelumnya" & "NPWP" baru) dan AI Lead Scoring/Smart Recommendations
+      di halaman detail Client -- pastikan skor & estimasi deal size
+      tampil masuk akal per kategori (Developer/Distributor/dst), bukan
+      angka generik yang sama untuk semua client seperti sebelumnya.
+- [ ] `git push origin main` untuk semua commit sesi ini yang belum
+      di-push.
+- [ ] Di luar scope, kalau mau dilanjutkan: dropdown "Technology Partner
+      (OCI/SatuSehat)" di SalesTeam.tsx (entity Partner, bukan Client).
