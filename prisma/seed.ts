@@ -8,10 +8,11 @@
 // and what roles do they have" from scratch at that point.
 //
 // Run with: npx prisma db seed  (needs DATABASE_URL set)
-import { PrismaClient, Role } from '@prisma/client';
+import { PrismaClient, Role, OpportunityStage, OpportunityStatus } from '@prisma/client';
 import { hashPassword } from '../lib/auth.js';
 import { distributorSeeds, storeSeeds } from './seedData/distributorsAndStores.js';
 import { productCategorySeeds, productFamilySeeds, productInstanceSeeds } from './seedData/productCatalog.js';
+import { clientSeeds, opportunitySeeds } from './seedData/clientsAndOpportunities.js';
 
 const prisma = new PrismaClient();
 
@@ -145,6 +146,12 @@ async function seedProductInstances() {
         familyId: family.id,
         variantLabel: p.variantLabel ?? null,
         skuLifecycle: 'ACTIVE',
+        // Fase A follow-up: sekarang di-update juga (dulu hanya diset saat
+        // create) -- supaya re-run seed ini MEMPERBAIKI 29 produk yang
+        // sudah kadung ter-seed dengan stock:200/sold:5 seragam di
+        // produksi, bukan cuma berlaku untuk produk baru.
+        stock: p.stock,
+        sold: p.sold,
         physicalAttrs: {
           upsert: {
             create: { unitOfMeasure: p.unitOfMeasure, weightKg: p.weightKg ?? null, specification: p.description },
@@ -160,8 +167,8 @@ async function seedProductInstances() {
         currency: 'IDR',
         description: p.description,
         status: 'ACTIVE',
-        stock: 200,
-        sold: 5,
+        stock: p.stock,
+        sold: p.sold,
         features: p.features,
         familyId: family.id,
         variantLabel: p.variantLabel ?? null,
@@ -174,6 +181,210 @@ async function seedProductInstances() {
     created += 1;
   }
   console.log(`Seeded ${created} product SKUs across ${productCategorySeeds.length} categories (demo katalog Onduline)`);
+}
+
+// Fase A (Bab 13/14 follow-up, 23 Sep 2026): lihat header komentar di
+// prisma/seedData/clientsAndOpportunities.ts untuk alasan lengkap kenapa
+// ini dibutuhkan -- ringkasnya, produksi sebelumnya punya 0 Client/
+// Opportunity sama sekali, sehingga dashboard Bab 13 dan fitur "AI" Bab 14
+// (yang sudah ada UI-nya tapi rule-based, bukan LLM) tidak punya apa pun
+// untuk dihitung. idCustomer dipakai sebagai kunci upsert (unik di schema)
+// supaya aman di-reseed berkali-kali.
+async function seedClients() {
+  const emailToUserId = new Map<string, string>();
+  for (const email of new Set(clientSeeds.map((c) => c.submittedByEmail))) {
+    const u = await prisma.user.findUnique({ where: { email } });
+    if (!u) {
+      throw new Error(`seedClients: user email "${email}" not found -- run the demoUsers loop first`);
+    }
+    emailToUserId.set(email, u.id);
+  }
+
+  const distCodeToId = new Map<string, string>();
+  const storeCodeToId = new Map<string, string>();
+  for (const c of clientSeeds) {
+    if (c.distributorCode && !distCodeToId.has(c.distributorCode)) {
+      const d = await prisma.distributor.findUnique({ where: { code: c.distributorCode } });
+      if (!d) {
+        throw new Error(`seedClients: distributor code "${c.distributorCode}" not found -- run seedDistributorsAndStores() first`);
+      }
+      distCodeToId.set(c.distributorCode, d.id);
+    }
+    if (c.storeCode && !storeCodeToId.has(c.storeCode)) {
+      const s = await prisma.store.findUnique({ where: { code: c.storeCode } });
+      if (!s) {
+        throw new Error(`seedClients: store code "${c.storeCode}" not found -- run seedDistributorsAndStores() first`);
+      }
+      storeCodeToId.set(c.storeCode, s.id);
+    }
+  }
+
+  let created = 0;
+  for (const c of clientSeeds) {
+    await prisma.client.upsert({
+      where: { idCustomer: c.idCustomer },
+      update: {
+        namaEntitas: c.namaEntitas,
+        kategoriClient: c.kategoriClient,
+        owner: c.owner,
+        alamatLengkap: c.alamatLengkap,
+        namaPic: c.namaPic,
+        jabatanPic: c.jabatanPic,
+        whatsappPic: c.whatsappPic,
+        emailResmi: c.emailResmi,
+        salesFlow: c.salesFlow,
+        distributorId: c.distributorCode ? distCodeToId.get(c.distributorCode) : null,
+        storeId: c.storeCode ? storeCodeToId.get(c.storeCode) : null,
+      },
+      create: {
+        idCustomer: c.idCustomer,
+        namaEntitas: c.namaEntitas,
+        kategoriClient: c.kategoriClient,
+        owner: c.owner,
+        alamatLengkap: c.alamatLengkap,
+        namaPic: c.namaPic,
+        jabatanPic: c.jabatanPic,
+        whatsappPic: c.whatsappPic,
+        emailResmi: c.emailResmi,
+        salesFlow: c.salesFlow,
+        distributorId: c.distributorCode ? distCodeToId.get(c.distributorCode) : null,
+        storeId: c.storeCode ? storeCodeToId.get(c.storeCode) : null,
+        status: 'APPROVED',
+        submittedById: emailToUserId.get(c.submittedByEmail),
+        submittedAt: new Date(),
+      },
+    });
+    created += 1;
+  }
+  console.log(`Seeded ${created} clients (Fase A dummy data realistis)`);
+}
+
+const STAGE_MAP: Record<string, OpportunityStage> = {
+  prospecting: 'PROSPECTING',
+  proposal: 'PROPOSAL',
+  negotiation: 'NEGOTIATION',
+  'closed-won': 'CLOSED_WON',
+  'closed-lost': 'CLOSED_LOST',
+};
+const STATUS_MAP: Record<string, OpportunityStatus> = {
+  open: 'OPEN',
+  won: 'WON',
+  lost: 'LOST',
+};
+const STAGE_PROBABILITY: Record<string, number> = {
+  prospecting: 20,
+  proposal: 50,
+  negotiation: 75,
+  'closed-won': 100,
+  'closed-lost': 0,
+};
+
+// Territory is NOT seeded anywhere in this script (created manually by
+// the user through the app's own UI -- see the comment in
+// clientsAndOpportunities.ts) -- so this looks up existing records by
+// name and fails loudly if one doesn't exist yet, rather than silently
+// creating a new placeholder Territory that would fork from the real one.
+// Idempotent via findFirst-by-name(clientId+name) before create, since
+// Opportunity has no natural unique business key of its own.
+async function seedOpportunities() {
+  const clientByCustId = new Map<string, NonNullable<Awaited<ReturnType<typeof prisma.client.findUnique>>>>();
+  for (const c of clientSeeds) {
+    const client = await prisma.client.findUnique({ where: { idCustomer: c.idCustomer } });
+    if (!client) {
+      throw new Error(`seedOpportunities: client "${c.idCustomer}" not found -- run seedClients() first`);
+    }
+    clientByCustId.set(c.idCustomer, client);
+  }
+
+  const userByEmail = new Map<string, { id: string; name: string }>();
+  const territoryByName = new Map<string, { id: string }>();
+  const productBySku = new Map<string, { id: string; name: string; price: unknown }>();
+
+  let created = 0;
+  let skipped = 0;
+  for (const o of opportunitySeeds) {
+    const client = clientByCustId.get(o.clientIdCustomer);
+    if (!client) {
+      throw new Error(`seedOpportunities: unknown clientIdCustomer "${o.clientIdCustomer}"`);
+    }
+
+    if (!userByEmail.has(o.ownerEmail)) {
+      const u = await prisma.user.findUnique({ where: { email: o.ownerEmail } });
+      if (!u) {
+        throw new Error(`seedOpportunities: owner email "${o.ownerEmail}" not found`);
+      }
+      userByEmail.set(o.ownerEmail, u);
+    }
+    const owner = userByEmail.get(o.ownerEmail)!;
+
+    if (!territoryByName.has(o.territoryName)) {
+      const t = await prisma.territory.findFirst({ where: { name: o.territoryName } });
+      if (!t) {
+        throw new Error(
+          `seedOpportunities: territory "${o.territoryName}" not found -- Territory dibuat manual lewat UI, bukan di-seed, jadi harus sudah ada dulu`
+        );
+      }
+      territoryByName.set(o.territoryName, t);
+    }
+    const territory = territoryByName.get(o.territoryName)!;
+
+    const productLines: { productId: string; productName: string; quantity: number; unitPrice: number; totalPrice: number }[] = [];
+    for (const line of o.products) {
+      if (!productBySku.has(line.sku)) {
+        const p = await prisma.product.findUnique({ where: { sku: line.sku } });
+        if (!p) {
+          throw new Error(`seedOpportunities: product sku "${line.sku}" not found -- run seedProductInstances() first`);
+        }
+        productBySku.set(line.sku, p);
+      }
+      const product = productBySku.get(line.sku)!;
+      const unitPrice = Number(product.price);
+      productLines.push({
+        productId: product.id,
+        productName: product.name,
+        quantity: line.quantity,
+        unitPrice,
+        totalPrice: unitPrice * line.quantity,
+      });
+    }
+    const totalValue = productLines.reduce((sum, l) => sum + l.totalPrice, 0);
+
+    const existing = await prisma.opportunity.findFirst({ where: { clientId: client.id, name: o.name } });
+    if (existing) {
+      skipped += 1;
+      continue;
+    }
+
+    await prisma.opportunity.create({
+      data: {
+        name: o.name,
+        clientId: client.id,
+        clientName: client.namaEntitas,
+        contactPerson: client.namaPic || client.namaEntitas,
+        email: client.emailResmi ?? undefined,
+        phone: client.whatsappPic ?? undefined,
+        totalValue,
+        currency: 'IDR',
+        probability: STAGE_PROBABILITY[o.stage],
+        createdDate: new Date(o.createdDate),
+        closeDate: new Date(o.closeDate),
+        actualCloseDate: o.actualCloseDate ? new Date(o.actualCloseDate) : null,
+        stage: STAGE_MAP[o.stage],
+        status: STATUS_MAP[o.status],
+        ownerId: owner.id,
+        ownerName: owner.name,
+        source: o.source,
+        description: o.description,
+        salesFlow: client.salesFlow,
+        territoryId: territory.id,
+        products: {
+          create: productLines,
+        },
+      },
+    });
+    created += 1;
+  }
+  console.log(`Seeded ${created} opportunities (${skipped} already existed, dilewati) -- Fase A dummy data realistis`);
 }
 
 async function main() {
@@ -190,6 +401,8 @@ async function main() {
   await seedDistributorsAndStores();
   await seedProductCatalog();
   await seedProductInstances();
+  await seedClients();
+  await seedOpportunities();
 }
 
 main()
