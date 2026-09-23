@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Search, 
   Plus, 
@@ -48,43 +48,13 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { CHART_PRIMARY, CHART_GRID, CHART_STATUS, CHART_TOOLTIP_STYLE, CHART_TOOLTIP_CURSOR, AREA_GRADIENT_STOPS } from '@/styles/chartTheme';
 import { motion, AnimatePresence } from 'motion/react';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
+import { discountApprovalsRepository } from '@/services/discountApprovalsRepository';
+import type { DiscountRequest, ApprovalStep } from '@/types/discountApproval';
 
-interface DiscountRequest {
-  id: string;
-  requestNumber: string;
-  clientName: string;
-  opportunityId: string;
-  productName: string;
-  originalPrice: number;
-  discountPercent: number;
-  discountAmount: number;
-  finalPrice: number;
-  requestedBy: string;
-  requestedDate: string;
-  reason: string;
-  status: 'pending' | 'approved' | 'rejected' | 'expired' | 'counter-offer';
-  currentApprover: string;
-  approvalLevel: number;
-  approvalHistory: ApprovalStep[];
-  urgency: 'low' | 'medium' | 'high';
-  validUntil: string;
-  originalMargin: number;
-  proposedMargin: number;
-  region: string;
-  conditions?: string;
-}
-
-interface ApprovalStep {
-  level: number;
-  approverName: string;
-  approverRole: string;
-  action: 'pending' | 'approved' | 'rejected' | 'counter-offer';
-  date?: string;
-  comment?: string;
-  counterOfferPercent?: number;
-  conditionsAdded?: string;
-}
-
+// DiscountRequest/ApprovalStep moved to src/types/discountApproval.ts
+// (Bab 10 gap #3) so the repository can share the same shape -- see that
+// file's header comment for why the fields stay identical to what was
+// hardcoded here before.
 interface ApprovalPolicy {
   id: string;
   level: number;
@@ -114,16 +84,19 @@ export function DiscountApprovalSystem() {
   // New Request Form State
   const [newRequestData, setNewRequestData] = useState({
     productId: 'prod1',
-    basePrice: 500000000,
+    clientName: '',
+    basePrice: 75000000,
     discountPercent: 15,
+    reason: '',
+    region: 'DKI Jakarta',
     attachments: [] as File[],
   });
 
   const productCatalog = {
-    prod1: { name: 'Enterprise Health Suite', hpp: 200000000, defaultPrice: 500000000 },
-    prod2: { name: 'Radiology Imaging System', hpp: 400000000, defaultPrice: 800000000 },
-    prod3: { name: 'Lab Management Module', hpp: 150000000, defaultPrice: 300000000 },
-    prod4: { name: 'Custom Support Package', hpp: 60000000, defaultPrice: 100000000 },
+    prod1: { name: 'Onduline Classic (Atap Bitumen Bergelombang)', hpp: 45000000, defaultPrice: 75000000 },
+    prod2: { name: 'Onduline Easyfix (Sistem Atap Cepat Pasang)', hpp: 80000000, defaultPrice: 130000000 },
+    prod3: { name: 'Onduvilla (Genteng Bitumen Premium)', hpp: 60000000, defaultPrice: 100000000 },
+    prod4: { name: 'Paket Aksesoris & Talang Onduline', hpp: 15000000, defaultPrice: 25000000 },
   };
 
   const calculatedMargin = useMemo(() => {
@@ -141,106 +114,32 @@ export function DiscountApprovalSystem() {
     };
   }, [newRequestData.productId, newRequestData.basePrice, newRequestData.discountPercent]);
 
-  // Dummy data
-  const [discountRequests, setDiscountRequests] = useState<DiscountRequest[]>([
-    {
-      id: '1',
-      requestNumber: 'DR-2024-001',
-      clientName: 'PT Maju Jaya',
-      opportunityId: 'OPP-001',
-      productName: 'Enterprise Plan',
-      originalPrice: 350000000,
-      discountPercent: 15,
-      discountAmount: 52500000,
-      finalPrice: 297500000,
-      requestedBy: 'Budi Santoso',
-      requestedDate: '2024-02-15',
-      reason: 'Kompetitor menawarkan harga lebih rendah. Akun strategis dengan potensi jangka panjang.',
-      status: 'pending',
-      currentApprover: 'Sarah Manager',
-      approvalLevel: 2,
-      urgency: 'high',
-      validUntil: '2024-02-22',
-      originalMargin: 45,
-      proposedMargin: 30,
-      region: 'Jawa Barat',
-      approvalHistory: [
-        {
-          level: 1,
-          approverName: 'Budi Santoso',
-          approverRole: 'Sales Executive',
-          action: 'approved',
-          date: '2024-02-15',
-          comment: 'Self-approval up to 10%'
-        },
-        {
-          level: 2,
-          approverName: 'Sarah Manager',
-          approverRole: 'Sales Manager',
-          action: 'pending',
-        }
-      ]
-    },
-    {
-      id: '2',
-      requestNumber: 'DR-2024-002',
-      clientName: 'CV Berkah Sejahtera',
-      opportunityId: 'OPP-002',
-      productName: 'Professional Plan',
-      originalPrice: 150000000,
-      discountPercent: 8,
-      discountAmount: 12000000,
-      finalPrice: 138000000,
-      requestedBy: 'Ani Wijaya',
-      requestedDate: '2024-02-14',
-      reason: 'Pelanggan baru, mencoba paket kecil untuk validasi kebutuhan.',
-      status: 'approved',
-      currentApprover: '-',
-      approvalLevel: 1,
-      urgency: 'medium',
-      validUntil: '2024-02-28',
-      originalMargin: 40,
-      proposedMargin: 32,
-      region: 'DKI Jakarta',
-      approvalHistory: [
-        {
-          level: 1,
-          approverName: 'Ani Wijaya',
-          approverRole: 'Sales Executive',
-          action: 'approved',
-          date: '2024-02-14',
-          comment: 'Approved within authority (0-10%)'
-        }
-      ]
-    },
-    {
-      id: '3',
-      requestNumber: 'DR-2024-003',
-      clientName: 'PT Global Solutions',
-      opportunityId: 'OPP-003',
-      productName: 'Custom Development',
-      originalPrice: 500000000,
-      discountPercent: 25,
-      discountAmount: 125000000,
-      finalPrice: 375000000,
-      requestedBy: 'Dewi Kartika',
-      requestedDate: '2024-02-13',
-      reason: 'Pesanan volume besar (kontrak 3 tahun), peluang kemitraan strategis.',
-      status: 'approved',
-      currentApprover: '-',
-      approvalLevel: 3,
-      urgency: 'high',
-      validUntil: '2024-03-01',
-      originalMargin: 50,
-      proposedMargin: 25,
-      region: 'Jawa Timur',
-      approvalHistory: [
-        { level: 1, approverName: 'Dewi Kartika', approverRole: 'Sales Executive', action: 'approved', date: '2024-02-13' },
-        { level: 2, approverName: 'Sarah Manager', approverRole: 'Sales Manager', action: 'approved', date: '2024-02-13', comment: 'Kesesuaian strategis yang baik, rekomendasikan persetujuan' },
-        { level: 3, approverName: 'John Director', approverRole: 'Sales Director', action: 'approved', date: '2024-02-14', comment: 'Disetujui untuk nilai strategis' }
-      ]
-    }
-  ]);
+  const [discountRequests, setDiscountRequests] = useState<DiscountRequest[]>([]);
+  const [discountLoading, setDiscountLoading] = useState(true);
+  const [creatingRequest, setCreatingRequest] = useState(false);
+  const [isRejectOpen, setIsRejectOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+
+  // Bab 10 gap #3: requests used to be a hardcoded array that never
+  // persisted a single decision. Now loaded from
+  // discountApprovalsRepository (real DB-backed API).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setDiscountLoading(true);
+      const res = await discountApprovalsRepository.getAll();
+      if (cancelled) return;
+      if (res.success && res.data) {
+        setDiscountRequests(res.data);
+      } else {
+        toast.error(res.success ? 'Gagal memuat data discount approval' : res.error);
+      }
+      setDiscountLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const approvalPolicies = [
     { id: '1', level: 1, roleName: 'Sales Executive', minDiscount: 0, maxDiscount: 10, slaHours: 24 },
@@ -279,44 +178,137 @@ export function DiscountApprovalSystem() {
     }
   };
 
-  const handleApprove = (req: DiscountRequest) => {
-    // Check for conditions
-    if (isConditionalOpen && conditionNote) {
+  const handleApprove = async (req: DiscountRequest) => {
+    const conditionsAdded = isConditionalOpen ? conditionNote.trim() : undefined;
+    if (isConditionalOpen && !conditionsAdded) {
+      toast.error('Syarat khusus wajib diisi');
+      return;
+    }
+    const res = await discountApprovalsRepository.decide(req.id, {
+      action: 'approve',
+      ...(conditionsAdded && { conditionsAdded, conditions: conditionsAdded }),
+    });
+    if (!res.success || !res.data) {
+      toast.error(res.success ? 'Gagal menyetujui pengajuan' : res.error);
+      return;
+    }
+    const updated = res.data;
+    setDiscountRequests((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+    setSelectedRequest(updated);
+    if (conditionsAdded) {
       toast.success(`Pengajuan ${req.requestNumber} disetujui dengan syarat!`, {
-        description: `Syarat: ${conditionNote}`,
+        description: `Syarat: ${conditionsAdded}`,
         icon: <CheckSquare className="h-4 w-4 text-emerald-500" />
       });
-      setIsConditionalOpen(false);
-      setConditionNote('');
+    } else if (updated.status === 'approved') {
+      toast.success(`Pengajuan ${req.requestNumber} disetujui sepenuhnya.`);
     } else {
-      // Mock Director Level Email
-      if (req.approvalLevel >= 2) {
-        toast.info('Notifikasi Email dikirim ke Direksi', {
-          description: `Menunggu persetujuan Level 3 (Direktur Sales) untuk ${req.requestNumber}`,
-          icon: <Mail className="h-4 w-4" />
-        });
-      }
+      toast.info('Menunggu approver level berikutnya', {
+        description: `Menunggu persetujuan Level ${updated.approvalLevel} (${updated.currentApprover}) untuk ${req.requestNumber}`,
+        icon: <Mail className="h-4 w-4" />
+      });
       toast.success(`Pengajuan ${req.requestNumber} disetujui untuk level saat ini.`);
     }
-    setShowDetailDialog(false);
+    setIsConditionalOpen(false);
+    setConditionNote('');
   };
 
-  const handleCounterOffer = () => {
+  const handleReject = async (req: DiscountRequest) => {
+    if (!rejectReason.trim()) {
+      toast.error('Alasan penolakan wajib diisi');
+      return;
+    }
+    const res = await discountApprovalsRepository.decide(req.id, {
+      action: 'reject',
+      comment: rejectReason.trim(),
+    });
+    if (!res.success || !res.data) {
+      toast.error(res.success ? 'Gagal menolak pengajuan' : res.error);
+      return;
+    }
+    setDiscountRequests((prev) => prev.map((r) => (r.id === res.data!.id ? res.data! : r)));
+    setSelectedRequest(res.data);
+    toast.success(`Pengajuan ${req.requestNumber} ditolak.`);
+    setIsRejectOpen(false);
+    setRejectReason('');
+  };
+
+  const handleCounterOffer = async () => {
     if (!counterPercent || !selectedRequest) return;
-    
+
     const newPercent = parseFloat(counterPercent);
-    
-    // Real-time notification simulation
+    if (Number.isNaN(newPercent)) {
+      toast.error('Diskon baru harus berupa angka');
+      return;
+    }
+
+    const res = await discountApprovalsRepository.decide(selectedRequest.id, {
+      action: 'counter-offer',
+      counterOfferPercent: newPercent,
+      comment: counterComment.trim() || undefined,
+    });
+    if (!res.success || !res.data) {
+      toast.error(res.success ? 'Gagal mengirim counter-offer' : res.error);
+      return;
+    }
+    setDiscountRequests((prev) => prev.map((r) => (r.id === res.data!.id ? res.data! : r)));
+    setSelectedRequest(res.data);
     toast.info(`Counter-offer ${newPercent}% diajukan`, {
-      description: `Notifikasi real-time terkirim ke Sales Executive: ${selectedRequest.requestedBy}`,
+      description: `Tersimpan untuk ${selectedRequest.requestedBy}, menunggu tindak lanjut.`,
       icon: <Zap className="h-4 w-4 text-blue-500 animate-pulse" />,
       duration: 5000
     });
-    
+
     setIsCounterOfferOpen(false);
-    setShowDetailDialog(false);
     setCounterPercent('');
     setCounterComment('');
+  };
+
+  const handleCreateRequest = async () => {
+    if (!newRequestData.clientName.trim()) {
+      toast.error('Nama klien wajib diisi');
+      return;
+    }
+    if (!newRequestData.reason.trim()) {
+      toast.error('Justifikasi bisnis wajib diisi');
+      return;
+    }
+    const product = productCatalog[newRequestData.productId as keyof typeof productCatalog];
+    setCreatingRequest(true);
+    try {
+      const res = await discountApprovalsRepository.create({
+        clientName: newRequestData.clientName.trim(),
+        productName: product.name,
+        originalPrice: newRequestData.basePrice,
+        discountPercent: newRequestData.discountPercent,
+        reason: newRequestData.reason.trim(),
+        region: newRequestData.region,
+        originalMargin: calculatedMargin.original,
+        proposedMargin: calculatedMargin.current,
+      });
+      if (!res.success || !res.data) {
+        toast.error(res.success ? 'Gagal mengajukan diskon' : res.error);
+        return;
+      }
+      setDiscountRequests((prev) => [res.data!, ...prev]);
+      toast.success(
+        res.data.status === 'approved'
+          ? `Pengajuan ${res.data.requestNumber} otomatis disetujui (dalam kewenangan self-approval).`
+          : `Pengajuan ${res.data.requestNumber} berhasil diajukan, menunggu Level ${res.data.approvalLevel}.`
+      );
+      setShowRequestDialog(false);
+      setNewRequestData({
+        productId: 'prod1',
+        clientName: '',
+        basePrice: productCatalog.prod1.defaultPrice,
+        discountPercent: 15,
+        reason: '',
+        region: 'DKI Jakarta',
+        attachments: [],
+      });
+    } finally {
+      setCreatingRequest(false);
+    }
   };
 
   return (
@@ -638,16 +630,27 @@ export function DiscountApprovalSystem() {
           <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8 bg-white max-h-[70vh] overflow-y-auto">
             <div className="space-y-6">
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-gray-500">Client / Hospital Name</Label>
-                <Select>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-gray-500">Nama Klien / Toko</Label>
+                <Input
+                  placeholder="Contoh: Toko Bangunan Makmur Jaya"
+                  className="h-12 border-gray-200"
+                  value={newRequestData.clientName}
+                  onChange={(e) => setNewRequestData({ ...newRequestData, clientName: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-gray-500">Region</Label>
+                <Select
+                  value={newRequestData.region}
+                  onValueChange={(val) => setNewRequestData({ ...newRequestData, region: val })}
+                >
                   <SelectTrigger className="h-12 border-gray-200">
-                    <SelectValue placeholder="Pilih Klien..." />
+                    <SelectValue placeholder="Pilih Region..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="client1">RS Pondok Indah</SelectItem>
-                    <SelectItem value="client2">RS Medistra</SelectItem>
-                    <SelectItem value="client3">Klinik Prodia Pusat</SelectItem>
-                    <SelectItem value="client4">PT Kimia Farma Tbk</SelectItem>
+                    {regions.filter((r) => r !== 'all').map((r) => (
+                      <SelectItem key={r} value={r}>{r}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -766,7 +769,12 @@ export function DiscountApprovalSystem() {
 
               <div className="space-y-2">
                 <Label className="text-[10px] font-black uppercase tracking-widest text-gray-500">Business Justification</Label>
-                <Textarea placeholder="Berikan alasan mendetail mengapa diskon ini diperlukan..." className="min-h-[100px] border-gray-200 text-gray-900" />
+                <Textarea
+                  placeholder="Berikan alasan mendetail mengapa diskon ini diperlukan..."
+                  className="min-h-[100px] border-gray-200 text-gray-900"
+                  value={newRequestData.reason}
+                  onChange={(e) => setNewRequestData({ ...newRequestData, reason: e.target.value })}
+                />
               </div>
             </div>
           </div>
@@ -775,12 +783,10 @@ export function DiscountApprovalSystem() {
             <Button variant="outline" onClick={() => setShowRequestDialog(false)} className="h-12 px-8 font-bold border-gray-200 uppercase tracking-widest text-xs">Cancel</Button>
             <Button 
               className="bg-[#013E37] hover:bg-[#028076] text-white h-12 px-10 font-bold shadow-lg shadow-emerald-900/20 uppercase tracking-widest text-xs"
-              onClick={() => {
-                toast.success('Discount request submitted successfully!');
-                setShowRequestDialog(false);
-              }}
+              onClick={handleCreateRequest}
+              disabled={creatingRequest}
             >
-              Submit Request
+              {creatingRequest ? 'Mengirim...' : 'Submit Request'}
             </Button>
           </div>
         </DialogContent>
@@ -906,6 +912,35 @@ export function DiscountApprovalSystem() {
                       </div>
                     </motion.div>
                   )}
+
+                  {isRejectOpen && (
+                    <motion.div 
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                       <div className="p-6 bg-rose-50 rounded-2xl border border-rose-200 space-y-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <XCircle className="h-4 w-4 text-rose-600" />
+                          <h4 className="text-sm font-black text-rose-900 uppercase tracking-tight">Tolak Pengajuan</h4>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-bold uppercase text-rose-700 tracking-widest">Alasan Penolakan</Label>
+                          <Textarea 
+                            placeholder="Jelaskan alasan penolakan pengajuan diskon ini..." 
+                            className="bg-white border-rose-200"
+                            value={rejectReason}
+                            onChange={(e) => setRejectReason(e.target.value)}
+                          />
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="ghost" size="sm" onClick={() => setIsRejectOpen(false)} className="text-rose-700 font-bold uppercase text-[10px] tracking-widest">Batal</Button>
+                          <Button size="sm" onClick={() => handleReject(selectedRequest)} className="bg-rose-600 hover:bg-rose-700 text-white font-bold uppercase text-[10px] tracking-widest shadow-lg shadow-rose-200">Konfirmasi Tolak</Button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
                 </AnimatePresence>
 
                 <div className="space-y-3">
@@ -955,7 +990,7 @@ export function DiscountApprovalSystem() {
                   Kembali
                 </Button>
                 <div className="flex gap-3">
-                  {!isCounterOfferOpen && !isConditionalOpen && selectedRequest.status === 'pending' && (
+                  {!isCounterOfferOpen && !isConditionalOpen && !isRejectOpen && selectedRequest.status === 'pending' && (
                     <>
                       <Button 
                         variant="outline" 
@@ -971,12 +1006,16 @@ export function DiscountApprovalSystem() {
                       >
                         Conditional Approve
                       </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsRejectOpen(true)}
+                        className="text-rose-600 hover:bg-rose-50 border-rose-200 font-black text-xs uppercase tracking-widest px-6 h-11"
+                      >
+                        Tolak
+                      </Button>
                     </>
                   )}
-                  <Button variant="outline" className="text-rose-600 hover:bg-rose-50 border-rose-200 font-black text-xs uppercase tracking-widest px-6 h-11">
-                    Tolak
-                  </Button>
-                  {!isCounterOfferOpen && !isConditionalOpen && (
+                  {!isCounterOfferOpen && !isConditionalOpen && !isRejectOpen && selectedRequest.status === 'pending' && (
                     <Button 
                       className="bg-[#013E37] hover:bg-[#028076] text-white font-black text-xs uppercase tracking-widest px-8 h-11 shadow-lg shadow-[#013E37]/20"
                       onClick={() => handleApprove(selectedRequest)}

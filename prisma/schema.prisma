@@ -714,3 +714,82 @@ model AuditLogEntry {
   @@map("audit_log_entries")
   @@index([entityType, entityId])
 }
+
+// ---------------------------------------------------------------------
+// Bab 10 gap #3 (Rencana Insight doc): DiscountApprovalSystem.tsx already
+// had a full multi-level approval UI (margin calculation, approval
+// levels, counter-offer, conditional approval) but every request lived
+// only in a hardcoded useState array -- approve/reject never even
+// updated that in-memory array, only showed a toast. This is its real
+// backend home.
+//
+// opportunityId/requestedById are kept as plain (unrelated) strings
+// rather than Prisma relations, matching Task.assignedTo's "free text"
+// convention elsewhere in this schema -- this keeps the migration
+// self-contained (no changes to the existing User/Opportunity models),
+// which matters here because this migration cannot be verified with
+// `prisma generate`/`prisma migrate` from this sandbox (no network path
+// to binaries.prisma.sh or the Neon host) and must be applied manually.
+enum DiscountApprovalStatus {
+  PENDING       @map("pending")
+  APPROVED      @map("approved")
+  REJECTED      @map("rejected")
+  EXPIRED       @map("expired")
+  COUNTER_OFFER @map("counter-offer")
+}
+
+enum DiscountStepAction {
+  PENDING       @map("pending")
+  APPROVED      @map("approved")
+  REJECTED      @map("rejected")
+  COUNTER_OFFER @map("counter-offer")
+}
+
+model DiscountApprovalRequest {
+  id              String                   @id @default(uuid())
+  requestNumber   String                   @unique @map("request_number")
+  clientName      String                   @map("client_name")
+  opportunityId   String?                  @map("opportunity_id")
+  productName     String                   @map("product_name")
+  originalPrice   Decimal                  @map("original_price") @db.Decimal(14, 2)
+  discountPercent Decimal                  @map("discount_percent") @db.Decimal(5, 2)
+  discountAmount  Decimal                  @map("discount_amount") @db.Decimal(14, 2)
+  finalPrice      Decimal                  @map("final_price") @db.Decimal(14, 2)
+  requestedById   String?                  @map("requested_by_id")
+  requestedByName String                   @map("requested_by_name")
+  requestedDate   DateTime                 @default(now()) @map("requested_date")
+  reason          String
+  status          DiscountApprovalStatus   @default(PENDING)
+  currentApprover String?                  @map("current_approver")
+  approvalLevel   Int                      @default(1) @map("approval_level")
+  urgency         String                   @default("medium")
+  validUntil      DateTime?                @map("valid_until")
+  originalMargin  Decimal                  @map("original_margin") @db.Decimal(5, 2)
+  proposedMargin  Decimal                  @map("proposed_margin") @db.Decimal(5, 2)
+  region          String?
+  conditions      String?
+  steps           DiscountApprovalStep[]
+  createdAt       DateTime                 @default(now()) @map("created_at")
+  updatedAt       DateTime                 @updatedAt @map("updated_at")
+
+  @@map("discount_approval_requests")
+}
+
+model DiscountApprovalStep {
+  id                  String                  @id @default(uuid())
+  requestId           String                  @map("request_id")
+  request             DiscountApprovalRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  level               Int
+  approverName        String                  @map("approver_name")
+  approverRole        String                  @map("approver_role")
+  action              DiscountStepAction      @default(PENDING)
+  decidedAt           DateTime?               @map("decided_at")
+  comment             String?
+  counterOfferPercent Decimal?                @map("counter_offer_percent") @db.Decimal(5, 2)
+  conditionsAdded     String?                 @map("conditions_added")
+  createdAt           DateTime                @default(now()) @map("created_at")
+
+  @@map("discount_approval_steps")
+  @@index([requestId])
+}
+

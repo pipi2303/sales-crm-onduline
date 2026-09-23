@@ -1603,6 +1603,255 @@ async function handleTasks(id: string | undefined, req: ApiRequest, res: ApiResp
   }
 }
 
+function generateDiscountRequestNumber(): string {
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `DR-${date}-${rand}`;
+}
+
+const DISCOUNT_LEVEL_LABELS = ['Sales Executive', 'Sales Manager', 'Sales Director', 'C-Level'];
+
+function discountLevelLabel(level: number): string {
+  return DISCOUNT_LEVEL_LABELS[level - 1] ?? 'C-Level';
+}
+
+function discountLevelForPercent(pct: number): number {
+  if (pct <= 10) return 1;
+  if (pct <= 20) return 2;
+  if (pct <= 30) return 3;
+  return 4;
+}
+
+// ---------------------------------------------------------------------
+// /api/discount-approvals, /api/discount-approvals/:id
+//
+// Bab 10 gap #3 (Rencana Insight doc): DiscountApprovalSystem.tsx already
+// had a full multi-level approval UI (margin calculation, approval
+// levels, counter-offer, conditional approval), but every request lived
+// only in a hardcoded useState array in the component -- approve/reject
+// never even updated that in-memory array, only showed a toast. This is
+// its real backend home (see the schema comment on DiscountApprovalRequest
+// in prisma/schema.prisma).
+//
+// Level 2-4 approver labels ("Sales Manager"/"Sales Director"/"C-Level")
+// are a business escalation policy, not this app's login Role enum (Role
+// only has SUPER_ADMIN/SALES_MANAGER/SALES_REPRESENTATIVE/
+// SALES_EXECUTIVE/MASTER_DATA_ADMIN -- there is no "Sales Director" or
+// "C-Level" account type here). Reconciling the two policy tiers with
+// real login roles is a business decision this session doesn't make, so
+// deciding a step only requires being authenticated (requireAuth), same
+// as PerformanceTargets -- it is NOT role-gated to a specific login role
+// yet. Flagged as a follow-up, not silently assumed solved.
+// ---------------------------------------------------------------------
+
+async function handleDiscountApprovals(id: string | undefined, req: ApiRequest, res: ApiResponse) {
+  try {
+    const user = await getUserFromToken(extractBearerToken(req.headers.authorization));
+
+    if (!id) {
+      // GET/POST /api/discount-approvals
+      requireAuth(user);
+
+      if (req.method === 'GET') {
+        const requests = await prisma.discountApprovalRequest.findMany({
+          include: { steps: { orderBy: { level: 'asc' } } },
+          orderBy: { createdAt: 'desc' },
+        });
+        res.status(200).json({ success: true, data: requests });
+        return;
+      }
+
+      if (req.method === 'POST') {
+        const body = (req.body ?? {}) as Record<string, unknown>;
+        if (
+          !body.clientName ||
+          !body.productName ||
+          body.originalPrice === undefined ||
+          body.discountPercent === undefined ||
+          !body.reason ||
+          body.originalMargin === undefined ||
+          body.proposedMargin === undefined
+        ) {
+          res.status(400).json({
+            success: false,
+            error:
+              'clientName, productName, originalPrice, discountPercent, reason, originalMargin, dan proposedMargin wajib diisi',
+          });
+          return;
+        }
+
+        const originalPrice = Number(body.originalPrice);
+        const discountPercent = Number(body.discountPercent);
+        const discountAmount = originalPrice * (discountPercent / 100);
+        const finalPrice = originalPrice - discountAmount;
+        const level = discountLevelForPercent(discountPercent);
+        const selfApproved = level === 1;
+
+        const steps = Array.from({ length: level }, (_, i) => {
+          const stepLevel = i + 1;
+          if (stepLevel === 1) {
+            return {
+              level: 1,
+              approverName: user.name,
+              approverRole: discountLevelLabel(1),
+              action: 'approved' as const,
+              decidedAt: new Date(),
+              comment: 'Self-approval sesuai kewenangan (diskon <= 10%)',
+            };
+          }
+          return {
+            level: stepLevel,
+            approverName: '',
+            approverRole: discountLevelLabel(stepLevel),
+            action: 'pending' as const,
+          };
+        });
+
+        const request = await prisma.discountApprovalRequest.create({
+          data: {
+            requestNumber: generateDiscountRequestNumber(),
+            clientName: body.clientName as string,
+            opportunityId: (body.opportunityId as string) ?? null,
+            productName: body.productName as string,
+            originalPrice,
+            discountPercent,
+            discountAmount,
+            finalPrice,
+            requestedById: user.id,
+            requestedByName: user.name,
+            reason: body.reason as string,
+            status: selfApproved ? 'approved' : 'pending',
+            currentApprover: selfApproved ? '-' : discountLevelLabel(2),
+            approvalLevel: selfApproved ? 1 : 2,
+            urgency: (body.urgency as string) ?? 'medium',
+            validUntil: body.validUntil ? new Date(body.validUntil as string) : null,
+            originalMargin: Number(body.originalMargin),
+            proposedMargin: Number(body.proposedMargin),
+            region: (body.region as string) ?? null,
+            steps: { create: steps },
+          },
+          include: { steps: { orderBy: { level: 'asc' } } },
+        });
+        res.status(201).json({ success: true, data: request });
+        return;
+      }
+
+      res.status(405).json({ success: false, error: 'Method not allowed' });
+      return;
+    }
+
+    // GET/PUT/DELETE /api/discount-approvals/:id -- PUT is the
+    // approve/reject/counter-offer decision on whichever level is
+    // currently pending.
+    if (req.method === 'GET') {
+      requireAuth(user);
+      const request = await prisma.discountApprovalRequest.findUnique({
+        where: { id },
+        include: { steps: { orderBy: { level: 'asc' } } },
+      });
+      if (!request) {
+        res.status(404).json({ success: false, error: 'Discount request not found' });
+        return;
+      }
+      res.status(200).json({ success: true, data: request });
+      return;
+    }
+
+    if (req.method === 'PUT') {
+      requireAuth(user);
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const action = body.action as 'approve' | 'reject' | 'counter-offer' | undefined;
+      if (!action) {
+        res.status(400).json({ success: false, error: 'action wajib diisi (approve/reject/counter-offer)' });
+        return;
+      }
+
+      const current = await prisma.discountApprovalRequest.findUnique({
+        where: { id },
+        include: { steps: true },
+      });
+      if (!current) {
+        res.status(404).json({ success: false, error: 'Discount request not found' });
+        return;
+      }
+      if (current.status !== 'pending') {
+        res.status(400).json({
+          success: false,
+          error: `Pengajuan sudah berstatus ${current.status}, tidak bisa diputuskan lagi`,
+        });
+        return;
+      }
+      const pendingStep = current.steps.find((s) => s.level === current.approvalLevel && s.action === 'pending');
+      if (!pendingStep) {
+        res.status(400).json({ success: false, error: 'Tidak ada level yang sedang menunggu approval' });
+        return;
+      }
+
+      const stepAction = action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'counter-offer';
+      const maxLevel = Math.max(...current.steps.map((s) => s.level));
+      const isLastLevel = current.approvalLevel >= maxLevel;
+
+      const request = await prisma.discountApprovalRequest.update({
+        where: { id },
+        data: {
+          status:
+            action === 'reject'
+              ? 'rejected'
+              : action === 'counter-offer'
+              ? 'counter-offer'
+              : isLastLevel
+              ? 'approved'
+              : 'pending',
+          currentApprover: action === 'approve' && !isLastLevel ? discountLevelLabel(current.approvalLevel + 1) : '-',
+          approvalLevel: action === 'approve' && !isLastLevel ? current.approvalLevel + 1 : current.approvalLevel,
+          ...(body.conditions !== undefined && { conditions: body.conditions as string }),
+          steps: {
+            update: {
+              where: { id: pendingStep.id },
+              data: {
+                action: stepAction,
+                decidedAt: new Date(),
+                approverName: user.name,
+                comment: (body.comment as string) ?? null,
+                counterOfferPercent:
+                  body.counterOfferPercent !== undefined ? Number(body.counterOfferPercent) : null,
+                conditionsAdded: (body.conditionsAdded as string) ?? null,
+              },
+            },
+          },
+        },
+        include: { steps: { orderBy: { level: 'asc' } } },
+      });
+      res.status(200).json({ success: true, data: request });
+      return;
+    }
+
+    if (req.method === 'DELETE') {
+      requireRole(user, ['SUPER_ADMIN', 'SALES_MANAGER']);
+      await prisma.discountApprovalRequest.delete({ where: { id } });
+      res.status(200).json({ success: true });
+      return;
+    }
+
+    res.status(405).json({ success: false, error: 'Method not allowed' });
+  } catch (err) {
+    if (err instanceof UnauthorizedError || err instanceof ForbiddenError) {
+      res.status(err.status).json({ success: false, error: err.message });
+      return;
+    }
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2002') {
+      res.status(409).json({ success: false, error: 'Nomor pengajuan sudah dipakai, coba lagi' });
+      return;
+    }
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2025') {
+      res.status(404).json({ success: false, error: 'Discount request not found' });
+      return;
+    }
+    console.error('[api/discount-approvals] unexpected error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
 // ---------------------------------------------------------------------
 // Top-level dispatch
 // ---------------------------------------------------------------------
@@ -1629,6 +1878,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return;
     case 'commissions':
       await handleCommissions(sub, req, res);
+      return;
+    case 'discount-approvals':
+      await handleDiscountApprovals(sub, req, res);
       return;
     case 'leads':
       await handleLeads(sub, req, res);
