@@ -1,37 +1,33 @@
 // Production HTTP server for running this app outside Vercel (VPS via
-// Portainer). Vercel's serverless runtime normally turns each api/*.ts
-// file into its own function; here they're all mounted as routes on one
-// long-running Express process instead. This file is NOT used by
-// `vercel dev` / Vercel production (those still use api/*.ts directly) —
-// it only runs inside the Docker image built for the VPS.
+// Portainer). api/handler.ts is one Vercel-style serverless function
+// (signature (req, res) => Promise<void>, reads req.query.resource/id,
+// calls res.status(code).json(body)); here it's mounted on a long-running
+// Express process instead via two generic routes that mirror vercel.json's
+// rewrites (see below). This file is NOT used by `vercel dev`/`vercel
+// build` (those hit api/handler.ts directly through Vercel's own
+// rewrite-based routing) -- it only runs inside the Docker image built
+// for the VPS.
 //
-// Why this works with zero changes to any api/*.ts handler: every one of
-// them already has the signature (req, res) => Promise<void> and calls
-// res.status(code).json(body) — which is exactly Express's response API
-// (Vercel's Node runtime modeled its response object on Express's). The
-// only gap is req.query.id for dynamic routes: Vercel puts the [id]
-// segment into req.query, Express puts it into req.params — toHandler()
-// below merges params into query so every handler's `req.query?.id`
-// pattern keeps working unmodified.
+// Why this works with zero changes to api/handler.ts: Express puts a
+// route's :params into req.params, Vercel puts rewritten query params
+// into req.query -- toHandler() below merges params into query so
+// getParam(req, 'resource')/getParam(req, 'id') see the same shape
+// either way.
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import authLogin from './api/auth/login.js';
-import authMe from './api/auth/me.js';
-import authLogout from './api/auth/logout.js';
-import leadsIndex from './api/leads/index.js';
-import leadsById from './api/leads/[id].js';
-import productsIndex from './api/products/index.js';
-import productsById from './api/products/[id].js';
-import opportunitiesIndex from './api/opportunities/index.js';
-import opportunitiesById from './api/opportunities/[id].js';
-import tasksIndex from './api/tasks/index.js';
-import tasksById from './api/tasks/[id].js';
-import distributorsIndex from './api/distributors/index.js';
-import distributorsById from './api/distributors/[id].js';
-import storesIndex from './api/stores/index.js';
-import storesById from './api/stores/[id].js';
+// 23 Sep 2026: sampai kemarin file ini import 14 file per-route
+// (api/auth/login.ts, api/leads/index.ts, dst.) yang SUDAH DIHAPUS oleh
+// refactor api/*.ts -> satu api/handler.ts (lihat commit
+// 5e2f239d/97d12a33/e2676dae, semuanya 22 Sep) -- server.ts luput
+// diupdate, jadi sejak saat itu container ini crash langsung di baris
+// import paling atas setiap kali di-deploy (tidak pernah ketahuan karena
+// tidak ada tsconfig.json/tsc yang pernah jalan terhadap file ini, dan
+// `npm run build` di Dockerfile cuma vite build, tidak pernah benar-benar
+// import server.ts). Sekarang diganti ke satu handler yang sama seperti
+// yang dipakai Vercel.
+import handler from './api/handler.js';
 import { LOCAL_UPLOAD_DIR } from './lib/blob.js';
 
 type VercelStyleHandler = (req: any, res: any) => Promise<void> | void;
@@ -60,21 +56,18 @@ function toHandler(fn: VercelStyleHandler) {
   };
 }
 
-app.all('/api/auth/login', toHandler(authLogin));
-app.all('/api/auth/me', toHandler(authMe));
-app.all('/api/auth/logout', toHandler(authLogout));
-app.all('/api/leads', toHandler(leadsIndex));
-app.all('/api/leads/:id', toHandler(leadsById));
-app.all('/api/products', toHandler(productsIndex));
-app.all('/api/products/:id', toHandler(productsById));
-app.all('/api/opportunities', toHandler(opportunitiesIndex));
-app.all('/api/opportunities/:id', toHandler(opportunitiesById));
-app.all('/api/tasks', toHandler(tasksIndex));
-app.all('/api/tasks/:id', toHandler(tasksById));
-app.all('/api/distributors', toHandler(distributorsIndex));
-app.all('/api/distributors/:id', toHandler(distributorsById));
-app.all('/api/stores', toHandler(storesIndex));
-app.all('/api/stores/:id', toHandler(storesById));
+// Mirrors vercel.json's rewrites exactly:
+//   /api/:resource/:id -> /api/handler?resource=:resource&id=:id
+//   /api/:resource     -> /api/handler?resource=:resource
+// so this Express server and Vercel's serverless routing hit the exact
+// same single handler with the exact same req.query shape -- one
+// consolidated api/handler.ts, two transport layers. This also means
+// every resource api/handler.ts knows about (including ones added after
+// this file was first written -- clients, sales-reps, commissions,
+// discount-approvals, ai-chat, dst.) works here automatically, instead
+// of needing a matching app.all() line added by hand every time.
+app.all('/api/:resource/:id', toHandler(handler));
+app.all('/api/:resource', toHandler(handler));
 
 // Bab 8 gap 2 check-in photos, when lib/blob.ts's local-disk backend is
 // active (no BLOB_READ_WRITE_TOKEN set — the default for this VPS
