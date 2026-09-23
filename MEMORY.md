@@ -606,3 +606,112 @@ build` penuh — nol error baru selain yang sudah diketahui/pre-existing.
 - [ ] Bab 10 item 1 (Client tanpa approval) dan item 4 (AdminSystem.tsx
       100% mock, tidak ada endpoint `/api/users`) masih terbuka, belum
       dikerjakan sesi ini (di luar 4 item yang dipilih user).
+
+## 10. Bab 9 & 10 lanjutan — 4 item "sengaja ditunda, masih perlu keputusan bisnis" — 23 Sep 2026
+
+Lanjutan dari section 9 di atas. Setelah eksekusi 3 item pertama (Bab 9 UI,
+ownership check, Discount Approval DB), user ditanya ulang soal 4 gap yang
+sebelumnya sengaja ditunda karena butuh keputusan bisnis. Semua 4 dijawab
+dengan opsi "(Recommended)" dan sudah dikerjakan + di-commit:
+
+### 10.1 Duplikat GPS Distributor/Toko (Bab 9) — commit `daa6dec2`
+
+Keputusan: **peringatan saja ke approver**, bukan blocking. Tidak butuh
+perubahan schema/API sama sekali — semua data lokasi (`lat`/`lng`) sudah
+ada di client. Ditambahkan di `DistributorStoreMap.tsx`:
+`haversineMeters()` (jarak great-circle) + `findNearbyPoints()` (radius
+200m, exclude diri sendiri dan yang sudah `rejected`), dipakai lewat
+`pendingWithNearby` (`useMemo`) untuk menampilkan baris peringatan
+(`AlertTriangle`) di antrean approval saat ada titik lain (approved atau
+pending) dalam radius tsb. Approver tetap bisa Setujui/Tolak seperti biasa
+— ini murni informasi tambahan, bukan validasi yang memblokir submit.
+
+### 10.2 Role approver Discount Approval level 2-4 (Bab 10 #3) — commit `7bf3ab51`
+
+Keputusan: **Level 2 = Sales Manager, Level 3 & 4 = Super Admin** (bukan
+label kebijakan lama "Sales Director"/"C-Level" yang memang tidak pernah
+ada sebagai role login asli). Implementasi: `discountApproverRolesForLevel()`
+di `api/handler.ts` — level >=3 -> `['SUPER_ADMIN']`, level ==2 ->
+`['SUPER_ADMIN','SALES_MANAGER']`, level 1 -> role manapun yang boleh
+create (termasuk self-approval untuk level 1). PUT (approve/reject/
+counter-offer) sekarang di-gate `requireRole(user,
+discountApproverRolesForLevel(current.approvalLevel))` — sebelumnya cuma
+`requireAuth`, siapa saja yang login bisa approve apapun.
+
+### 10.3 KPI taxonomy hospital -> Onduline (Fase 1 lanjutan, bukan Bab 9/10) — commit `5727945f`
+
+Keputusan: **kategori lini produk Onduline** (bukan skema custom baru).
+`SalesKPI` di `src/types/kpi.ts` field healthcare -> product-line:
+`total_kunjungan_faskes`->`total_kunjungan_toko`,
+`persentase_upsell_bpjs`->`persentase_cross_sell_aksesoris`,
+`unit_lis_sold`->`unit_solar_terjual`,
+`adopsi_esign_klien`->`adopsi_ecatalog_klien`, dan 1 closing gabungan
+dipecah jadi 5: atap bitumen / waterproofing / solar / green roof /
+aksesoris. Semua 6 dummy entry di `kpiData.ts` dimigrasi (total closing
+per entry dipertahankan, cuma dipecah proporsinya), `generateLeaderboard()`
+disesuaikan, `PerformanceHub.tsx` (7 titik) dan `SalesLeaderboard.tsx`
+disesuaikan labelnya. Sekalian ditemukan & diperbaiki bug lama: dummy data
+pakai domain email `@intramedika.com` (salah tenant) -> `@onduline.co.id`.
+
+Di luar scope (belum diputuskan, sengaja tidak disentuh): dropdown
+"Kategori Client" di `ClientForm.tsx` masih pakai istilah Rumah Sakit/
+Puskesmas/Klinik/Praktek Dokter Pribadi/Faskes Lainnya — beda file, beda
+keputusan.
+
+### 10.4 Territory: assignedTo/coverage jadi kolom, leads/opportunities dihitung otomatis — commit `7f275baf`
+
+Keputusan: **tambah assignedTo+coverage sebagai kolom, leads/opportunities
+dihitung otomatis** (bukan disimpan dobel). `territoriesRepository.ts`
+sebelumnya 100% localStorage — sekarang connect ke `/api/territories`
+(baru, `handleTerritories` di `api/handler.ts`).
+
+Temuan penting saat eksekusi: baik `Lead` maupun `Opportunity` **tidak
+pernah punya** field territoryId/region link sama sekali sebelum ini —
+jadi "leads/opportunities dihitung otomatis" secara harfiah tidak mungkin
+tanpa link tsb. Diputuskan untuk menambahkannya sekalian (bukan perluasan scope
+tanpa alasan — ini syarat langsung dari keputusan yang sudah dipilih user,
+tidak balik nanya lagi): `territoryId` optional FK di kedua model
+(`ON DELETE SET NULL`, konsisten dengan FK optional lain di `Opportunity`
+seperti `leadId`/`clientId`/`ownerId`), plus `@@index([territoryId])` di
+keduanya untuk query `_count` yang dipakai `handleTerritories`' GET.
+
+- `prisma/schema.prisma`: `Territory` +`assignedTo`/+`coverage`/+`updatedAt`
+  +back-relations `leads`/`opportunities`; `Lead`/`Opportunity`
+  +`territoryId`+index.
+- Migration baru: `20260923070000_add_territory_fields_and_links` (SQL
+  ditulis tangan, sama seperti migrasi Discount Approval — **belum bisa
+  dijalankan/diverifikasi dari sandbox ini**, lihat catatan verifikasi di
+  bawah).
+- `api/handler.ts`: `handleTerritories` (GET terbuka untuk semua yang
+  login, POST/PUT/DELETE dibatasi `SUPER_ADMIN`/`SALES_MANAGER`/
+  `MASTER_DATA_ADMIN` — sama seperti `handleSalesReps`); `leads`/
+  `opportunities` di response dihitung via Prisma `_count` terhadap
+  `Lead.territoryId`/`Opportunity.territoryId`, TIDAK PERNAH disimpan;
+  `territoryId` ditambahkan ke whitelist POST+PUT `handleLeads` dan
+  `handleOpportunities`.
+- `src/types/territory.ts`: `NewTerritoryProfile` sekarang meng-omit
+  `leads`/`opportunities` (read-only, computed).
+- `TerritoryManagement.tsx`: payload create/update tidak lagi mengirim
+  `leads`/`opportunities` (sebelumnya memang bukan input manual di UI —
+  cuma field seed/display yang ikut terkirim ke `create()`/`update()`).
+
+### Verifikasi (item 10.1-10.4)
+
+Semua perubahan di atas dicek dengan `tsc --noEmit` terisolasi (tsconfig
+sementara, dihapus setelah cek) + `npx vite build` penuh. Error baru yang
+muncul HANYA di `api/handler.ts` sekitar kode Territory/Discount Approval
+yang bergantung pada Prisma client baru (`territoryId does not exist`,
+`assignedTo does not exist`, `discountApprovalRequest does not exist`,
+dst) — semuanya kelas error "Prisma client belum di-regenerate", sama
+seperti migrasi Discount Approval sebelumnya, BUKAN regresi. Tidak ada
+error baru di file lain (GPS/KPI/Territory UI/repository semuanya bersih).
+`npx vite build` sukses tanpa error baru.
+
+- [ ] `git push origin main` untuk semua commit sesi ini (termasuk
+      `daa6dec2`, `7bf3ab51`, `5727945f`, `7f275baf`).
+- [ ] Jalankan `npx prisma migrate deploy` + `npx prisma generate` untuk
+      KEDUA migrasi yang masih pending (`20260923060000_add_discount_approval`
+      dan `20260923070000_add_territory_fields_and_links`), lalu re-verify
+      `tsc`/`vite build` sekali lagi setelah client di-regenerate.
+- [ ] Smoke-test `/api/territories`, `/api/discount-approvals` di live Neon
+      DB setelah deploy.
