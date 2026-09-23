@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, Package, DollarSign, Edit, Trash2, Star, AlertCircle, Check, RefreshCw, LayoutGrid, List as ListIcon, FileText } from 'lucide-react';
+import { Plus, Search, Filter, Package, DollarSign, Edit, Trash2, Star, AlertCircle, Check, RefreshCw, FileText } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { useConfirm } from '@/app/components/ui/confirm-dialog';
 import { Input } from '@/app/components/ui/input';
@@ -31,21 +31,6 @@ export function ProductCatalog() {
   const [showForm, setShowForm] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
-    if (typeof window === 'undefined') return 'grid';
-    return (localStorage.getItem('productCatalog.viewMode') as 'grid' | 'list') || 'grid';
-  });
-
-  const handleViewModeChange = (mode: 'grid' | 'list') => {
-    setViewMode(mode);
-    try {
-      localStorage.setItem('productCatalog.viewMode', mode);
-    } catch {
-      // Persistence is a nicety (remember the last view across visits) —
-      // the toggle itself keeps working from in-memory state either way.
-    }
-  };
-  
   // Proposal state
   const [proposalItems, setProposalItems] = useState<ProposalItem[]>([]);
   const [showProposal, setShowProposal] = useState(false);
@@ -225,30 +210,6 @@ export function ProductCatalog() {
           <p className="text-gray-600 mt-1">Jelajahi dan kelola semua produk & layanan</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center rounded-lg border border-gray-200 bg-gray-50 p-1" role="group" aria-label="Mode tampilan produk">
-            <button
-              type="button"
-              onClick={() => handleViewModeChange('grid')}
-              aria-pressed={viewMode === 'grid'}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
-                viewMode === 'grid' ? 'bg-white text-[#013E37] shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <LayoutGrid className="h-3.5 w-3.5" />
-              Grid
-            </button>
-            <button
-              type="button"
-              onClick={() => handleViewModeChange('list')}
-              aria-pressed={viewMode === 'list'}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
-                viewMode === 'list' ? 'bg-white text-[#013E37] shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <ListIcon className="h-3.5 w-3.5" />
-              List
-            </button>
-          </div>
           <div className="flex gap-2">
             <Button 
               onClick={handleAdd}
@@ -404,7 +365,7 @@ export function ProductCatalog() {
                   </div>
                 </CardContent>
               </Card>
-            ) : viewMode === 'list' ? (
+            ) : (
               <ProductListView
                 products={filteredProducts}
                 proposalItems={proposalItems}
@@ -414,121 +375,6 @@ export function ProductCatalog() {
                 onEdit={handleEdit}
                 onDelete={handleDelete}
               />
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredProducts.map((product) => (
-                  <Card key={product.id} className="hover:shadow-xl transition-all group overflow-hidden flex flex-col">
-                    {/* Product Image/Icon */}
-                    <div className="h-48 bg-[#013E37] flex items-center justify-center relative overflow-hidden">
-                      <div className="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition-all"></div>
-                      <Package className="h-24 w-24 text-white/80 group-hover:scale-110 transition-transform" />
-                      <Badge className="absolute top-4 right-4 bg-white/90 text-[#013E37]">
-                        {product.sold || 0} Terjual
-                      </Badge>
-                    </div>
-
-                    <CardContent className="p-6 flex flex-col flex-1">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <Badge className="mb-2 bg-[#EEF7F5] text-[#013E37]">{product.category}</Badge>
-                          <h3 className="text-xl font-bold text-gray-900 line-clamp-2">{product.name}</h3>
-                        </div>
-                      </div>
-
-                      <p className="text-sm text-gray-600 mb-4 line-clamp-2">{product.description}</p>
-
-                      <div className="space-y-2 mb-4">
-                        {(product.features || []).slice(0, 3).map((feature: string, index: number) => (
-                          <div key={index} className="flex items-center gap-2 text-sm text-gray-700">
-                            <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-                            <span className="line-clamp-1">{feature}</span>
-                          </div>
-                        ))}
-                        {(product.features || []).length > 3 && (
-                          <p className="text-xs text-gray-500 ml-6">+{product.features.length - 3} fitur lainnya</p>
-                        )}
-                      </div>
-
-                      {/* Spacer untuk mendorong tombol ke bawah */}
-                      <div className="flex-1"></div>
-
-                      <div className="pt-4 border-t mt-auto">
-                        <div className="flex items-center justify-between mb-4">
-                          <div>
-                            <p className="text-xs text-gray-500">Harga Mulai</p>
-                            <p className="text-2xl font-bold text-[#013E37]">
-                              {formatCurrency(product.price)}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-xs text-gray-500">Stock</p>
-                            <p className="text-lg font-semibold text-green-600">{product.stock || 0}</p>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          {/* Primary Actions - 2 tombol proposal */}
-                          <div className="grid grid-cols-2 gap-2">
-                            <Button 
-                              className={`text-white text-xs ${
-                                proposalItems.some(item => item.id === product.id && item.proposalType === 'teknis')
-                                  ? 'bg-gray-400 cursor-not-allowed opacity-60'
-                                  : 'bg-[#013E37] hover:bg-[#025C52]'
-                              }`}
-                              onClick={() => handleAddToProposalTeknis(product)}
-                              disabled={proposalItems.some(item => item.id === product.id && item.proposalType === 'teknis')}
-                            >
-                              <Plus className="h-3.5 w-3.5 mr-1" />
-                              Proposal Teknis
-                            </Button>
-                            <Button 
-                              className={`text-white text-xs ${
-                                proposalItems.some(item => item.id === product.id && !item.proposalType)
-                                  ? 'bg-gray-400 cursor-not-allowed opacity-60'
-                                  : 'bg-[#013E37] hover:bg-[#025C52]'
-                              }`}
-                              onClick={() => handleAddToProposal(product)}
-                              disabled={proposalItems.some(item => item.id === product.id && !item.proposalType)}
-                            >
-                              <Plus className="h-3.5 w-3.5 mr-1" />
-                              Proposal
-                            </Button>
-                          </div>
-                          
-                          {/* Secondary Actions - Edit & Delete */}
-                          <div className="flex gap-2">
-                            <Button 
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleEdit(product)}
-                              className="flex-1"
-                            >
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit
-                            </Button>
-                            <Button 
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDelete(product)}
-                              disabled={deleteLoading === product.id}
-                              className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-                            >
-                              {deleteLoading === product.id ? (
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
-                              ) : (
-                                <>
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Hapus
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
             )}
           </TabsContent>
         </Tabs>
@@ -615,10 +461,12 @@ export function ProductCatalog() {
   );
 }
 
-// List view for the product catalog — same data and actions as the card
-// grid above (see the `viewMode` toggle in ProductCatalog), just laid out
-// as a dense, scannable table. Kept in this file since it only exists to
-// serve ProductCatalog's own state/handlers, not as a reusable component.
+// List view for the product catalog (Fase 1 item 5 follow-up, 23 Sep
+// 2026: the card-grid view + its toggle were removed at the user's
+// request -- list is now the only layout, this is what
+// TabsContent/selectedCategory always renders). Kept in this file since
+// it only exists to serve ProductCatalog's own state/handlers, not as a
+// reusable component.
 interface ProductListViewProps {
   products: Product[];
   proposalItems: ProposalItem[];

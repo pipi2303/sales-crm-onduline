@@ -40,7 +40,6 @@ import {
   AlertCircle,
   Trophy,
   Zap,
-  BarChart3,
   Brain,
   Sparkles,
   TrendingDown,
@@ -67,7 +66,6 @@ import {
   ChevronDown,
   RefreshCw,
   Building2,
-  Maximize2,
   FileSpreadsheet,
   FileText as FilePdf,
   Share2,
@@ -107,7 +105,7 @@ export function KPIAIEnhanced() {
   const [aiChatOpen, setAiChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<Array<{role: 'user' | 'ai', message: string}>>([]);
   const [chatInput, setChatInput] = useState('');
-  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'analytics'>('analytics');
+  const [viewMode, setViewMode] = useState<'list' | 'analytics'>('analytics');
   
   // Detail Dialog states
   const [revenueDetailOpen, setRevenueDetailOpen] = useState(false);
@@ -977,13 +975,6 @@ export function KPIAIEnhanced() {
                 </div>
                 <span className="text-[10px] uppercase tracking-wider font-semibold opacity-60">GRAFIK & TREN</span>
               </TabsTrigger>
-              <TabsTrigger value="grid" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 min-w-[120px]">
-                <div className="flex items-center gap-1.5 justify-center">
-                  <BarChart3 className="w-4 h-4" />
-                  <span className="font-bold text-sm">Grid View</span>
-                </div>
-                <span className="text-[10px] uppercase tracking-wider font-semibold opacity-60">KARTU PERFORMA</span>
-              </TabsTrigger>
               <TabsTrigger value="list" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 min-w-[120px]">
                 <div className="flex items-center gap-1.5 justify-center">
                   <Target className="w-4 h-4" />
@@ -1442,50 +1433,6 @@ export function KPIAIEnhanced() {
             );
           })
               )}
-            </TabsContent>
-
-            <TabsContent value="grid">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredTargets.map((target) => (
-                  <Card 
-                    key={target.id} 
-                    className="hover:shadow-lg transition-all cursor-pointer border-[#013E37]/20 group" 
-                    onClick={() => handleOpenSummary(target)}
-                  >
-                    <CardHeader className="bg-gradient-to-r from-[#013E37] to-[#027870] text-white p-4">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <CardTitle className="text-lg text-white group-hover:underline">{target.employeeName}</CardTitle>
-                          <p className="text-xs text-white/80 mt-1">Period: {target.period}</p>
-                        </div>
-                        <Badge variant="secondary" className="bg-white/20 text-white border-0">
-                          {calculateOverallProgress(target).toFixed(0)}%
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="p-4 space-y-4">
-                      <div>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="text-gray-600">Revenue</span>
-                          <span className="font-semibold text-[#013E37]">{formatCurrency(target.revenueActual)}</span>
-                        </div>
-                        <Progress value={calculateProgress(target.revenueActual, target.revenueTarget)} className="h-1.5" />
-                      </div>
-                      <div>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="text-gray-600">Deals</span>
-                          <span className="font-semibold text-[#013E37]">{target.dealsActual} / {target.dealsTarget}</span>
-                        </div>
-                        <Progress value={calculateProgress(target.dealsActual, target.dealsTarget)} className="h-1.5" />
-                      </div>
-                      <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-xs text-[#013E37] font-medium">
-                        <span>Click to view details</span>
-                        <Maximize2 className="w-3 h-3" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
             </TabsContent>
 
             <TabsContent value="list">
