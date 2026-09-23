@@ -715,3 +715,145 @@ error baru di file lain (GPS/KPI/Territory UI/repository semuanya bersih).
       `tsc`/`vite build` sekali lagi setelah client di-regenerate.
 - [ ] Smoke-test `/api/territories`, `/api/discount-approvals` di live Neon
       DB setelah deploy.
+
+## 11. Bab 10 #1 (approval Client), Bab 10 #4 (/api/users + AdminSystem), Kategori Client -- 23 Sep 2026
+
+Lanjutan dari section 10. User secara eksplisit minta 3 item ini dikerjakan
+sekaligus: Bab 10 item 1 (Client tanpa approval), Bab 10 item 4
+(AdminSystem.tsx 100% mock, tidak ada `/api/users`), dan dropdown Kategori
+Client di `ClientForm.tsx` yang masih bertema rumah sakit.
+
+### 11.1 Kategori Client -- commit `15b467c3`
+
+`kategori_client` ternyata cuma string bebas (bukan enum di Prisma), jadi
+murni ganti opsi dropdown, tanpa migration: Rumah Sakit/Puskesmas/Klinik/
+Praktek Dokter Pribadi/Faskes Lainnya -> **Toko Bangunan/Distributor/
+Kontraktor/Developer/Instansi Pemerintah/End User** (keputusan user, opsi
+recommended). Komentar FR-05 yang jadi usang (menjelaskan kenapa kategori
+dulu bertema faskes) ikut diperbaiki. Field terpisah "Sektor Kepemilikan"
+(Pemerintah/BUMN/Swasta/TNI-Polri) TIDAK disentuh -- itu klasifikasi
+kepemilikan, beda axis dari jenis bisnis, dan sudah cukup generik.
+
+**Catatan penting**: dropdown filter "Kategori" di tab Client
+`SalesTeam.tsx` juga HARUS ikut diganti (ditemukan saat investigasi, bukan
+diminta eksplisit) -- kalau tidak, filter jadi tidak match dengan kategori
+baru yang baru dibuat. Ini dilakukan di commit berikutnya bareng approval
+workflow karena file yang sama (`SalesTeam.tsx`) juga kena perubahan
+approval, jadi tidak bisa dipisah jadi commit sendiri tanpa staging
+interaktif.
+
+Ditemukan juga (tidak disentuh, di luar scope): banyak dummy data
+bertema rumah sakit tersebar di komponen lain yang tidak berhubungan
+langsung (AIChatAssistant.tsx, AIInsightsDashboard.tsx, RiskDetailDialog.tsx,
+RevenueDetailDialog.tsx, DealsDetailDialog.tsx, QuotationManagement.tsx,
+NotificationCenter.tsx, RetailMonthlyBreakdown.tsx, kpi-managers.ts,
+initializeDemos.ts) -- semua itu data mock/demo terpisah, bukan
+`kategori_client`, dan mengganti semuanya adalah pekerjaan tersendiri yang
+jauh lebih besar dari sekadar "ganti dropdown".
+
+### 11.2 Bab 10 #1: Client approval workflow -- commit `a5fa86d6`
+
+Keputusan: **wajib approval, approver Super Admin/Sales Manager/Master
+Data Admin** (sama persis approver Distributor/Toko/Territory). `Client`
+sekarang punya field approval identik dengan `Distributor`/`Store` dari
+Bab 9: `status`/`submittedById`/`submittedAt`/`decidedById`/`decidedAt`/
+`rejectionNote`. Default DB `APPROVED` (bukan `PENDING`) supaya client
+yang sudah ada sebelum migrasi ini tidak tiba-tiba butuh approval --
+`api/handler.ts`'s POST selalu set `PENDING` eksplisit untuk client baru,
+independen dari default kolom.
+
+`handleClients`'s PUT sekarang membedakan "ubah field profil biasa"
+(`requireAuth` saja, seperti sebelumnya) dari "ubah status approval"
+(`requireRole` ke 3 role approver di atas) -- pola identik dengan
+`handleDistributors`'s `isDeciding` split.
+
+`SalesTeam.tsx`: badge status approval (Menunggu Approval/Disetujui/
+Ditolak) + tombol Setujui/Tolak (dengan dialog alasan penolakan) untuk
+role approver, mengikuti pola persis `DistributorStoreMap.tsx` dari Bab 9
+(bahkan nama constant `APPROVER_ROLES` dan struktur
+`decidingId`/`rejectTarget`/`rejectNote` disalin).
+
+Migration baru: `20260923080000_add_client_approval_workflow` -- SQL
+tulis tangan, **belum bisa dijalankan/diverifikasi dari sandbox ini**,
+sama seperti migrasi-migrasi sebelumnya.
+
+### 11.3 Bab 10 #4: `/api/users` + AdminSystem.tsx -- commit `a5fa86d6`
+
+Keputusan: **hanya Super Admin yang boleh kelola user, admin set password
+awal langsung di form**. Role fiktif "Finance" (ada di data dummy lama,
+tidak ada di `Role` enum asli) **dihapus**, dropdown role sekarang cuma 5
+role login asli.
+
+`handleUsers` baru (GET/POST/PUT) di `api/handler.ts`, semua mutasi
+dibatasi `SUPER_ADMIN` (sama dengan gate client-side `menuConfig.ts` yang
+sudah ada untuk seluruh menu Admin System). **Sengaja tidak ada DELETE**:
+nonaktifkan (`isActive:false`) adalah cara yang didukung untuk mematikan
+akun tanpa merusak jejak audit -- `User` direferensikan oleh
+`AuditLogEntry.actorId`, `Distributor/Store/Client`'s
+`submittedBy`/`decidedBy`, dan `Opportunity/Task`'s `ownerId`, semuanya
+`ON DELETE SET NULL`, jadi hard-delete akan diam-diam meng-anonim-kan
+histori itu. Nonaktifkan user otomatis mencabut semua sesi aktifnya (di
+atas proteksi `isActive` yang sudah ada di `getUserFromToken`). Ada guard:
+Super Admin tidak bisa menonaktifkan akun sendiri (cegah self-lockout).
+
+Tidak ada endpoint registrasi mandiri di aplikasi ini sama sekali (Fase 0
+menghapus Quick Login, tidak ada `/api/auth/register`) -- jadi `/api/users`
+POST ini adalah SATU-SATUNYA jalur pembuatan akun baru. Password awal
+langsung diminta di form create (di-hash server-side lewat
+`lib/auth.ts`'s `hashPassword`), bukan lewat invite/email (tidak ada
+infrastruktur email di app ini).
+
+Baru: `src/types/user.ts`, `src/services/usersRepository.ts`.
+`AdminSystem.tsx`: tabel Users & dialog Tambah/Edit User terhubung penuh
+ke API asli, `userCount` di tab Roles & Permissions dihitung dari data
+user asli (bukan angka hardcoded).
+
+**Sengaja dibiarkan tidak disentuh (di luar scope)**: tab "Audit &
+Security" (Audit Log) tetap dummy -- tabel `AuditLogEntry` sudah ada di
+schema tapi belum pernah ditulis oleh endpoint manapun; mengisinya dengan
+data asli butuh instrumentasi di seluruh `api/handler.ts` (setiap mutasi
+mencatat satu baris audit), itu pekerjaan tersendiri yang jauh lebih besar
+dari "bangun /api/users". Tab "Roles & Permissions" (matriks switch
+izin per role) dan tab "System Settings" (branding/tema) juga tetap
+ilustratif/UI-only -- tidak ada model `Permission` generik di schema,
+otorisasi nyata sudah ditegakkan per-endpoint lewat `requireRole()`, bukan
+lewat matriks yang bisa dikonfigurasi.
+
+### Temuan menarik saat verifikasi
+
+Saat menjalankan `tsc --noEmit` terisolasi untuk verifikasi round ini,
+ditemukan bahwa error kelas "Prisma client belum di-regenerate" untuk
+migrasi **Discount Approval** dan **Territory** dari section 9 & 10
+sebelumnya SUDAH HILANG (`node_modules/.prisma/client/index.d.ts` sudah
+punya `discountApprovalRequest` dan field-field `Territory`/`territoryId`)
+-- kemungkinan besar user sudah menjalankan `npx prisma migrate deploy`
+dan `npx prisma generate` secara manual di luar sandbox ini sesuai
+instruksi sebelumnya. Bagus, artinya 2 migrasi itu sudah live. Migrasi
+Client approval (`20260923080000_add_client_approval_workflow`) dari
+round ini masih baru dan otomatis belum ter-generate -- munculnya 3 baris
+error `Client.status does not exist` di `api/handler.ts` saat verifikasi
+adalah hal yang diharapkan, bukan regresi.
+
+### Verifikasi (item 11.1-11.3)
+
+`tsc --noEmit` terisolasi + `npx vite build` penuh. Error baru yang
+relevan hanya 3 baris seputar `Client.status` di `api/handler.ts` (kelas
+Prisma-belum-di-regenerate untuk migrasi Client approval yang baru).
+Tidak ada error baru di `ClientForm.tsx`, `SalesTeam.tsx`,
+`clientsRepository.ts`, `usersRepository.ts`, `src/types/client.ts`,
+`src/types/user.ts`, atau `AdminSystem.tsx`. `npx vite build` sukses.
+
+- [ ] `git push origin main` untuk semua commit sesi ini, termasuk
+      `15b467c3` dan `a5fa86d6`.
+- [ ] Jalankan `npx prisma migrate deploy` + `npx prisma generate` untuk
+      migrasi `20260923080000_add_client_approval_workflow` (Discount
+      Approval dan Territory kemungkinan sudah, lihat catatan di atas),
+      lalu re-verify `tsc`/`vite build`.
+- [ ] Smoke-test `/api/users` dan alur approval `/api/clients` di live
+      Neon DB setelah deploy -- terutama guard "tidak bisa nonaktifkan
+      akun sendiri" dan efek nonaktifkan user ke sesi yang sedang aktif.
+- [ ] Masih terbuka, belum dikerjakan: Fase 0 rotasi password, tab Audit
+      Log AdminSystem (masih dummy, butuh instrumentasi project-wide),
+      dan sebaran dummy data bertema rumah sakit di komponen lain
+      (AIChatAssistant.tsx dkk., lihat 11.1) -- semuanya di luar 3 item
+      yang diminta user kali ini.
