@@ -2385,3 +2385,125 @@ Commit: `9fc6f11b`.
 - [ ] Setelah live, coba trigger error di salah satu menu (opsional, buat
       lihat fallback UI Error Boundary bekerja) dan cek logo header sudah
       tajam & tidak pecah di ukuran kecil.
+
+## 26. Bab 16.5 -- Hardening Tier 2: tsconfig.json, CI type-check non-blocking, dan bonus temuan bug server.ts -- 23 Sep 2026
+
+### Konteks
+
+Lanjutan dari section 25 (Tier 1). Rencana Tier 2 dari insight
+sebelumnya: `tsconfig.json` (belum ada sama sekali) sebagai fondasi,
+baru setelah itu CI gate minimal (`tsc --noEmit` + `vite build`).
+
+### Temuan tak terduga -- server.ts rusak sejak 22 Sep 2026
+
+Begitu `tsconfig.json` dibuat dan `tsc --noEmit` dijalankan terhadap
+seluruh project (termasuk `server.ts`, yang sebelumnya tidak pernah
+di-tsc sama sekali), muncul 15 error `TS2307 Cannot find module` untuk
+import di `server.ts` ke 14 file `api/*.ts` lama (`api/auth/login.ts`,
+`api/leads/index.ts`, dst).
+
+Root cause: `server.ts` dibuat 21 Sep 2026 (commit `1b82a9bd`, setup VPS/
+Portainer) mengimpor 14 file per-route langsung. Besoknya, 22 Sep,
+refactor API (`5e2f239d`/`97d12a33`/`e2676dae`) menghapus semua 14 file
+itu dan menggantinya satu `api/handler.ts` + `vercel.json` rewrites --
+`server.ts` tidak ikut diupdate. Efeknya: sejak 22 Sep, proses
+`server.ts` crash di baris import paling atas SETIAP KALI dijalankan,
+sebelum Express sempat `listen()`. Tidak pernah ketahuan karena (a) tidak
+ada tsconfig.json/tsc yang jalan terhadap file ini sampai sekarang, dan
+(b) `npm run build` di `Dockerfile` cuma `prisma generate && vite build`
+-- tidak pernah benar-benar mengeksekusi `server.ts`.
+
+Awalnya dikira ini kritis (MEMORY.md section 6 lama bilang VPS/Portainer
+adalah "production yang sebenarnya dipakai sehari-hari"), sampai
+**dikonfirmasi user 23 Sep 2026: VPS/Portainer TIDAK dipakai** --
+aplikasi ini cuma untuk demo, lewat Vercel. Section 6 sudah dikoreksi
+(commit `c70dba7b`) supaya sesi berikutnya tidak salah prioritas lagi.
+
+Perbaikan tetap dipertahankan di kode (tidak dibatalkan) karena valid &
+tidak ada ruginya -- cuma tidak perlu buru-buru redeploy VPS untuk ini:
+ganti 14 import + 14 route Express per-resource dengan satu import
+`handler` dari `api/handler.ts`, dipasang di dua route generic yang
+meniru persis rewrites `vercel.json`:
+```
+/api/:resource/:id -> /api/handler?resource=:resource&id=:id
+/api/:resource     -> /api/handler?resource=:resource
+```
+`toHandler()` yang sudah ada (merge `req.params` ke `req.query`) tidak
+perlu diubah -- `getParam(req, 'resource')`/`getParam(req, 'id')` di
+`handler.ts` dapat shape yang sama persis dari Express maupun dari
+rewrite Vercel. Efek samping yang diinginkan: resource baru yang
+ditambahkan ke `handler.ts` sesudah ini (clients, sales-reps,
+commissions, discount-approvals, ai-chat, dst.) otomatis ikut jalan di
+`server.ts` juga.
+
+Diverifikasi: `tsc --noEmit` kembali ke 154 error (baseline lama, nol
+baru, server.ts & vite.config.ts sekarang nol error dari sebelumnya 15).
+Smoke test `npx tsx server.ts` langsung: log "Sales CRM Onduline server
+listening on port ..." muncul -- semua import resolve, Express berhasil
+`listen()`. Crash Prisma yang muncul SETELAH log itu murni keterbatasan
+sandbox (binary `darwin-arm64` vs `linux-arm64-openssl-3.0.x`, sudah
+didokumentasikan section 23), bukan bug dari perubahan ini.
+
+Commit: `0b779d0d` (fix server.ts), `c70dba7b` (koreksi MEMORY.md).
+
+### tsconfig.json (baru)
+
+Project ini sebelumnya TIDAK PUNYA `tsconfig.json` sama sekali. Dampak
+sebelum diperbaiki: editor tidak resmi paham alias `@/* -> src/*`
+(bergantung heuristik, bukan konfigurasi eksplisit), dan tidak ada satu
+pun langkah build/CI yang pernah menjalankan type checking sungguhan
+(Vite/esbuild cuma transpile; `api/*.ts`/`server.ts` jalan lewat `tsx` di
+runtime yang strip types tanpa validasi) -- makanya 154 error TypeScript
+pre-existing (yang dari awal sesi ini selalu diverifikasi lewat isolated
+tmpcheck config) tidak pernah terlihat di mana pun secara resmi.
+
+Isi: target ES2020, `moduleResolution: "bundler"` (samakan cara Vite
+resolve modul), `jsx: "react-jsx"`, `strict: true` (standar untuk kode
+baru), alias `@/* -> src/*` (mengikuti `resolve.alias` di
+`vite.config.ts`), `include`: src + api + prisma + server.ts +
+vite.config.ts.
+
+`strict: true` di sini SENGAJA belum dijadikan gate CI yang blocking
+(lihat bagian CI di bawah) -- kalau langsung digate, 154 error lama akan
+memblokir semua deploy berikutnya, di luar scope Tier 2.
+
+Commit: `21bf9c6e`.
+
+### CI: step type-check non-blocking di `deploy.yml`
+
+Ditambah step baru di `.github/workflows/deploy.yml`, setelah Checkout:
+`npm ci` -> `npx prisma generate` -> `npx tsc --noEmit`, dengan
+`continue-on-error: true`. Hasilnya kelihatan jelas di tiap run GitHub
+Actions (bukan tersembunyi di dalam log Docker build), tapi tidak
+memblokir deploy -- sengaja begitu karena 154 error lama itu di luar
+scope untuk dibereskan sekaligus.
+
+`vite build` (di dalam Docker build step yang sudah ada) tetap jadi gate
+yang sudah blocking sejak awal -- tidak diubah.
+
+Jalur eskalasi ke gate sungguhan nanti: begitu backlog 154 error itu
+ditriase/diperbaiki (semuanya, atau di-suppress per-file yang memang
+sengaja), tinggal hapus `continue-on-error: true`.
+
+Diverifikasi: YAML di-parse ulang dengan PyYAML (valid), 11 step
+terdaftar dengan urutan benar.
+
+Commit: `9610c15e`.
+
+### Belum dikerjakan dari Tier 2 (sengaja, next kalau diminta)
+
+- Sentry / error monitoring -- baru berguna setelah Error Boundary
+  (Tier 1) ada tempat melaporkan errornya; belum disambungkan.
+- Test suite (Vitest/RTL) -- belum ada dependency testing sama sekali;
+  disarankan mulai dari beberapa smoke test kritis, bukan coverage penuh.
+- 154 error TypeScript pre-existing -- belum ditriase satu per satu;
+  ini kerja besar tersendiri, terpisah dari menambahkan tsconfig-nya.
+
+### PENTING -- langkah manual user
+
+- [ ] `git pull` ambil commit `0b779d0d` s/d `9610c15e` (6 commit baru:
+      fix server.ts, koreksi MEMORY.md, tsconfig.json, CI type-check).
+- [ ] Redeploy Vercel seperti biasa (tidak ada perubahan env var/schema).
+- [ ] VPS/Portainer: TIDAK perlu redeploy urgent (dikonfirmasi tidak
+      dipakai) -- fix `server.ts` ikut kebawa kalau suatu saat jalur ini
+      dipakai lagi, tapi tidak actionable sekarang.
