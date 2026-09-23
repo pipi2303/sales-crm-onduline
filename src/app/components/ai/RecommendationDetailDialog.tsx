@@ -41,7 +41,7 @@ export function RecommendationDetailDialog({ open, onClose, recommendation }: Re
         },
         targetDeals: [
           {
-            name: 'RS Permata Bunda',
+            name: 'Toko Bangunan Sinar Jaya',
             value: 285000000,
             probability: 87,
             stage: 'Proposal',
@@ -50,7 +50,7 @@ export function RecommendationDetailDialog({ open, onClose, recommendation }: Re
             expectedClose: '28 Jan 2026'
           },
           {
-            name: 'Klinik Sehat Prima',
+            name: 'CV Karya Konstruksi Mandiri',
             value: 125000000,
             probability: 78,
             stage: 'Demo',
@@ -113,7 +113,7 @@ export function RecommendationDetailDialog({ open, onClose, recommendation }: Re
         },
         targetDeals: [
           {
-            name: 'RS Mitra Sejahtera',
+            name: 'Distributor Atap Nusantara',
             value: 380000000,
             probability: 55,
             stage: 'Proposal',
@@ -122,7 +122,7 @@ export function RecommendationDetailDialog({ open, onClose, recommendation }: Re
             expectedClose: '10 Feb 2026'
           },
           {
-            name: 'RS Sentosa',
+            name: 'CV Mitra Atap Sejahtera',
             value: 125000000,
             probability: 48,
             stage: 'Negotiation',
@@ -131,7 +131,7 @@ export function RecommendationDetailDialog({ open, onClose, recommendation }: Re
             expectedClose: '15 Feb 2026'
           },
           {
-            name: 'Klinik Prima',
+            name: 'Toko Bangunan Makmur Abadi',
             value: 75000000,
             probability: 42,
             stage: 'Demo',
@@ -204,22 +204,22 @@ export function RecommendationDetailDialog({ open, onClose, recommendation }: Re
             reason: 'Volume order tinggi, masih proses manual'
           },
           {
-            name: 'Klinik Bunda Care',
+            name: 'PT Graha Bangun Persada',
             currentARR: 72000000,
             upsellValue: 38000000,
             healthScore: 82,
             tenure: '24 months',
-            modules: ['LIS Integration', 'Telemedicine'],
-            reason: 'Expanding services, needs automation'
+            modules: ['Panel Surya (Solar)', 'Green Roof'],
+            reason: 'Expanding project lineup, needs automation'
           },
           {
-            name: 'RS Mitra Medika',
+            name: 'Distributor Bahan Bangunan Prima',
             currentARR: 120000000,
             upsellValue: 65000000,
             healthScore: 90,
             tenure: '12 months',
-            modules: ['LIS Integration', 'Radiology PACS'],
-            reason: 'New radiology department opening'
+            modules: ['Panel Surya (Solar)', 'Waterproofing Premium'],
+            reason: 'New solar roofing line opening'
           }
         ],
         actionPlan: [
@@ -230,7 +230,7 @@ export function RecommendationDetailDialog({ open, onClose, recommendation }: Re
             status: 'pending'
           },
           {
-            step: 'Create personalized LIS module demonstrations',
+            step: 'Create personalized Panel Surya (Solar) demonstrations',
             owner: 'Sales Engineer',
             deadline: '8 Feb 2026',
             status: 'pending'
@@ -256,7 +256,7 @@ export function RecommendationDetailDialog({ open, onClose, recommendation }: Re
         },
         successFactors: [
           'High satisfaction with current product',
-          'Clear use cases for LIS module identified',
+          'Clear use cases for Panel Surya (Solar) identified',
           'Strong relationships with decision makers',
           'Budget available for expansion'
         ],

@@ -30,22 +30,22 @@ const EMAIL_TEMPLATES: EmailTemplate[] = [
   {
     id: 'follow-up-demo',
     name: 'Follow-up After Demo',
-    subject: 'Next Steps - SIMRS Implementation',
+    subject: 'Next Steps - Onduline Product Presentation',
     purpose: 'Follow-up setelah demo produk',
     tone: 'professional',
     content: `Dear {name},
 
-Thank you for attending our SIMRS demo on {date}. We're excited about the possibility of partnering with {organization} to modernize your healthcare operations.
+Thank you for attending our Onduline product presentation on {date}. We're excited about the possibility of partnering with {organization} to supply quality roofing solutions for your projects.
 
 Based on our discussion, I understand your key priorities are:
-• BPJS integration automation
-• Real-time patient data management
-• Mobile accessibility for medical staff
+• Consistent stock availability for Onduline Classic & Easyfix
+• Competitive distributor margins
+• Reliable delivery schedule to your outlets
 
 I'd like to propose the following next steps:
-1. Detailed technical presentation for your IT team
-2. Site visit to reference hospital (RS Sejahtera Jakarta)
-3. Customized proposal with pricing for {bed_count} beds
+1. Detailed product & margin presentation for your purchasing team
+2. Site visit to reference distributor (Distributor Atap Nusantara)
+3. Customized proposal with pricing for {project_area} m² coverage
 
 Would you be available for a follow-up meeting next week? I have slots on Tuesday 2pm or Thursday 10am.
 
@@ -54,24 +54,24 @@ Looking forward to your response.`
   {
     id: 'proposal-submission',
     name: 'Proposal Submission',
-    subject: 'SIMRS Proposal - {organization}',
+    subject: 'Onduline Supply Proposal - {organization}',
     purpose: 'Submit proposal resmi',
     tone: 'formal',
     content: `Dear {name},
 
-Further to our recent discussions, please find attached our comprehensive proposal for SIMRS implementation at {organization}.
+Further to our recent discussions, please find attached our comprehensive proposal for Onduline product supply at {organization}.
 
 Proposal Highlights:
-• Investment: Rp {budget} (includes hardware, software, training)
-• Implementation Timeline: {timeline} months
-• Included Modules: Core SIMRS, BPJS Integration, LIS, Mobile App
-• Support: 24/7 technical support with 2-hour response SLA
+• Investment: Rp {budget} (includes materials, delivery, installation training)
+• Delivery Timeline: {timeline} months
+• Included Product Lines: Onduline Classic, Waterproofing, Paket Aksesoris & Talang
+• Support: Dedicated account manager with 2-hour response SLA
 
 Key Differentiators:
-✅ 98.7% system uptime guarantee
+✅ 98.7% on-time delivery guarantee
 ✅ Local support team in {location}
-✅ Proven track record with 150+ healthcare facilities
-✅ Free system upgrades for 3 years
+✅ Proven track record with 150+ distributor & toko bangunan partners
+✅ Free product training for your sales staff for 3 years
 
 I'm available to present this proposal to your management team at your convenience. Please let me know if you need any clarifications.
 
@@ -80,17 +80,17 @@ Thank you for considering our solution.`
   {
     id: 'cold-outreach',
     name: 'Cold Outreach',
-    subject: 'Modernize Your Healthcare Operations',
+    subject: 'Upgrade Your Roofing Supply Chain',
     purpose: 'First contact dengan prospek baru',
     tone: 'professional',
     content: `Dear {name},
 
-I hope this email finds you well. I'm reaching out because {organization} fits the profile of healthcare facilities that have successfully modernized their operations with our SIMRS platform.
+I hope this email finds you well. I'm reaching out because {organization} fits the profile of building material partners that have successfully grown their business with Onduline.
 
-I noticed that {pain_point}. Many hospitals in your area have faced similar challenges and achieved:
-• 40% reduction in administrative workload
-• 95% faster BPJS claim processing
-• 60% improvement in patient satisfaction scores
+I noticed that {pain_point}. Many distributors and toko bangunan in your area have faced similar challenges and achieved:
+• 40% reduction in stockout incidents
+• 95% faster order processing
+• 60% improvement in customer satisfaction scores
 
 Would you be open to a brief 15-minute call to explore how we might help {organization} achieve similar results?
 
@@ -105,27 +105,27 @@ Best regards,`
   {
     id: 'upsell-module',
     name: 'Upsell Additional Module',
-    subject: 'Enhance Your SIMRS with LIS Module',
+    subject: 'Enhance Your Order with Paket Aksesoris & Talang',
     purpose: 'Cross-sell modul tambahan ke existing client',
     tone: 'professional',
     content: `Dear {name},
 
-I hope you're enjoying the benefits of your SIMRS implementation at {organization}. Your team has been doing great with the system!
+I hope you're enjoying the benefits of your Onduline partnership at {organization}. Your team has been doing great with our products!
 
-I wanted to reach out about an opportunity that could further streamline your laboratory operations. Based on your current lab volume of {lab_tests} tests/month, our LIS (Laboratory Information System) module could deliver significant value:
+I wanted to reach out about an opportunity that could further boost your margins. Based on your current order volume of {order_volume} unit/month, our Paket Aksesoris & Talang bundle could deliver significant value:
 
 Expected Benefits:
-• Automate lab result entry (save 15 hours/week)
-• Reduce transcription errors by 95%
-• Real-time integration with SIMRS
-• Mobile result viewing for doctors
+• Reduce repeat ordering trips (save 15 hours/week)
+• Reduce installation complaints by 95%
+• Bundled pricing with your existing Onduline Classic order
+• Faster delivery scheduling
 
 Special Offer for Existing Clients:
-• 30% discount on implementation (save Rp {discount})
-• Free data migration from current system
+• 30% discount on first bundle order (save Rp {discount})
+• Free product training for your sales staff
 • 2-month trial period
 
-{organization} is similar to your facility and achieved ROI within 4 months. Would you be interested in a 30-minute demo?
+{organization} is similar to your business and achieved ROI within 4 months. Would you be interested in a 30-minute product walkthrough?
 
 Let me know your availability next week.`
   },
@@ -137,14 +137,14 @@ Let me know your availability next week.`
     tone: 'casual',
     content: `Hi {name},
 
-I wanted to reach out one more time regarding the SIMRS solution we discussed for {organization} back in {last_contact_date}.
+I wanted to reach out one more time regarding the Onduline product line we discussed for {organization} back in {last_contact_date}.
 
 I completely understand that timing might not have been right, or perhaps priorities have shifted. No worries at all!
 
-However, I wanted to share that we just launched some new features that might be relevant:
-• AI-powered patient queue management (new!)
-• WhatsApp integration for appointment reminders (new!)
-• Enhanced BPJS auto-claim with 99.8% success rate
+However, I wanted to share that we just launched some new offerings that might be relevant:
+• New Onduvilla color variants (new!)
+• WhatsApp integration for order reminders (new!)
+• Enhanced distributor rebate program with 99.8% on-time payout rate
 
 If you're still exploring options, I'd be happy to provide an updated demo showcasing these new capabilities.
 
@@ -171,19 +171,19 @@ export function AIEmailGenerator({ open, onClose, recipientName = '', recipientO
     // Simulate AI generation with personalization
     setTimeout(() => {
       const today = new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-      const userName = recipientName || 'Dr. [Name]';
+      const userName = recipientName || '[Name]';
       const orgName = recipientOrg || '[Organization Name]';
       
       let personalizedContent = template.content
         .replace(/\{name\}/g, userName)
         .replace(/\{organization\}/g, orgName)
         .replace(/\{date\}/g, today)
-        .replace(/\{bed_count\}/g, '75')
+        .replace(/\{project_area\}/g, '750')
         .replace(/\{budget\}/g, '285 juta')
         .replace(/\{timeline\}/g, '3')
         .replace(/\{location\}/g, 'Jakarta')
-        .replace(/\{pain_point\}/g, 'you might be looking to improve operational efficiency')
-        .replace(/\{lab_tests\}/g, '1,200')
+        .replace(/\{pain_point\}/g, 'you might be looking to improve stock availability')
+        .replace(/\{order_volume\}/g, '1,200')
         .replace(/\{discount\}/g, '45 juta')
         .replace(/\{last_contact_date\}/g, 'September 2024');
 
@@ -266,7 +266,7 @@ export function AIEmailGenerator({ open, onClose, recipientName = '', recipientO
             <textarea
               value={customContext}
               onChange={(e) => setCustomContext(e.target.value)}
-              placeholder="e.g., Discussed BPJS integration, interested in 50-bed package, budget confirmed..."
+              placeholder="e.g., Discussed bundle pricing, interested in 750 m2 coverage, budget confirmed..."
               className="w-full h-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#013E37] focus:border-transparent resize-none"
             />
           </div>

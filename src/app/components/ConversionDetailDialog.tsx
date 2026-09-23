@@ -41,8 +41,8 @@ export function ConversionDetailDialog({
   year = 2025 
 }: ConversionDetailDialogProps) {
   
-  // Mock Data - Hospital Segment (Monthly)
-  const hospitalConversion: MonthlyConversionData[] = [
+  // Mock Data - Segmen Proyek (Monthly)
+  const projekConversion: MonthlyConversionData[] = [
     { month: 'Jan', target: 25, actual: 26.5, leads: 12, qualified: 6, closed: 3, progress: 106 },
     { month: 'Feb', target: 25, actual: 22.2, leads: 9, qualified: 4, closed: 2, progress: 89 },
     { month: 'Mar', target: 26, actual: 26.7, leads: 15, qualified: 7, closed: 4, progress: 103 },
@@ -73,8 +73,8 @@ export function ConversionDetailDialog({
     { month: 'Dec', target: 33, actual: 13.3, leads: 15, qualified: 3, closed: 2, progress: 40 }
   ];
 
-  // Mock Data - IntraDoc Segment (Monthly)
-  const intradocConversion: MonthlyConversionData[] = [
+  // Mock Data - Distributor Segment (Monthly)
+  const distributorConversion: MonthlyConversionData[] = [
     { month: 'Jan', target: 28, actual: 31.3, leads: 16, qualified: 9, closed: 5, progress: 112 },
     { month: 'Feb', target: 27, actual: 27.3, leads: 11, qualified: 5, closed: 3, progress: 101 },
     { month: 'Mar', target: 28, actual: 28.6, leads: 14, qualified: 7, closed: 4, progress: 102 },
@@ -90,11 +90,11 @@ export function ConversionDetailDialog({
   ];
 
   // Calculate averages
-  const hospitalAvg = {
-    target: hospitalConversion.reduce((sum, m) => sum + m.target, 0) / hospitalConversion.length,
-    actual: hospitalConversion.reduce((sum, m) => sum + m.actual, 0) / hospitalConversion.length
+  const projekAvg = {
+    target: projekConversion.reduce((sum, m) => sum + m.target, 0) / projekConversion.length,
+    actual: projekConversion.reduce((sum, m) => sum + m.actual, 0) / projekConversion.length
   };
-  hospitalAvg.progress = (hospitalAvg.actual / hospitalAvg.target) * 100;
+  projekAvg.progress = (projekAvg.actual / projekAvg.target) * 100;
 
   const retailAvg = {
     target: retailConversion.reduce((sum, m) => sum + m.target, 0) / retailConversion.length,
@@ -102,15 +102,15 @@ export function ConversionDetailDialog({
   };
   retailAvg.progress = (retailAvg.actual / retailAvg.target) * 100;
 
-  const intradocAvg = {
-    target: intradocConversion.reduce((sum, m) => sum + m.target, 0) / intradocConversion.length,
-    actual: intradocConversion.reduce((sum, m) => sum + m.actual, 0) / intradocConversion.length
+  const distributorAvg = {
+    target: distributorConversion.reduce((sum, m) => sum + m.target, 0) / distributorConversion.length,
+    actual: distributorConversion.reduce((sum, m) => sum + m.actual, 0) / distributorConversion.length
   };
-  intradocAvg.progress = (intradocAvg.actual / intradocAvg.target) * 100;
+  distributorAvg.progress = (distributorAvg.actual / distributorAvg.target) * 100;
 
   const overallAvg = {
-    target: (hospitalAvg.target + retailAvg.target + intradocAvg.target) / 3,
-    actual: (hospitalAvg.actual + retailAvg.actual + intradocAvg.actual) / 3
+    target: (projekAvg.target + retailAvg.target + distributorAvg.target) / 3,
+    actual: (projekAvg.actual + retailAvg.actual + distributorAvg.actual) / 3
   };
   overallAvg.progress = (overallAvg.actual / overallAvg.target) * 100;
 
@@ -182,24 +182,24 @@ export function ConversionDetailDialog({
               </CardContent>
             </Card>
 
-            {/* Hospital Segment */}
+            {/* Segmen Proyek */}
             <Card className="border-2 border-[#038E7D] bg-gradient-to-br bg-[#EEF7F5]">
               <CardContent className="p-4">
                 <div className="flex items-center gap-1 mb-1">
                   <Building2 className="w-3.5 h-3.5 text-[#013E37]" />
-                  <div className="text-xs font-semibold text-gray-600">Hospital Average</div>
+                  <div className="text-xs font-semibold text-gray-600">Rata-rata Proyek</div>
                 </div>
                 <div className="text-xl font-bold text-[#013E37] mb-1">
-                  {hospitalAvg.actual.toFixed(1)}%
+                  {projekAvg.actual.toFixed(1)}%
                 </div>
                 <div className="text-xs text-gray-600 space-y-0.5 mb-2">
-                  <div>Target: {hospitalAvg.target.toFixed(1)}%</div>
-                  <div className={`font-semibold ${hospitalAvg.actual >= hospitalAvg.target ? 'text-green-600' : 'text-red-600'}`}>
-                    Gap: {(hospitalAvg.actual - hospitalAvg.target).toFixed(1)}%
+                  <div>Target: {projekAvg.target.toFixed(1)}%</div>
+                  <div className={`font-semibold ${projekAvg.actual >= projekAvg.target ? 'text-green-600' : 'text-red-600'}`}>
+                    Gap: {(projekAvg.actual - projekAvg.target).toFixed(1)}%
                   </div>
                 </div>
-                <Progress value={hospitalAvg.progress} className="h-1.5 mb-1" />
-                <div className="text-xs font-semibold">{hospitalAvg.progress.toFixed(1)}%</div>
+                <Progress value={projekAvg.progress} className="h-1.5 mb-1" />
+                <div className="text-xs font-semibold">{projekAvg.progress.toFixed(1)}%</div>
               </CardContent>
             </Card>
 
@@ -226,33 +226,33 @@ export function ConversionDetailDialog({
           </div>
 
           {/* Segment Breakdown Tabs */}
-          <Tabs defaultValue="hospital" className="w-full">
+          <Tabs defaultValue="projek" className="w-full">
             <TabsList className="grid grid-cols-3 w-full max-w-2xl mb-4">
-              <TabsTrigger value="hospital" className="gap-2 text-sm">
+              <TabsTrigger value="projek" className="gap-2 text-sm">
                 <Building2 className="w-4 h-4" />
-                Hospital Segment
+                Segmen Proyek
               </TabsTrigger>
               <TabsTrigger value="retail" className="gap-2 text-sm">
                 <Stethoscope className="w-4 h-4" />
                 IntraClinic
               </TabsTrigger>
-              <TabsTrigger value="intradoc" className="gap-2 text-sm">
+              <TabsTrigger value="distributor" className="gap-2 text-sm">
                 <Package className="w-4 h-4" />
-                IntraDoc
+                Distributor
               </TabsTrigger>
             </TabsList>
 
-            {/* Hospital Monthly View */}
-            <TabsContent value="hospital" className="space-y-4">
+            {/* Projek Monthly View */}
+            <TabsContent value="projek" className="space-y-4">
               <div className="p-4 bg-gradient-to-r bg-[#EEF7F5] rounded-lg border border-[#C3DDD9]">
                 <h3 className="font-semibold flex items-center gap-2 mb-3">
                   <Building2 className="w-4 h-4 text-[#013E37]" />
-                  Hospital Segment - Monthly Conversion {year}
+                  Segmen Proyek - Monthly Conversion {year}
                 </h3>
                 
                 {/* Monthly Cards - 4 columns */}
                 <div className="grid grid-cols-4 gap-2">
-                  {hospitalConversion.map((month, index) => {
+                  {projekConversion.map((month, index) => {
                     const gap = month.actual - month.target;
                     const isPositive = gap >= 0;
                     
@@ -350,17 +350,17 @@ export function ConversionDetailDialog({
               </div>
             </TabsContent>
 
-            {/* IntraDoc Monthly View */}
-            <TabsContent value="intradoc" className="space-y-4">
+            {/* Distributor Monthly View */}
+            <TabsContent value="distributor" className="space-y-4">
               <div className="p-4 bg-gradient-to-r from-gray-50 to-slate-50 rounded-lg border border-gray-200">
                 <h3 className="font-semibold flex items-center gap-2 mb-3">
                   <Package className="w-4 h-4 text-gray-600" />
-                  IntraDoc - Monthly Conversion {year}
+                  Distributor - Monthly Conversion {year}
                 </h3>
                 
                 {/* Monthly Cards - 4 columns */}
                 <div className="grid grid-cols-4 gap-2">
-                  {intradocConversion.map((month, index) => {
+                  {distributorConversion.map((month, index) => {
                     const gap = month.actual - month.target;
                     const isPositive = gap >= 0;
                     

@@ -165,7 +165,7 @@ export function AISmartRecommendations({ leadData, onActionClick }: AISmartRecom
         priority: 'medium',
         title: '🗺️ Territory Intelligence',
         description: 'Competitive advantage detected in this area',
-        reasoning: `Market analysis shows 3 similar ${leadData.kategoriClient} in the area recently adopted SIMRS. Low competitor presence detected.`,
+        reasoning: `Market analysis shows 3 similar ${leadData.kategoriClient} in the area recently switched to Onduline products. Low competitor presence detected.`,
         impact: `Hot market - 85% success rate in similar territories`,
         suggestedActions: [
           { label: 'Emphasize Local Success', action: 'local-case', icon: Award },

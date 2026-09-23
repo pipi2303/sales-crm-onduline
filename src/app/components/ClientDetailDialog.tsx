@@ -79,7 +79,7 @@ export function ClientDetailDialog({ open, onOpenChange, client, onEdit }: Clien
       id: '3',
       type: 'Meeting',
       title: 'Meeting - Technical Review',
-      description: 'Conducted technical review session with IT team. Discussed integration with existing BPJS system and data migration timeline.',
+      description: 'Site survey bersama tim gudang. Membahas kapasitas stok atap dan jadwal pengiriman.',
       timestamp: '20 Jan 2026, 13:00',
       categories: ['Meeting', 'Technical']
     },
@@ -95,7 +95,7 @@ export function ClientDetailDialog({ open, onOpenChange, client, onEdit }: Clien
       id: '5',
       type: 'Visit',
       title: 'Visit - On-site Training',
-      description: 'Conducted on-site training for 25 hospital staff members. Covered new features and best practices for optimal system usage.',
+      description: 'Conducted on-site product training for 25 toko staff members. Covered new products and best practices for stock display.',
       timestamp: '15 Jan 2026, 10:00',
       categories: ['Visit', 'Training']
     }

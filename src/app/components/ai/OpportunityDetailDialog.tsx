@@ -26,7 +26,7 @@ interface OpportunityDetail {
     phone: string;
     email: string;
     location: string;
-    bedCount: number;
+    projectArea: number;
   };
   dealInfo?: {
     package: string;
@@ -69,25 +69,25 @@ export function OpportunityDetailDialog({ open, onClose, opportunity }: Opportun
   
   // Generate detailed data based on opportunity
   const getDetailedData = (): OpportunityDetail => {
-    const isHospital = opportunity.name.includes('RS');
-    const bedCount = opportunity.value > 400000000 ? 150 : opportunity.value > 250000000 ? 100 : 50;
+    const isProject = !opportunity.name.includes('Toko');
+    const projectArea = opportunity.value > 400000000 ? 2500 : opportunity.value > 250000000 ? 1500 : 800;
     
     return {
       ...opportunity,
       clientInfo: {
-        category: isHospital ? 'Rumah Sakit Tipe C' : 'Klinik Pratama',
-        picName: isHospital ? 'dr. Sarah Wijaya, Sp.PD' : 'dr. Andi Kusuma',
-        picTitle: isHospital ? 'Direktur Medis' : 'Pemilik & Direktur',
+        category: isProject ? 'Kontraktor / Proyek' : 'Toko Bangunan',
+        picName: isProject ? 'Bpk. Sarwono, S.T.' : 'Ibu Ratna Kusuma',
+        picTitle: isProject ? 'Project Manager' : 'Pemilik & Direktur',
         phone: '+62 812-3456-7890',
         email: `pic@${opportunity.name.toLowerCase().replace(/\s+/g, '')}.com`,
-        location: isHospital ? 'Jakarta Selatan' : 'Tangerang',
-        bedCount
+        location: isProject ? 'Jakarta Selatan' : 'Tangerang',
+        projectArea
       },
       dealInfo: {
-        package: bedCount > 100 ? 'Enterprise (150 beds)' : bedCount > 50 ? 'Professional (100 beds)' : 'Standard (50 beds)',
-        modules: ['Core SIMRS', 'BPJS Integration', 'Pharmacy', 'Laboratory', isHospital ? 'Radiology' : 'Telemedicine'].filter(Boolean),
-        competitors: ['Averin', 'Best SIMRS', 'None detected'].slice(0, Math.floor(Math.random() * 2) + 1),
-        decisionMaker: isHospital ? 'Board of Directors' : 'Owner',
+        package: projectArea > 1500 ? 'Enterprise (2500 m²)' : projectArea > 800 ? 'Professional (1500 m²)' : 'Standard (800 m²)',
+        modules: ['Onduline Classic', 'Waterproofing', 'Paket Aksesoris & Talang', isProject ? 'Panel Surya (Solar)' : 'Green Roof'].filter(Boolean),
+        competitors: ['Aspal Shingle Bekasi', 'Bitumen Nusantara', 'None detected'].slice(0, Math.floor(Math.random() * 2) + 1),
+        decisionMaker: isProject ? 'Board of Directors' : 'Owner',
         budget: opportunity.value > 300000000 ? 'Confirmed & Allocated' : 'In Discussion'
       },
       timeline: {
@@ -100,13 +100,13 @@ export function OpportunityDetailDialog({ open, onClose, opportunity }: Opportun
         {
           date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toLocaleDateString('id-ID'),
           type: 'Demo Presentation',
-          description: 'Product demo completed for IT team and medical staff',
+          description: 'Product demo completed for purchasing team and site supervisor',
           outcome: 'Positive - requested technical documentation'
         },
         {
           date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toLocaleDateString('id-ID'),
           type: 'Site Visit',
-          description: 'Visited facility and met with decision makers',
+          description: 'Visited project site and met with decision makers',
           outcome: 'Very positive - budget discussion scheduled'
         },
         {
@@ -119,7 +119,7 @@ export function OpportunityDetailDialog({ open, onClose, opportunity }: Opportun
       nextSteps: [
         'Send technical proposal with pricing breakdown',
         'Schedule meeting with Board of Directors',
-        'Arrange reference site visit to similar hospital',
+        'Arrange reference site visit to similar project',
         'Prepare contract draft and SLA document'
       ],
       risks: opportunity.probability < 70 ? [
@@ -202,7 +202,7 @@ export function OpportunityDetailDialog({ open, onClose, opportunity }: Opportun
                     {opportunity.stage}
                   </Badge>
                   <Badge className="bg-white/20 text-white">
-                    {detailedData.clientInfo?.bedCount} beds
+                    {detailedData.clientInfo?.projectArea} m²
                   </Badge>
                   <Badge className="bg-white/20 text-white">
                     {detailedData.clientInfo?.location}
@@ -313,8 +313,8 @@ export function OpportunityDetailDialog({ open, onClose, opportunity }: Opportun
                   <div className="flex items-start gap-3 bg-gray-50 p-3 rounded-lg">
                     <Building2 className="h-5 w-5 text-orange-600 mt-0.5" />
                     <div>
-                      <p className="text-xs text-gray-600 mb-1">Facility Size</p>
-                      <p className="font-semibold text-gray-900">{detailedData.clientInfo?.bedCount} beds</p>
+                      <p className="text-xs text-gray-600 mb-1">Project Size</p>
+                      <p className="font-semibold text-gray-900">{detailedData.clientInfo?.projectArea} m²</p>
                       <p className="text-sm text-gray-600">{detailedData.clientInfo?.category}</p>
                     </div>
                   </div>

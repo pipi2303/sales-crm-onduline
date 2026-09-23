@@ -41,9 +41,9 @@ const AI_KNOWLEDGE_BASE = {
   topLeads: {
     response: "Based on AI analysis, here are your top 3 priority leads today:",
     leads: [
-      { name: "RS Permata Bunda", score: 92, probability: 87, value: "Rp 285 juta", reason: "Budget confirmed, decision maker met" },
-      { name: "Klinik Sehat Prima", score: 78, probability: 73, value: "Rp 125 juta", reason: "High engagement, ready for demo" },
-      { name: "RS Harapan Medika", score: 65, probability: 58, value: "Rp 450 juta", reason: "Large facility, competitive bid" }
+      { name: "Toko Bangunan Sinar Jaya", score: 92, probability: 87, value: "Rp 285 juta", reason: "Budget confirmed, decision maker met" },
+      { name: "CV Karya Konstruksi Mandiri", score: 78, probability: 73, value: "Rp 125 juta", reason: "High engagement, ready for demo" },
+      { name: "PT Graha Bangun Persada", score: 65, probability: 58, value: "Rp 450 juta", reason: "Large project, competitive bid" }
     ],
     suggestions: ["View detailed scoring", "Send follow-up email", "Schedule demos"]
   },
@@ -54,32 +54,32 @@ const AI_KNOWLEDGE_BASE = {
       confidence: "±15%",
       deals: 12,
       avgDealSize: "Rp 70.5 juta",
-      topContributor: "RS Permata Bunda (Rp 285 juta)"
+      topContributor: "Toko Bangunan Sinar Jaya (Rp 285 juta)"
     },
     suggestions: ["View detailed forecast", "See pipeline breakdown", "Adjust targets"]
   },
   atRisk: {
     response: "⚠️ These clients need immediate attention:",
     clients: [
-      { name: "RS Sentosa", risk: 68, reason: "No activity in 14 days", action: "Re-engagement campaign" },
-      { name: "Klinik Bunda", risk: 45, reason: "Low product usage", action: "Check-in call" },
-      { name: "RS Mitra", risk: 52, reason: "Support tickets increasing", action: "Success manager meeting" }
+      { name: "Distributor Atap Nusantara", risk: 68, reason: "No activity in 14 days", action: "Re-engagement campaign" },
+      { name: "Toko Bangunan Berkah Jaya", risk: 45, reason: "Low order volume", action: "Check-in call" },
+      { name: "CV Mitra Atap Sejahtera", risk: 52, reason: "Support tickets increasing", action: "Success manager meeting" }
     ],
     suggestions: ["Send re-engagement emails", "Schedule check-in calls", "Create action plan"]
   },
   followUps: {
     response: "📋 You have 5 follow-ups due today:",
     tasks: [
-      { client: "RS Permata Bunda", type: "Demo follow-up", priority: "High", daysOverdue: 0 },
-      { client: "Klinik Sehat", type: "Proposal sent", priority: "High", daysOverdue: 2 },
-      { client: "RS Harapan", type: "Budget discussion", priority: "Medium", daysOverdue: 0 },
-      { client: "Klinik Prima", type: "Contract negotiation", priority: "Critical", daysOverdue: 1 },
-      { client: "RS Medika", type: "Reference check", priority: "Low", daysOverdue: 0 }
+      { client: "Toko Bangunan Sinar Jaya", type: "Demo follow-up", priority: "High", daysOverdue: 0 },
+      { client: "CV Karya Konstruksi Mandiri", type: "Proposal sent", priority: "High", daysOverdue: 2 },
+      { client: "PT Graha Bangun Persada", type: "Budget discussion", priority: "Medium", daysOverdue: 0 },
+      { client: "Toko Bangunan Berkah Jaya", type: "Contract negotiation", priority: "Critical", daysOverdue: 1 },
+      { client: "Distributor Atap Nusantara", type: "Reference check", priority: "Low", daysOverdue: 0 }
     ],
     suggestions: ["Call now", "Send reminder emails", "Reschedule"]
   },
   bestTime: {
-    response: "⏰ Based on historical data, here are the best times to contact healthcare decision makers:",
+    response: "⏰ Based on historical data, here are the best times to contact kontraktor & toko decision makers:",
     schedule: {
       best: "Tuesday & Thursday, 9-11 AM",
       good: "Monday & Wednesday, 2-4 PM",
@@ -91,10 +91,10 @@ const AI_KNOWLEDGE_BASE = {
   upsell: {
     response: "💰 I found 4 high-value upsell opportunities:",
     opportunities: [
-      { client: "RS Sejahtera", module: "LIS", value: "Rp 85 juta", probability: 78, reason: "Using basic package, high lab volume" },
-      { client: "Klinik Medika", module: "BPJS Pro", value: "Rp 45 juta", probability: 65, reason: "Manual BPJS processing" },
-      { client: "RS Bunda", module: "Mobile App", value: "Rp 35 juta", probability: 82, reason: "Requested feature multiple times" },
-      { client: "Klinik Sehat", module: "Analytics", value: "Rp 25 juta", probability: 55, reason: "Growing patient volume" }
+      { client: "Toko Bangunan Makmur Abadi", module: "Onduvilla", value: "Rp 85 juta", probability: 78, reason: "Currently using entry-level product, high order volume" },
+      { client: "CV Mitra Atap Sejahtera", module: "Paket Aksesoris & Talang", value: "Rp 45 juta", probability: 65, reason: "Manual accessory ordering, ready to bundle" },
+      { client: "Distributor Bahan Bangunan Prima", module: "Onduline Easyfix", value: "Rp 35 juta", probability: 82, reason: "Requested feature multiple times" },
+      { client: "CV Karya Konstruksi Mandiri", module: "Garansi Extended", value: "Rp 25 juta", probability: 55, reason: "Growing project volume" }
     ],
     suggestions: ["Generate proposals", "Schedule demos", "Send ROI calculator"]
   }

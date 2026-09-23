@@ -11,7 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/app/components/ui/switch';
 import { useConfirm } from '@/app/components/ui/confirm-dialog';
 import type { AppUser, UserRole } from '@/types/user';
+import type { AuditLogEntry as RawAuditLogEntry } from '@/types/auditLog';
 import { usersRepository } from '@/services/usersRepository';
+import { auditLogRepository } from '@/services/auditLogRepository';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { toast } from 'sonner';
 
@@ -38,6 +40,14 @@ interface Role {
   color: string;
 }
 
+// Bab 10 #3 (23 Sep 2026): this used to have an `ipAddress` field and a
+// `status` fabricated from nothing (the dummy array below just typed one
+// in per row) -- neither is data this app actually captures (no
+// per-request IP logging, and every real entry logAudit() writes IS a
+// completed action, there's no in-between "warning" state). `status`
+// here is instead DERIVED from the action label (reject -> warning,
+// login.failed -> failed, everything else -> success), and `ipAddress`
+// is dropped entirely rather than showing a fake one.
 interface AuditLog {
   id: string;
   user: string;
@@ -45,11 +55,142 @@ interface AuditLog {
   resource: string;
   timestamp: Date;
   status: 'success' | 'failed' | 'warning';
-  ipAddress: string;
   details?: string;
 }
 
+const AUDIT_ACTION_LABELS: Record<string, string> = {
+  'login': 'Login berhasil',
+  'login.failed': 'Login gagal',
+  'logout': 'Logout',
+  'distributor.approve': 'Approve distributor',
+  'distributor.reject': 'Reject distributor',
+  'store.approve': 'Approve toko',
+  'store.reject': 'Reject toko',
+  'client.approve': 'Approve client',
+  'client.reject': 'Reject client',
+  'discount.approve': 'Approve diskon',
+  'discount.reject': 'Reject diskon',
+  'discount.counter-offer': 'Counter-offer diskon',
+  'user.create': 'Buat pengguna baru',
+  'user.deactivate': 'Nonaktifkan pengguna',
+  'user.activate': 'Aktifkan pengguna',
+};
+
+const AUDIT_ENTITY_LABELS: Record<string, string> = {
+  User: 'Auth & Pengguna',
+  Distributor: 'Distributor',
+  Store: 'Toko',
+  Client: 'Client',
+  DiscountApprovalRequest: 'Discount Approval',
+};
+
+function auditStatusForAction(action: string): 'success' | 'failed' | 'warning' {
+  if (action.endsWith('.failed')) return 'failed';
+  if (action.endsWith('.reject')) return 'warning';
+  return 'success';
+}
+
+function auditDetails(entry: RawAuditLogEntry): string | undefined {
+  const after = entry.afterJson as Record<string, unknown> | null;
+  const note = after?.rejectionNote ?? after?.comment;
+  return typeof note === 'string' && note.trim() ? note : undefined;
+}
+
+function toAuditLog(entry: RawAuditLogEntry): AuditLog {
+  return {
+    id: entry.id,
+    user:
+      entry.actor?.name ||
+      entry.actor?.email ||
+      (entry.action === 'login.failed' ? entry.entityId : 'Sistem'),
+    action: AUDIT_ACTION_LABELS[entry.action] ?? entry.action,
+    resource: AUDIT_ENTITY_LABELS[entry.entityType] ?? entry.entityType,
+    timestamp: new Date(entry.createdAt),
+    status: auditStatusForAction(entry.action),
+    details: auditDetails(entry),
+  };
+}
+
 const emptyUserForm = { name: '', email: '', role: '' as UserRole | '', password: '', isActive: true };
+
+type PermissionRoles = UserRole[] | 'all';
+
+interface ModulePermission {
+  module: string;
+  actions: { label: string; roles: PermissionRoles }[];
+}
+
+// Bab 10 #3 (23 Sep 2026): this replaces a 24-switch grid of made-up
+// permission labels (Math.random() decided which were "on") with the
+// REAL authorization rules this app enforces, read by hand off every
+// requireRole()/requireAuth() call in api/handler.ts. There is no
+// generic Permission model here -- authorization is hardcoded per
+// endpoint -- so this table is a manually-kept mirror of that code, not
+// a live query against it; if a future PR changes a requireRole() call,
+// this table needs a matching edit (flagged in MEMORY.md).
+const MODULE_PERMISSIONS: ModulePermission[] = [
+  { module: 'Distributor', actions: [
+    { label: 'Ajukan baru & edit data', roles: 'all' },
+    { label: 'Approve / reject pengajuan', roles: ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADMIN'] },
+    { label: 'Hapus', roles: ['SUPER_ADMIN', 'MASTER_DATA_ADMIN'] },
+  ] },
+  { module: 'Toko', actions: [
+    { label: 'Ajukan baru & edit data', roles: 'all' },
+    { label: 'Approve / reject pengajuan', roles: ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADMIN'] },
+    { label: 'Hapus', roles: ['SUPER_ADMIN', 'MASTER_DATA_ADMIN'] },
+  ] },
+  { module: 'Client', actions: [
+    { label: 'Ajukan baru & edit data', roles: 'all' },
+    { label: 'Approve / reject pengajuan', roles: ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADMIN'] },
+    { label: 'Hapus', roles: ['SUPER_ADMIN', 'SALES_MANAGER'] },
+  ] },
+  { module: 'Lead', actions: [
+    { label: 'Buat & edit data', roles: 'all' },
+    { label: 'Hapus', roles: ['SUPER_ADMIN', 'SALES_MANAGER'] },
+  ] },
+  { module: 'Opportunity', actions: [
+    { label: 'Buat data', roles: 'all' },
+    { label: 'Edit & hapus data', roles: ['SUPER_ADMIN', 'SALES_MANAGER'] },
+  ] },
+  { module: 'Produk', actions: [
+    { label: 'Buat & edit data', roles: ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADMIN'] },
+    { label: 'Hapus', roles: ['SUPER_ADMIN', 'MASTER_DATA_ADMIN'] },
+  ] },
+  { module: 'Sales Rep', actions: [
+    { label: 'Buat, edit & hapus data', roles: ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADMIN'] },
+  ] },
+  { module: 'Target Kinerja (KPI)', actions: [
+    { label: 'Buat data', roles: 'all' },
+    { label: 'Edit & hapus data', roles: ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADMIN'] },
+  ] },
+  { module: 'Komisi', actions: [
+    { label: 'Buat data', roles: ['SUPER_ADMIN', 'SALES_MANAGER'] },
+    { label: 'Hapus', roles: ['SUPER_ADMIN', 'SALES_MANAGER'] },
+  ] },
+  { module: 'Tugas (Task)', actions: [
+    { label: 'Buat & edit data', roles: 'all' },
+    { label: 'Hapus', roles: ['SUPER_ADMIN', 'SALES_MANAGER'] },
+  ] },
+  { module: 'Wilayah (Territory)', actions: [
+    { label: 'Buat, edit & hapus data', roles: ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADMIN'] },
+  ] },
+  { module: 'Discount Approval', actions: [
+    { label: 'Ajukan diskon', roles: 'all' },
+    { label: 'Putuskan diskon > 10% s/d 25%', roles: ['SUPER_ADMIN', 'SALES_MANAGER'] },
+    { label: 'Putuskan diskon > 25%', roles: ['SUPER_ADMIN'] },
+    { label: 'Hapus pengajuan', roles: ['SUPER_ADMIN', 'SALES_MANAGER'] },
+  ] },
+  { module: 'Manajemen Pengguna', actions: [
+    { label: 'Lihat, buat, edit & nonaktifkan user', roles: ['SUPER_ADMIN'] },
+  ] },
+  { module: 'Audit Log', actions: [
+    { label: 'Lihat audit log', roles: ['SUPER_ADMIN'] },
+  ] },
+];
+
+function roleCan(roles: PermissionRoles, role: UserRole): boolean {
+  return roles === 'all' || roles.includes(role);
+}
 
 export function AdminSystem() {
   const { user } = useAuth();
@@ -69,29 +210,31 @@ export function AdminSystem() {
     fetchAdminData();
   }, []);
 
-  // Bab 10 gap #4 (23 Sep 2026): users now come from /api/users (real
-  // data). Audit Log below is a separate, still-open gap -- AuditLogEntry
-  // exists in prisma/schema.prisma but nothing writes to it yet (that's a
-  // project-wide instrumentation effort, out of scope here) -- so it
-  // stays illustrative/dummy for now rather than silently going empty.
+  // Bab 10 #3 (23 Sep 2026): both users and audit logs now come from
+  // real endpoints -- /api/users (Bab 10 #4, done earlier) and
+  // /api/audit-logs (this round's targeted instrumentation: login/
+  // logout, every approve/reject decision, and user create/deactivate/
+  // activate -- see logAudit() in api/handler.ts). This is NOT full
+  // instrumentation of every mutation in the app, by deliberate scope
+  // decision -- see MEMORY.md.
   const fetchAdminData = async () => {
     try {
       setLoading(true);
-      const result = await usersRepository.getAll();
-      if (result.success) {
-        setUsers(result.data || []);
+      const [usersResult, auditResult] = await Promise.all([
+        usersRepository.getAll(),
+        auditLogRepository.getRecent(),
+      ]);
+      if (usersResult.success) {
+        setUsers(usersResult.data || []);
       } else {
-        toast.error(result.error || 'Gagal memuat daftar pengguna');
+        toast.error(usersResult.error || 'Gagal memuat daftar pengguna');
       }
 
-      const dummyAuditLogs: AuditLog[] = [
-        { id: '1', user: 'admin@enterprise.com', action: 'User Login', resource: 'Auth', timestamp: new Date(), status: 'success', ipAddress: '192.168.1.1' },
-        { id: '2', user: 'siti@enterprise.com', action: 'Created Proposal', resource: 'Sales', timestamp: new Date(Date.now() - 1800000), status: 'success', ipAddress: '192.168.1.42', details: 'Proposal #PRP-2024-001 created for PT Maju Jaya' },
-        { id: '3', user: 'admin@enterprise.com', action: 'Modified Permissions', resource: 'Admin', timestamp: new Date(Date.now() - 7200000), status: 'warning', ipAddress: '192.168.1.1', details: 'Updated Sales Executive role permissions' },
-        { id: '4', user: 'budi@enterprise.com', action: 'Failed Login', resource: 'Auth', timestamp: new Date(Date.now() - 14400000), status: 'failed', ipAddress: '10.0.0.5', details: 'Invalid password attempt' },
-        { id: '5', user: 'admin@enterprise.com', action: 'System Update', resource: 'System', timestamp: new Date(Date.now() - 86400000), status: 'success', ipAddress: 'Server-Local', details: 'Maintenance patch v2.4.1 applied successfully' },
-      ];
-      setAuditLogs(dummyAuditLogs);
+      if (auditResult.success) {
+        setAuditLogs((auditResult.data || []).map(toAuditLog));
+      } else {
+        toast.error(auditResult.error || 'Gagal memuat audit log');
+      }
     } catch (error) {
       console.error('Error loading admin data:', error);
       toast.error('Gagal memuat data administrasi');
@@ -231,7 +374,7 @@ export function AdminSystem() {
           { label: 'Total Pengguna', value: users.length, icon: UsersIcon, color: 'text-blue-600', bg: 'bg-blue-50' },
           { label: 'User Aktif', value: users.filter(u => u.isActive).length, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
           { label: 'System Health', value: '99.9%', icon: Activity, color: 'text-amber-600', bg: 'bg-amber-50' },
-          { label: 'Audit Log 24h', value: auditLogs.length, icon: FileText, color: 'text-[#013E37]', bg: 'bg-[#EEF7F5]' },
+          { label: 'Audit Log 24h', value: auditLogs.filter((l) => Date.now() - l.timestamp.getTime() < 86400000).length, icon: FileText, color: 'text-[#013E37]', bg: 'bg-[#EEF7F5]' },
         ].map((stat, i) => (
           <Card key={i} className="border-none shadow-sm hover:shadow-md transition-all duration-300">
             <CardContent className="p-6">
@@ -419,9 +562,10 @@ export function AdminSystem() {
                   </CardContent>
                 </Card>
               ))}
-              <Button variant="outline" className="w-full h-12 border-dashed border-gray-300 text-gray-500 hover:text-[#013E37] gap-2">
-                <Plus className="h-4 w-4" /> Buat Role Baru
-              </Button>
+              <p className="text-[11px] text-gray-400 px-2 leading-relaxed">
+                5 role di atas adalah seluruh role login yang ada (bukan model yang bisa ditambah bebas) --
+                lihat Role enum di skema database.
+              </p>
             </div>
 
             <div className="lg:col-span-8">
@@ -430,28 +574,35 @@ export function AdminSystem() {
                   <div className="flex justify-between items-center">
                     <div>
                       <CardTitle className="text-xl text-[#013E37]">{selectedRole ? `Izin Akses: ${selectedRole.name}` : 'Pilih Role'}</CardTitle>
-                      <CardDescription>Konfigurasikan apa yang dapat dilakukan oleh role ini di sistem</CardDescription>
+                      <CardDescription>
+                        Tampilan read-only -- mencerminkan aturan otorisasi yang benar-benar berlaku di backend
+                        (requireRole() di api/handler.ts), bukan pengaturan yang bisa diubah dari sini.
+                      </CardDescription>
                     </div>
-                    {selectedRole && <Button className="bg-[#013E37] hover:bg-[#025C52]">Simpan Perubahan</Button>}
                   </div>
                 </CardHeader>
                 <CardContent className="p-6">
                   {selectedRole ? (
-                    <div className="space-y-8">
-                      {[
-                        { group: 'Penjualan & CRM', perms: ['Akses Katalog Produk', 'Kelola Opportunity', 'Buat Penawaran Harga', 'Kelola Leads'] },
-                        { group: 'Manajemen Tim', perms: ['Lihat Laporan Tim', 'Ubah Target KPI', 'Monitoring Aktivitas Real-time'] },
-                        { group: 'Sistem & Keamanan', perms: ['Kelola Pengguna', 'Akses Audit Log', 'Konfigurasi Global'] },
-                      ].map((group, idx) => (
-                        <div key={idx} className="space-y-4">
-                          <h5 className="text-[11px] font-black text-[#013E37] uppercase tracking-[0.2em]">{group.group}</h5>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {group.perms.map((perm, pIdx) => (
-                              <div key={pIdx} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-white hover:ring-1 hover:ring-gray-200 transition-all group">
-                                <span className="text-sm font-medium text-gray-700">{perm}</span>
-                                <Switch className="data-[state=checked]:bg-[#013E37]" defaultChecked={selectedRole.permissions.includes('all') || Math.random() > 0.5} />
-                              </div>
-                            ))}
+                    <div className="space-y-3">
+                      {MODULE_PERMISSIONS.map((mod) => (
+                        <div key={mod.module} className="p-4 bg-gray-50 rounded-xl">
+                          <h5 className="text-[11px] font-black text-[#013E37] uppercase tracking-[0.2em] mb-3">{mod.module}</h5>
+                          <div className="space-y-2">
+                            {mod.actions.map((act) => {
+                              const allowed = roleCan(act.roles, selectedRole.id as UserRole);
+                              return (
+                                <div key={act.label} className="flex items-center justify-between gap-4 py-1.5 border-b border-gray-100 last:border-b-0">
+                                  <span className="text-sm text-gray-700">{act.label}</span>
+                                  {allowed ? (
+                                    <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600">
+                                      <CheckCircle2 className="h-4 w-4" /> Diizinkan
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs font-medium text-gray-300">Tidak diizinkan</span>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       ))}
@@ -544,7 +695,7 @@ export function AdminSystem() {
                     </div>
                     <div className="text-right">
                       <Badge variant="outline" className="text-[9px] border-gray-100 bg-white text-gray-400">
-                        IP: {log.ipAddress}
+                        {log.resource}
                       </Badge>
                     </div>
                   </div>

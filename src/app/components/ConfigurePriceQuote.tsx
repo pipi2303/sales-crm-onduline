@@ -522,8 +522,10 @@ export function ConfigurePriceQuote() {
                         <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-3">
                           <CheckCircle className="h-6 w-6 text-green-600" />
                         </div>
-                        <h4 className="font-semibold mb-1">Approval Workflow</h4>
-                        <p className="text-sm text-gray-600">Multi-level approval</p>
+                        <h4 className="font-semibold mb-1">Approval Diskon</h4>
+                        <p className="text-sm text-gray-600">
+                          Dikelola di menu <span className="font-medium">Discount Approval</span>, bukan di sini
+                        </p>
                       </div>
                     </CardContent>
                   </Card>

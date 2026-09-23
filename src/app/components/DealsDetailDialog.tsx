@@ -37,8 +37,8 @@ export function DealsDetailDialog({
   year = 2025 
 }: DealsDetailDialogProps) {
   
-  // Mock Data - Hospital Segment (Monthly)
-  const hospitalDeals: MonthlyDealsData[] = [
+  // Mock Data - Segmen Proyek (Monthly)
+  const projekDeals: MonthlyDealsData[] = [
     { month: 'Jan', target: 3, actual: 3, progress: 100 },
     { month: 'Feb', target: 3, actual: 2, progress: 67 },
     { month: 'Mar', target: 4, actual: 4, progress: 100 },
@@ -69,8 +69,8 @@ export function DealsDetailDialog({
     { month: 'Dec', target: 6, actual: 2, progress: 33 }
   ];
 
-  // Mock Data - IntraDoc Segment (Monthly)
-  const intradocDeals: MonthlyDealsData[] = [
+  // Mock Data - Distributor Segment (Monthly)
+  const distributorDeals: MonthlyDealsData[] = [
     { month: 'Jan', target: 4, actual: 5, progress: 125 },
     { month: 'Feb', target: 3, actual: 3, progress: 100 },
     { month: 'Mar', target: 4, actual: 4, progress: 100 },
@@ -86,11 +86,11 @@ export function DealsDetailDialog({
   ];
 
   // Calculate totals
-  const hospitalTotal = {
-    target: hospitalDeals.reduce((sum, m) => sum + m.target, 0),
-    actual: hospitalDeals.reduce((sum, m) => sum + m.actual, 0)
+  const projekTotal = {
+    target: projekDeals.reduce((sum, m) => sum + m.target, 0),
+    actual: projekDeals.reduce((sum, m) => sum + m.actual, 0)
   };
-  hospitalTotal.progress = (hospitalTotal.actual / hospitalTotal.target) * 100;
+  projekTotal.progress = (projekTotal.actual / projekTotal.target) * 100;
 
   const retailTotal = {
     target: retailDeals.reduce((sum, m) => sum + m.target, 0),
@@ -98,15 +98,15 @@ export function DealsDetailDialog({
   };
   retailTotal.progress = (retailTotal.actual / retailTotal.target) * 100;
 
-  const intradocTotal = {
-    target: intradocDeals.reduce((sum, m) => sum + m.target, 0),
-    actual: intradocDeals.reduce((sum, m) => sum + m.actual, 0)
+  const distributorTotal = {
+    target: distributorDeals.reduce((sum, m) => sum + m.target, 0),
+    actual: distributorDeals.reduce((sum, m) => sum + m.actual, 0)
   };
-  intradocTotal.progress = (intradocTotal.actual / intradocTotal.target) * 100;
+  distributorTotal.progress = (distributorTotal.actual / distributorTotal.target) * 100;
 
   const grandTotal = {
-    target: hospitalTotal.target + retailTotal.target + intradocTotal.target,
-    actual: hospitalTotal.actual + retailTotal.actual + intradocTotal.actual
+    target: projekTotal.target + retailTotal.target + distributorTotal.target,
+    actual: projekTotal.actual + retailTotal.actual + distributorTotal.actual
   };
   grandTotal.progress = (grandTotal.actual / grandTotal.target) * 100;
 
@@ -209,20 +209,20 @@ export function DealsDetailDialog({
               </CardContent>
             </Card>
 
-            {/* Hospital Segment */}
+            {/* Segmen Proyek */}
             <Card className="border-2 border-[#038E7D] bg-gradient-to-br bg-[#EEF7F5]">
               <CardContent className="p-4">
                 <div className="flex items-center gap-1 mb-1">
                   <Building2 className="w-3.5 h-3.5 text-[#013E37]" />
-                  <div className="text-xs font-semibold text-gray-600">Hospital Segment</div>
+                  <div className="text-xs font-semibold text-gray-600">Segmen Proyek</div>
                 </div>
                 <div className="text-xl font-bold text-[#013E37] mb-1">
-                  {hospitalTotal.actual} deals
+                  {projekTotal.actual} deals
                 </div>
                 <div className="text-xs text-gray-600 space-y-0.5 mb-2">
-                  <div>Target: {hospitalTotal.target} deals</div>
+                  <div>Target: {projekTotal.target} deals</div>
                   {(() => {
-                    const gap = calculateGap(hospitalTotal.actual, hospitalTotal.target);
+                    const gap = calculateGap(projekTotal.actual, projekTotal.target);
                     const { label, value, isPositive } = formatDealsGap(gap);
                     return (
                       <div className={`font-semibold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
@@ -231,8 +231,8 @@ export function DealsDetailDialog({
                     );
                   })()}
                 </div>
-                <Progress value={hospitalTotal.progress} className="h-1.5 mb-1" />
-                <div className="text-xs font-semibold">{hospitalTotal.progress.toFixed(1)}%</div>
+                <Progress value={projekTotal.progress} className="h-1.5 mb-1" />
+                <div className="text-xs font-semibold">{projekTotal.progress.toFixed(1)}%</div>
               </CardContent>
             </Card>
 
@@ -265,33 +265,33 @@ export function DealsDetailDialog({
           </div>
 
           {/* Segment Breakdown Tabs */}
-          <Tabs defaultValue="hospital" className="w-full">
+          <Tabs defaultValue="projek" className="w-full">
             <TabsList className="h-14 bg-gray-100/50 p-1 flex overflow-x-auto no-scrollbar justify-start w-full">
-              <TabsTrigger value="hospital" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 flex-1">
-                <span className="font-bold text-xs">Rumah Sakit</span>
+              <TabsTrigger value="projek" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 flex-1">
+                <span className="font-bold text-xs">Proyek</span>
                 <span className="text-[8px] uppercase tracking-wider font-semibold opacity-60">QUARTERLY</span>
               </TabsTrigger>
               <TabsTrigger value="retail" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 flex-1">
                 <span className="font-bold text-xs">IntraClinic</span>
                 <span className="text-[8px] uppercase tracking-wider font-semibold opacity-60">MONTHLY</span>
               </TabsTrigger>
-              <TabsTrigger value="intradoc" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 flex-1">
-                <span className="font-bold text-xs">IntraDoc</span>
+              <TabsTrigger value="distributor" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 flex-1">
+                <span className="font-bold text-xs">Distributor</span>
                 <span className="text-[8px] uppercase tracking-wider font-semibold opacity-60">MONTHLY</span>
               </TabsTrigger>
             </TabsList>
 
-            {/* Hospital Monthly View */}
-            <TabsContent value="hospital" className="space-y-4">
+            {/* Projek Monthly View */}
+            <TabsContent value="projek" className="space-y-4">
               <div className="p-4 bg-gradient-to-r bg-[#EEF7F5] rounded-lg border border-[#C3DDD9]">
                 <h3 className="font-semibold flex items-center gap-2 mb-3">
                   <Building2 className="w-4 h-4 text-[#013E37]" />
-                  Hospital Segment - Monthly Deals {year}
+                  Segmen Proyek - Monthly Deals {year}
                 </h3>
                 
                 {/* Monthly Cards - 4 columns */}
                 <div className="grid grid-cols-4 gap-2">
-                  {hospitalDeals.map((month, index) => {
+                  {projekDeals.map((month, index) => {
                     const gap = month.actual - month.target;
                     const isPositive = gap >= 0;
                     
@@ -361,17 +361,17 @@ export function DealsDetailDialog({
               </div>
             </TabsContent>
 
-            {/* IntraDoc Monthly View */}
-            <TabsContent value="intradoc" className="space-y-4">
+            {/* Distributor Monthly View */}
+            <TabsContent value="distributor" className="space-y-4">
               <div className="p-4 bg-gradient-to-r from-gray-50 to-slate-50 rounded-lg border border-gray-200">
                 <h3 className="font-semibold flex items-center gap-2 mb-3">
                   <Package className="w-4 h-4 text-gray-600" />
-                  IntraDoc - Monthly Deals {year}
+                  Distributor - Monthly Deals {year}
                 </h3>
                 
                 {/* Monthly Cards - 4 columns */}
                 <div className="grid grid-cols-4 gap-2">
-                  {intradocDeals.map((month, index) => {
+                  {distributorDeals.map((month, index) => {
                     const gap = month.actual - month.target;
                     const isPositive = gap >= 0;
                     

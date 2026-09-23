@@ -104,17 +104,17 @@ export function AIInsightsDashboard() {
           conversionRate: 23.5
         },
         topOpportunities: [
-          { name: 'RS Permata Bunda', value: 285000000, probability: 87, daysInPipeline: 12, stage: 'Proposal' },
-          { name: 'RS Harapan Medika', value: 450000000, probability: 65, daysInPipeline: 28, stage: 'Negotiation' },
-          { name: 'Klinik Sehat Prima', value: 125000000, probability: 78, daysInPipeline: 8, stage: 'Demo' },
-          { name: 'RS Mitra Sejahtera', value: 380000000, probability: 55, daysInPipeline: 45, stage: 'Proposal' },
-          { name: 'Klinik Bunda Medika', value: 95000000, probability: 82, daysInPipeline: 5, stage: 'Qualification' }
+          { name: 'Toko Bangunan Sinar Jaya', value: 285000000, probability: 87, daysInPipeline: 12, stage: 'Proposal' },
+          { name: 'PT Graha Bangun Persada', value: 450000000, probability: 65, daysInPipeline: 28, stage: 'Negotiation' },
+          { name: 'CV Karya Konstruksi Mandiri', value: 125000000, probability: 78, daysInPipeline: 8, stage: 'Demo' },
+          { name: 'Distributor Atap Nusantara', value: 380000000, probability: 55, daysInPipeline: 45, stage: 'Proposal' },
+          { name: 'Toko Bangunan Berkah Jaya', value: 95000000, probability: 82, daysInPipeline: 5, stage: 'Qualification' }
         ],
         risks: [
           {
             type: 'critical',
             title: '3 High-Value Deals Stalled',
-            description: 'RS Mitra Sejahtera, RS Sentosa, and Klinik Prima have been in pipeline for 45+ days without progress',
+            description: 'Distributor Atap Nusantara, CV Mitra Atap Sejahtera, and Toko Bangunan Makmur Abadi have been in pipeline for 45+ days without progress',
             impact: 'Potential loss: Rp 580 juta'
           },
           {
@@ -133,7 +133,7 @@ export function AIInsightsDashboard() {
         recommendations: [
           {
             category: 'Pipeline Acceleration',
-            title: 'Focus on RS Permata Bunda and Klinik Sehat Prima',
+            title: 'Focus on Toko Bangunan Sinar Jaya and CV Karya Konstruksi Mandiri',
             impact: 'High probability closes worth Rp 410 juta this week',
             priority: 'critical'
           },
@@ -341,8 +341,8 @@ export function AIInsightsDashboard() {
               <div>
                 <p className="text-sm font-semibold text-gray-900 mb-1">AI Insight:</p>
                 <p className="text-sm text-gray-700">
-                  You're on track for a strong month! Focus on closing RS Permata Bunda (87% probability) 
-                  and Klinik Sehat Prima (78% probability) to exceed target by 15%.
+                  You're on track for a strong month! Focus on closing Toko Bangunan Sinar Jaya (87% probability) 
+                  and CV Karya Konstruksi Mandiri (78% probability) to exceed target by 15%.
                 </p>
               </div>
             </div>

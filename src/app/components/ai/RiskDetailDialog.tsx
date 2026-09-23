@@ -39,7 +39,7 @@ export function RiskDetailDialog({ open, onClose, risk }: RiskDetailDialogProps)
         },
         affectedDeals: [
           {
-            name: 'RS Mitra Sejahtera',
+            name: 'Distributor Atap Nusantara',
             value: 380000000,
             daysInPipeline: 45,
             stage: 'Proposal',
@@ -47,15 +47,15 @@ export function RiskDetailDialog({ open, onClose, risk }: RiskDetailDialogProps)
             blocker: 'Waiting for budget approval from Board'
           },
           {
-            name: 'RS Sentosa',
+            name: 'CV Mitra Atap Sejahtera',
             value: 125000000,
             daysInPipeline: 52,
             stage: 'Negotiation',
             lastActivity: '12 Jan 2026',
-            blocker: 'Price negotiation - competing with Averin'
+            blocker: 'Price negotiation - competing with Bitumen Nusantara'
           },
           {
-            name: 'Klinik Prima',
+            name: 'Toko Bangunan Makmur Abadi',
             value: 75000000,
             daysInPipeline: 44,
             stage: 'Demo',
@@ -178,28 +178,28 @@ export function RiskDetailDialog({ open, onClose, risk }: RiskDetailDialogProps)
         },
         affectedClients: [
           {
-            name: 'Klinik Sinar Sehat',
+            name: 'Toko Bangunan Cahaya Logam',
             arr: 72000000,
             healthScore: 38,
-            churnSignals: ['Low login frequency', '3 unresolved tickets'],
+            churnSignals: ['Low order frequency', '3 unresolved tickets'],
             lastEngagement: '15 days ago'
           },
           {
-            name: 'RS Sentosa Medika',
+            name: 'CV Wijaya Konstruksi',
             arr: 95000000,
             healthScore: 45,
-            churnSignals: ['Feature adoption <30%', 'Support escalation'],
+            churnSignals: ['Bundle adoption <30%', 'Support escalation'],
             lastEngagement: '22 days ago'
           },
           {
-            name: 'Klinik Prima Care',
+            name: 'Toko Bangunan Berkah Jaya',
             arr: 48000000,
             healthScore: 40,
             churnSignals: ['Decreased usage', 'Budget review meeting scheduled'],
             lastEngagement: '10 days ago'
           },
           {
-            name: 'RS Harapan Baru',
+            name: 'PT Sumber Material Jaya',
             arr: 38000000,
             healthScore: 44,
             churnSignals: ['Low NPS score (4)', 'Exploring competitors'],

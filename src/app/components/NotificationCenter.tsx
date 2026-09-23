@@ -45,7 +45,7 @@ export function NotificationCenter() {
       {
         id: '1',
         title: 'Lead Baru',
-        message: 'Ada lead baru dari RS Harapan Kita',
+        message: 'Ada lead baru dari Toko Bangunan Sinar Jaya',
         type: 'info',
         timestamp: new Date(Date.now() - 5 * 60 * 1000),
         read: false,
@@ -53,7 +53,7 @@ export function NotificationCenter() {
       {
         id: '2',
         title: 'Kontrak Berhasil',
-        message: 'Kontrak dengan Klinik Sehat telah ditandatangani',
+        message: 'Kontrak dengan Distributor Atap Nusantara telah ditandatangani',
         type: 'success',
         timestamp: new Date(Date.now() - 30 * 60 * 1000),
         read: false,
@@ -61,7 +61,7 @@ export function NotificationCenter() {
       {
         id: '3',
         title: 'Pembayaran Menunggu',
-        message: 'Tagihan untuk RS Medika jatuh tempo dalam 3 hari',
+        message: 'Tagihan untuk CV Karya Konstruksi Mandiri jatuh tempo dalam 3 hari',
         type: 'warning',
         timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
         read: true,

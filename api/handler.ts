@@ -31,7 +31,7 @@
 // req.query.id / req.query.action directly), and relative import depth
 // (one level up now, not two).
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { Role } from '@prisma/client';
+import type { Role, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import {
   hashPassword,
@@ -76,6 +76,45 @@ function getParam(req: ApiRequest, name: string): string | undefined {
 }
 
 // ---------------------------------------------------------------------
+// Audit log -- targeted instrumentation (business decision confirmed
+// with user, 23 Sep 2026): NOT every mutation in this file writes an
+// audit entry, only the ones that matter for accountability -- login/
+// logout, every approve/reject (and counter-offer) decision across
+// Distributor/Store/Client/Discount Approval, and user create/
+// deactivate/activate. AuditLogEntry itself already existed in
+// schema.prisma (Bab 10 gap analysis found it modeled but never
+// written to); this is its first real writer.
+//
+// Deliberately fire-and-forget-safe: a failure here is logged to the
+// server console and swallowed rather than thrown, so a broken audit
+// write can never turn a successful business operation into a 500 the
+// user sees.
+// ---------------------------------------------------------------------
+async function logAudit(
+  actorId: string | null,
+  action: string,
+  entityType: string,
+  entityId: string,
+  before?: Record<string, unknown>,
+  after?: Record<string, unknown>,
+) {
+  try {
+    await prisma.auditLogEntry.create({
+      data: {
+        actorId,
+        action,
+        entityType,
+        entityId,
+        ...(before !== undefined && { beforeJson: before as Prisma.InputJsonValue }),
+        ...(after !== undefined && { afterJson: after as Prisma.InputJsonValue }),
+      },
+    });
+  } catch (err) {
+    console.error('[audit] failed to write log entry:', err);
+  }
+}
+
+// ---------------------------------------------------------------------
 // /api/auth/login, /api/auth/logout, /api/auth/me
 // ---------------------------------------------------------------------
 
@@ -103,12 +142,14 @@ async function handleLogin(req: ApiRequest, res: ApiResponse) {
   // Same response whether the email doesn't exist or the password is
   // wrong — don't tell an attacker which half failed.
   if (!user || !user.isActive || !(await verifyPassword(password, user.passwordHash))) {
+    await logAudit(null, 'login.failed', 'User', email.toLowerCase());
     res.status(401).json({ success: false, error: 'Email atau password salah' });
     return;
   }
 
   const { token, expiresAt } = await createSession(user.id);
   await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+  await logAudit(user.id, 'login', 'User', user.id, undefined, { email: user.email });
 
   res.status(200).json({
     success: true,
@@ -129,7 +170,11 @@ async function handleLogout(req: ApiRequest, res: ApiResponse) {
     return;
   }
   const token = extractBearerToken(req.headers.authorization);
-  if (token) await revokeSession(token);
+  if (token) {
+    const actor = await getUserFromToken(token);
+    await revokeSession(token);
+    if (actor) await logAudit(actor.id, 'logout', 'User', actor.id);
+  }
   res.status(200).json({ success: true });
 }
 
@@ -269,6 +314,16 @@ async function handleDistributors(id: string | undefined, req: ApiRequest, res: 
           ...(body.rejectionNote !== undefined && { rejectionNote: body.rejectionNote as string }),
         },
       });
+      if (isDeciding) {
+        await logAudit(
+          user.id,
+          nextStatus === 'APPROVED' ? 'distributor.approve' : 'distributor.reject',
+          'Distributor',
+          id,
+          { status: current.status },
+          { status: nextStatus, rejectionNote: (body.rejectionNote as string) ?? null },
+        );
+      }
       res.status(200).json({ success: true, data: distributor });
       return;
     }
@@ -565,6 +620,16 @@ async function handleClients(id: string | undefined, req: ApiRequest, res: ApiRe
       if (body.rejectionNote !== undefined) data.rejectionNote = body.rejectionNote as string;
 
       const client = await prisma.client.update({ where: { id }, data });
+      if (isDeciding) {
+        await logAudit(
+          user.id,
+          nextStatus === 'APPROVED' ? 'client.approve' : 'client.reject',
+          'Client',
+          id,
+          undefined,
+          { status: nextStatus, rejectionNote: (body.rejectionNote as string) ?? null },
+        );
+      }
       res.status(200).json({ success: true, data: client });
       return;
     }
@@ -1446,6 +1511,16 @@ async function handleStores(id: string | undefined, req: ApiRequest, res: ApiRes
           ...(body.rejectionNote !== undefined && { rejectionNote: body.rejectionNote as string }),
         },
       });
+      if (isDeciding) {
+        await logAudit(
+          user.id,
+          nextStatus === 'APPROVED' ? 'store.approve' : 'store.reject',
+          'Store',
+          id,
+          { status: current.status },
+          { status: nextStatus, rejectionNote: (body.rejectionNote as string) ?? null },
+        );
+      }
       res.status(200).json({ success: true, data: store });
       return;
     }
@@ -1871,6 +1946,14 @@ async function handleDiscountApprovals(id: string | undefined, req: ApiRequest, 
         },
         include: { steps: { orderBy: { level: 'asc' } } },
       });
+      await logAudit(
+        user.id,
+        `discount.${action}`,
+        'DiscountApprovalRequest',
+        id,
+        { status: current.status, approvalLevel: current.approvalLevel },
+        { status: request.status, approvalLevel: request.approvalLevel, comment: (body.comment as string) ?? null },
+      );
       res.status(200).json({ success: true, data: request });
       return;
     }
@@ -2111,6 +2194,10 @@ async function handleUsers(id: string | undefined, req: ApiRequest, res: ApiResp
             isActive: (body.isActive as boolean) ?? true,
           },
         });
+        await logAudit(user.id, 'user.create', 'User', created.id, undefined, {
+          email: created.email,
+          role: created.role,
+        });
         res.status(201).json({ success: true, data: serializeUser(created) });
         return;
       }
@@ -2167,6 +2254,9 @@ async function handleUsers(id: string | undefined, req: ApiRequest, res: ApiResp
           where: { userId: id, revokedAt: null },
           data: { revokedAt: new Date() },
         });
+        await logAudit(user.id, 'user.deactivate', 'User', id, { isActive: true }, { isActive: false });
+      } else if (current?.isActive === false && updated.isActive === true) {
+        await logAudit(user.id, 'user.activate', 'User', id, { isActive: false }, { isActive: true });
       }
 
       res.status(200).json({ success: true, data: serializeUser(updated) });
@@ -2188,6 +2278,39 @@ async function handleUsers(id: string | undefined, req: ApiRequest, res: ApiResp
       return;
     }
     console.error('[api/users] unexpected error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
+// ---------------------------------------------------------------------
+// /api/audit-logs -- GET only, read-only surface over the AuditLogEntry
+// rows written by logAudit() above. Restricted to Super Admin, matching
+// menuConfig.ts's client-side gate on the Admin System menu item that
+// AdminSystem.tsx's "Audit & Security" tab lives under.
+// ---------------------------------------------------------------------
+
+async function handleAuditLogs(req: ApiRequest, res: ApiResponse) {
+  try {
+    const user = await getUserFromToken(extractBearerToken(req.headers.authorization));
+    requireRole(user, ['SUPER_ADMIN']);
+
+    if (req.method !== 'GET') {
+      res.status(405).json({ success: false, error: 'Method not allowed' });
+      return;
+    }
+
+    const entries = await prisma.auditLogEntry.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: { actor: { select: { name: true, email: true } } },
+    });
+    res.status(200).json({ success: true, data: entries });
+  } catch (err) {
+    if (err instanceof UnauthorizedError || err instanceof ForbiddenError) {
+      res.status(err.status).json({ success: false, error: err.message });
+      return;
+    }
+    console.error('[api/audit-logs] unexpected error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 }
@@ -2221,6 +2344,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return;
     case 'users':
       await handleUsers(sub, req, res);
+      return;
+    case 'audit-logs':
+      await handleAuditLogs(req, res);
       return;
     case 'commissions':
       await handleCommissions(sub, req, res);

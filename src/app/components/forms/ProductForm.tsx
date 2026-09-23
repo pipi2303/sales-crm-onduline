@@ -274,7 +274,7 @@ export function ProductFormModal({ product, onClose, onSuccess }: ProductFormPro
                     onChange={handleChange}
                     required
                     disabled={!!product}
-                    placeholder="HMS-ENT-001"
+                    placeholder="ONDC-CLS-001"
                     className="bg-white border-gray-300 font-mono"
                   />
                   {product && <p className="text-xs text-gray-500">SKU tidak bisa diubah setelah dibuat</p>}
@@ -324,18 +324,12 @@ export function ProductFormModal({ product, onClose, onSuccess }: ProductFormPro
                       <SelectValue placeholder="Pilih kategori" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Hospital Management System">Hospital Management System</SelectItem>
-                      <SelectItem value="Laboratory">Laboratory</SelectItem>
-                      <SelectItem value="Radiology">Radiology</SelectItem>
-                      <SelectItem value="Pharmacy Management">Pharmacy Management</SelectItem>
-                      <SelectItem value="Telemedicine">Telemedicine</SelectItem>
-                      <SelectItem value="Document Management">Document Management</SelectItem>
-                      <SelectItem value="Electronic Medical Record">Electronic Medical Record</SelectItem>
-                      <SelectItem value="Finance & Billing">Finance & Billing</SelectItem>
-                      <SelectItem value="Mobile Application">Mobile Application</SelectItem>
-                      <SelectItem value="Nursing Management">Nursing Management</SelectItem>
-                      <SelectItem value="Inventory & Supply Chain">Inventory & Supply Chain</SelectItem>
-                      <SelectItem value="Building Material">Building Material</SelectItem>
+                      <SelectItem value="Atap Bitumen">Atap Bitumen</SelectItem>
+                      <SelectItem value="Waterproofing">Waterproofing</SelectItem>
+                      <SelectItem value="Solar">Solar (Panel Surya Atap)</SelectItem>
+                      <SelectItem value="Green Roof">Green Roof</SelectItem>
+                      <SelectItem value="Aksesoris & Talang">Aksesoris & Talang</SelectItem>
+                      <SelectItem value="Building Material">Building Material (Lainnya)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -496,7 +490,7 @@ export function ProductFormModal({ product, onClose, onSuccess }: ProductFormPro
                     onChange={handleChange}
                     rows={6}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#EEF7F5]0 focus:border-[#EEF7F5]0 text-sm bg-white font-mono"
-                    placeholder="Integrasi SatuSehat&#10;EMR Lengkap&#10;Rekam Medis Elektronik&#10;Billing & Klaim BPJS&#10;Laporan Real-time"
+                    placeholder="Tahan Cuaca Ekstrem&#10;Anti Bocor Bergaransi&#10;Ringan & Mudah Dipasang&#10;Ramah Lingkungan&#10;Garansi 15 Tahun"
                   />
                   <p className="text-xs text-gray-500">
                     Masukkan setiap fitur di baris baru. Contoh di atas akan menjadi 5 fitur terpisah.

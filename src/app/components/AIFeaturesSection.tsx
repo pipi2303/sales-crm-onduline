@@ -138,7 +138,7 @@ export function AIFeaturesSection({ personName, personRole }: AIFeaturesSectionP
                   </div>
                   <div className="flex-1">
                     <p className="font-semibold text-gray-900">Buying Patterns</p>
-                    <p className="text-sm text-gray-600 mt-1">Q1 shows 23% increase in HMS deals, peak time: Tue-Thu 10AM-2PM</p>
+                    <p className="text-sm text-gray-600 mt-1">Q1 shows 23% increase in deals via jalur Distributor, peak time: Tue-Thu 10AM-2PM</p>
                     <div className="mt-2">
                       <span className="text-xs bg-[#DFF0EC] text-[#013E37] px-2 py-1 rounded-full font-semibold">Avg Deal: Rp 28.8M</span>
                     </div>
@@ -225,7 +225,7 @@ export function AIFeaturesSection({ personName, personRole }: AIFeaturesSectionP
                   <div className="h-8 w-8 rounded-full bg-[#EEF7F5]0 flex items-center justify-center flex-shrink-0 text-white font-bold">3</div>
                   <div className="flex-1">
                     <p className="font-semibold text-gray-900">Cross-Sell Training</p>
-                    <p className="text-sm text-gray-600 mt-1">Only 23% of HMS clients also buy IntraDoc. Recommend product bundling workshop.</p>
+                    <p className="text-sm text-gray-600 mt-1">Only 23% of clients via jalur Distributor also order Paket Aksesoris & Talang. Recommend product bundling workshop.</p>
                     <div className="mt-2 flex items-center gap-2">
                       <span className="text-xs bg-[#DFF0EC] text-[#013E37] px-2 py-1 rounded-full">Potential: Rp 380M</span>
                     </div>
@@ -250,7 +250,7 @@ export function AIFeaturesSection({ personName, personRole }: AIFeaturesSectionP
                   <span className="text-xs bg-[#013E37] text-white px-2 py-1 rounded-full font-bold">URGENT</span>
                   <span className="text-xs text-gray-500">2 hours ago</span>
                 </div>
-                <p className="font-semibold text-gray-900">Follow up RS Siloam Hospitals</p>
+                <p className="font-semibold text-gray-900">Follow up Toko Bangunan Sinar Jaya</p>
                 <p className="text-sm text-gray-600 mt-2">Last contact 14 days ago. Deal value Rp 450M at 65% probability. Recommend immediate call.</p>
                 <button className="mt-3 w-full bg-[#013E37] text-white px-4 py-2 rounded-lg hover:bg-[#025C52] transition-colors text-sm font-semibold">
                   Schedule Call Now
@@ -263,7 +263,7 @@ export function AIFeaturesSection({ personName, personRole }: AIFeaturesSectionP
                   <span className="text-xs text-gray-500">5 hours ago</span>
                 </div>
                 <p className="font-semibold text-gray-900">Upsell to Existing Clients</p>
-                <p className="text-sm text-gray-600 mt-2">8 HMS clients eligible for IntraDoc upgrade. Estimated value: Rp 320M.</p>
+                <p className="text-sm text-gray-600 mt-2">8 clients via jalur Distributor eligible for Onduvilla upgrade. Estimated value: Rp 320M.</p>
                 <button className="mt-3 w-full bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors text-sm font-semibold">
                   View Accounts
                 </button>
@@ -287,7 +287,7 @@ export function AIFeaturesSection({ personName, personRole }: AIFeaturesSectionP
                   <span className="text-xs text-gray-500">2 days ago</span>
                 </div>
                 <p className="font-semibold text-gray-900">Best Time to Call</p>
-                <p className="text-sm text-gray-600 mt-2">Hospital decision makers most responsive Wed-Thu 2-4 PM. Conversion rate: 34% vs 18% avg.</p>
+                <p className="text-sm text-gray-600 mt-2">Kontraktor decision makers most responsive Wed-Thu 2-4 PM. Conversion rate: 34% vs 18% avg.</p>
                 <button className="mt-3 w-full bg-[#EEF7F5]0 text-white px-4 py-2 rounded-lg hover:bg-[#013E37] transition-colors text-sm font-semibold">
                   Update Schedule
                 </button>
@@ -440,8 +440,8 @@ export function AIFeaturesSection({ personName, personRole }: AIFeaturesSectionP
                     <div className="flex items-center gap-2 mb-2">
                       <span className="h-8 w-8 rounded-full bg-green-500 text-white flex items-center justify-center font-bold text-sm">95</span>
                       <div>
-                        <p className="font-bold text-gray-900">RS Premier Bintaro</p>
-                        <p className="text-xs text-gray-600">Hospital Management System</p>
+                        <p className="font-bold text-gray-900">CV Karya Konstruksi Mandiri</p>
+                        <p className="text-xs text-gray-600">Onduline Classic (Proyek)</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
@@ -463,8 +463,8 @@ export function AIFeaturesSection({ personName, personRole }: AIFeaturesSectionP
                     <div className="flex items-center gap-2 mb-2">
                       <span className="h-8 w-8 rounded-full bg-green-500 text-white flex items-center justify-center font-bold text-sm">92</span>
                       <div>
-                        <p className="font-bold text-gray-900">Klinik Pratama Sehat</p>
-                        <p className="text-xs text-gray-600">IntraDoc + HMS Bundle</p>
+                        <p className="font-bold text-gray-900">Toko Bangunan Berkah Jaya</p>
+                        <p className="text-xs text-gray-600">Onduvilla + Aksesoris Bundle</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">

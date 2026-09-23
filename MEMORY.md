@@ -845,15 +845,223 @@ Tidak ada error baru di `ClientForm.tsx`, `SalesTeam.tsx`,
 
 - [ ] `git push origin main` untuk semua commit sesi ini, termasuk
       `15b467c3` dan `a5fa86d6`.
-- [ ] Jalankan `npx prisma migrate deploy` + `npx prisma generate` untuk
-      migrasi `20260923080000_add_client_approval_workflow` (Discount
-      Approval dan Territory kemungkinan sudah, lihat catatan di atas),
-      lalu re-verify `tsc`/`vite build`.
+- [x] ~~Jalankan `npx prisma migrate deploy` + `npx prisma generate`
+      untuk migrasi `20260923080000_add_client_approval_workflow`~~ --
+      dikonfirmasi SUDAH dijalankan user, lihat temuan verifikasi di
+      section 12.
 - [ ] Smoke-test `/api/users` dan alur approval `/api/clients` di live
       Neon DB setelah deploy -- terutama guard "tidak bisa nonaktifkan
       akun sendiri" dan efek nonaktifkan user ke sesi yang sedang aktif.
-- [ ] Masih terbuka, belum dikerjakan: Fase 0 rotasi password, tab Audit
-      Log AdminSystem (masih dummy, butuh instrumentasi project-wide),
-      dan sebaran dummy data bertema rumah sakit di komponen lain
-      (AIChatAssistant.tsx dkk., lihat 11.1) -- semuanya di luar 3 item
-      yang diminta user kali ini.
+- [x] ~~Tab Audit Log AdminSystem (masih dummy) dan sebaran dummy data
+      bertema rumah sakit di komponen lain~~ -- dikerjakan di section 12
+      (12.2 dan 12.5). Fase 0 rotasi password masih terbuka (personal/
+      infrastruktur, bukan kode).
+
+## 12. Bab 10 #2 (Quotation approval card), #3 (Audit Log + Roles & Permissions), dan sapuan dummy data faskes/rumah sakit -- 23 Sep 2026
+
+Permintaan: lanjutkan gap-report point 2 (Quotation) dan point 3 (Audit
+Log / Roles & Permissions / System Settings), sekaligus ganti seluruh
+data dummy bertema faskes/rumah sakit dengan data yang sesuai bisnis
+Onduline. 4 keputusan dikonfirmasi via `AskUserQuestion` sebelum eksekusi
+(semua opsi "(Recommended)"): kartu Quotation approval direlabel bukan
+dibangun ulang; Audit Log cakupan tertarget (bukan instrumentasi penuh);
+Roles & Permissions jadi tampilan read-only akurat (bukan matriks
+switch); System Settings dilewati (tetap cosmetic).
+
+### 12.1 Quotation "Approval Workflow" card
+
+`ConfigurePriceQuote.tsx`: kartu dekoratif "Approval Workflow / Multi-level
+approval" (100% tanpa logic, ditemukan saat gap analysis) direlabel
+menjadi "Approval Diskon" + teks yang mengarahkan ke menu Discount
+Approval yang sudah punya backend nyata. TIDAK ada navigasi klik nyata ke
+menu itu -- App.tsx merender `<ActiveComponent />` tanpa props sama
+sekali (tidak ada mekanisme lintas-menu apa pun di codebase ini, dicek
+lewat `grep` untuk `window.dispatchEvent`/`CustomEvent`/global nav), jadi
+menambah navigasi asli berarti prop-drilling `setActiveMenu` ke SEMUA
+komponen halaman -- di luar skop perbaikan kartu dekoratif ini. Kalau mau
+kartu ini benar-benar bisa diklik, itu pekerjaan terpisah.
+
+### 12.2 Audit Log -- instrumentasi tertarget
+
+`AuditLogEntry` sudah ada di `prisma/schema.prisma` sejak migrasi
+`20260920010056_init` (bukan model baru), tapi belum ada yang menulis ke
+sana -- inilah writer pertamanya. `api/handler.ts` dapat helper
+`logAudit(actorId, action, entityType, entityId, before?, after?)`
+(fire-and-forget-safe: gagal nulis audit log di-catch & di-log ke
+console, TIDAK melempar error yang bisa menggagalkan operasi bisnis
+utama). Titik-titik penulisan (persis 3 kategori yang disepakati):
+- Login (sukses `login` + gagal `login.failed`, entityId email untuk
+  yang gagal karena belum tentu ada user match) dan Logout (resolve user
+  dari token SEBELUM `revokeSession` supaya actor masih diketahui).
+- Semua keputusan approve/reject: `distributor.approve/.reject`,
+  `store.approve/.reject`, `client.approve/.reject`, dan
+  `discount.approve/.reject/.counter-offer` (leveled: level 1 self-approve
+  tidak pernah lewat jalur PUT ini jadi tidak ter-log, sesuai desain).
+- User: `user.create` (POST tanpa id) dan `user.deactivate`/`user.activate`
+  (PUT saat `isActive` berubah).
+
+TIDAK ada log untuk: edit biasa (bukan keputusan) di Distributor/Store/
+Client/Lead/Opportunity/Product/Task/Territory/Commission/
+PerformanceTarget -- sesuai keputusan "cakupan tertarget", bukan
+instrumentasi penuh setiap mutasi.
+
+Endpoint baru read-only: `GET /api/audit-logs` (`handleAuditLogs`,
+`requireRole(['SUPER_ADMIN'])`, sama seperti gate `/api/users` --
+mencerminkan bahwa menu Admin System sudah di-gate ke Super Admin di
+`menuConfig.ts`), return 100 entry terbaru + relasi `actor{name,email}`.
+Frontend: `src/types/auditLog.ts` (`AuditLogEntry` -- SENGAJA tidak
+punya field `ipAddress`/`status` fabrikasi seperti versi dummy lama,
+karena app ini memang tidak pernah menangkap IP request) +
+`src/services/auditLogRepository.ts` (`getRecent()`) +
+`AdminSystem.tsx` (`fetchAdminData` sekarang `Promise.all` users + audit
+logs asli; `toAuditLog()` menerjemahkan entry mentah -- `status`
+DIDERIVE dari nama action (`.reject`→warning, `.failed`→failed, selain
+itu→success), bukan field mentah; badge IP di render diganti badge nama
+modul (`entityType` asli); stat "Audit Log 24h" sekarang benar-benar
+filter berdasar `createdAt` 24 jam terakhir, bukan `auditLogs.length`
+mentah).
+
+### 12.3 Roles & Permissions -- read-only accurate display
+
+Ditemukan saat baca kode: tab "Roles & Permissions" punya 24 switch
+permission dengan `defaultChecked={... || Math.random() > 0.5}` --
+benar-benar RANDOM, bukan sekadar dummy statis. Diganti total: dibaca
+manual SEMUA `requireRole()`/gate implisit di `api/handler.ts` (per
+modul, per action -- GET/POST/PUT/DELETE) jadi `MODULE_PERMISSIONS`
+(constant di `AdminSystem.tsx`, 14 modul x 1-4 action masing-masing) +
+helper `roleCan()`. Render: pilih role di kiri (tetap), kanan sekarang
+menampilkan tiap module x action dengan badge "Diizinkan"/"Tidak
+diizinkan" berdasar keanggotaan role di `roles` (union `UserRole[] |
+'all'`, `'all'` = `requireAuth` saja tanpa `requireRole`). Tombol "Simpan
+Perubahan" dan "Buat Role Baru" DIHAPUS (dulu tidak melakukan apa-apa --
+5 role adalah enum tetap di skema, bukan model yang bisa ditambah).
+Deskripsi card sekarang eksplisit bilang "read-only -- mencerminkan
+aturan otorisasi backend, bukan pengaturan yang bisa diubah dari sini".
+
+PENTING untuk maintenance: `MODULE_PERMISSIONS` adalah salinan manual,
+BUKAN query live ke `api/handler.ts` (app ini tidak punya model
+Permission generik). Kalau ada `requireRole()` baru/berubah di
+`handler.ts`, tabel ini harus di-update manual juga -- tidak ada
+mekanisme yang memaksa keduanya tetap sinkron.
+
+### 12.4 System Settings -- tidak disentuh (sesuai keputusan)
+
+Tetap cosmetic/ilustratif, tidak ada perubahan.
+
+### 12.5 Sapuan dummy data faskes/rumah sakit -> Onduline
+
+Cakupan asli 18 file (dari gap analysis) TERNYATA lebih luas setelah
+di-grep ulang dengan pola lebih longgar (nama RS spesifik pola
+`RS [A-Z]`, bukan cuma daftar nama yang sudah diketahui) -- ditemukan 3
+file tambahan di luar 18 file awal yang butuh perbaikan setara:
+`ConversionDetailDialog.tsx` (sibling `DealsDetailDialog.tsx`/
+`RevenueDetailDialog.tsx`, pola sama persis), `ProductCatalog.tsx`
+(mapping kategori->subtext), dan `AISmartRecommendations.tsx` (1 baris
+SIMRS). Dua file yang SEMULA dikira masih perlu perbaikan
+(`populateCRMData.ts`, `initializeDemos.ts`) TERNYATA sudah dimigrasi
+tuntas di sesi/putaran sebelumnya -- comment historisnya menyebut
+"hospital/HMS" tapi DATA aktualnya sudah 100% Onduline; tidak disentuh
+lagi (tidak ada regresi, hanya verifikasi ulang).
+
+Konsisten dikecualikan (by design, bukan terlewat): `KaryawanForm.tsx`
+(field BPJS Ketenagakerjaan/Kesehatan -- itu hak ketenagakerjaan asli
+Indonesia, bukan tema faskes) dan field kolom DB Client yang sudah
+schema-tied (`id_satusehat`, `id_faskes_bpjs`, `status_akreditasi`,
+`volume_pasien`, `jumlah_tempat_tidur`, `npwp_faskes` di
+`ClientForm.tsx`/`clientsRepository.ts`/`types/client.ts`) -- itu bagian
+dari keputusan terpisah "Fase 1 item 5: unify data model" yang belum
+diminta user, disentuh SATU baris saja waktu itu (dropdown
+`kategori_client`).
+
+Perubahan berpola (bukan cuma ganti nama satu-satu): 3 file
+Deals/Revenue/Conversion-DetailDialog.tsx punya struktur 3-segmen
+(Hospital/Retail/IntraDoc) yang sama persis -- di-rename konsisten jadi
+(Proyek/Retail/Distributor), termasuk semua nama variabel
+(`hospitalDeals`->`projekDeals`, `intradocTotal`->`distributorTotal`,
+dst.), value tab Radix (`value="hospital"`->`"projek"`,
+`"intradoc"`->`"distributor"`, termasuk `<Tabs defaultValue=...>` yang
+sempat kelewat di ronde pertama lalu diperbaiki), dan label
+`RevenueBreakdownDialog.tsx` + tipe `revenueBreakdownTab` di
+`SalesReports.tsx` (union type `'hospital'|'retail'|'intradoc'` ->
+`'projek'|'retail'|'distributor'`) supaya tidak ada mismatch tipe.
+`kpi-managers.ts`: divisi "Hospital Division"/"Sales Manager - Rumah
+Sakit" -> "Proyek Division"/"Sales Manager - Proyek"; "Enterprise
+Division" -> "Distributor Division" (selaras dengan pemetaan 2-jalur di
+atas -- CATATAN: `CustomReportBuilder.tsx` punya teks statis "Enterprise
+Division" sendiri yang TIDAK ikut diubah karena independen/tidak
+terhubung ke data ini, dan kata "Enterprise" sendiri bukan tema faskes).
+
+Nama perusahaan dummy pengganti dipakai konsisten lintas file (Toko
+Bangunan Sinar Jaya, CV Karya Konstruksi Mandiri, PT Graha Bangun
+Persada, Distributor Atap Nusantara, Toko Bangunan Berkah Jaya, CV Mitra
+Atap Sejahtera, dll.) dan nama produk (Onduline Classic, Easyfix,
+Onduvilla, Paket Aksesoris & Talang, Panel Surya/Solar, Green Roof,
+Waterproofing) mengikuti taksonomi yang sudah dipakai `initializeDemos.ts`.
+
+`ProductForm.tsx`: dropdown kategori (12 opsi bertema rumah sakit:
+Hospital Management System/Laboratory/Radiology/dst., 1 sudah "Building
+Material" dari migrasi sebagian sebelumnya) diganti 6 kategori nyata
+selaras `ProductCatalog.tsx` (Atap Bitumen/Waterproofing/Solar/Green
+Roof/Aksesoris & Talang/Building Material-lainnya) + placeholder SKU
+`HMS-ENT-001`->`ONDC-CLS-001`. **Ditemukan tapi SENGAJA TIDAK disentuh**:
+`src/types/product.ts` masih punya union `productType: 'software' |
+'physical'` (warisan asumsi bahwa app ini jual software kesehatan +
+barang fisik) dan `ProductForm.tsx` masih punya toggle "Software /
+Sistem" vs "Produk Fisik" -- Onduline 100% barang fisik, jadi cabang
+"software" kemungkinan besar sudah vestigial untuk bisnis ini. INI
+KEPUTUSAN ARSITEKTUR (skema `db/migrations/0001_unified_product_model.sql`,
+bukan sekadar dummy data), jadi tidak dieksekusi sepihak di ronde ini --
+diflag sebagai kandidat follow-up scope terpisah, sama seperti Fase 1
+item 5.
+
+`AIEmailGenerator.tsx` paling ekstensif: 5 template email (follow-up,
+proposal, cold-outreach, upsell, re-engagement) ditulis ulang total dari
+tema SIMRS/BPJS/rumah-sakit ke tema supply-chain bahan bangunan,
+termasuk placeholder generator (`{bed_count}`->`{project_area}`,
+`{lab_tests}`->`{order_volume}`) dan default nama fallback
+(`'Dr. [Name]'`->`'[Name]'`).
+
+### Temuan menarik saat verifikasi
+
+`node_modules/.prisma/client/index.d.ts` sekarang mtime **Sep 23 02:47**
+(lebih baru dari catatan section 11 sebelumnya, Sep 23 02:28) dan sudah
+punya `Client.status`/`submittedById`/`decidedById`/`rejectionNote`
+bertipe penuh -- artinya user SUDAH menjalankan `npx prisma migrate
+deploy` + `npx prisma generate` untuk migrasi Client approval
+(`20260923080000_add_client_approval_workflow`) sejak checklist round
+sebelumnya ditulis. Verifikasi `tsc` round ini nol error baru seputar
+`Client.status` (yang diperkirakan sebelumnya sebagai "3 baris error
+yang diharapkan") -- migrasi itu sudah live. `AuditLogEntry` juga
+otomatis sudah punya client type lengkap (tidak perlu migrasi baru sama
+sekali untuk section 12.2 di atas, karena modelnya sudah ada sejak
+`20260920010056_init`).
+
+### Verifikasi (item 12.1-12.5)
+
+`tsc --noEmit` terisolasi: total 100 error, SAMA PERSIS dengan kelas
+noise pra-eksisting yang sudah diketahui (OpportunityFormNew.tsx 23,
+DemoScheduler.tsx 7, ProposalBuilder.tsx 6, 3x file Deals/Revenue/
+Conversion-DetailDialog.tsx 11 masing-masing untuk properti `progress`,
+6 di `api/handler.ts` untuk enum status Discount Approval pra-eksisting)
+-- nol error baru dari file manapun yang diedit ronde ini. `npx vite
+build` sukses (`dist/` dihapus setelahnya, bukan bagian dari commit).
+
+- [x] ~~Jalankan `npx prisma migrate deploy` + `npx prisma generate`
+      untuk migrasi Client approval~~ -- SUDAH dijalankan user (lihat
+      "Temuan menarik" di atas).
+- [ ] `git push origin main` untuk semua commit sesi ini yang belum
+      di-push.
+- [ ] Smoke-test `/api/audit-logs` dan tab Roles & Permissions di live
+      Neon DB setelah deploy berikutnya -- terutama pastikan
+      `logAudit()` tidak pernah membuat request approve/reject gagal
+      walau tabel `audit_log_entries` bermasalah (sengaja fire-and-
+      forget-safe, tapi belum di-tes end-to-end).
+- [ ] Follow-up arsitektur yang diflag, BUKAN dikerjakan (butuh
+      keputusan bisnis terpisah): apakah `productType: 'software'`
+      masih relevan untuk Onduline (lihat 12.5) -- kemungkinan besar
+      vestigial dan bisa disederhanakan jadi murni fisik.
+- [ ] Masih di luar skop yang diminta user sejauh ini: Fase 0 rotasi
+      password + pembatasan akses publik URL produksi (personal/
+      infrastruktur, bukan kode); Fase 1 item 5 unify data model Client
+      (field faskes/BPJS yang masih schema-tied).
+

@@ -44,7 +44,7 @@ export function SalesReports() {
   const [selectedSalesExecutive, setSelectedSalesExecutive] = useState<SalesExecutive | null>(null);
   const [selectedAccountManager, setSelectedAccountManager] = useState<TeamMember | null>(null);
   const [selectedMemberForRevenue, setSelectedMemberForRevenue] = useState<TeamMember | null>(null);
-  const [revenueBreakdownTab, setRevenueBreakdownTab] = useState<'hospital' | 'retail' | 'intradoc'>('hospital');
+  const [revenueBreakdownTab, setRevenueBreakdownTab] = useState<'projek' | 'retail' | 'distributor'>('projek');
 
   // Dialog Functional States
   const [dialogAiTab, setDialogAiTab] = useState('insights');

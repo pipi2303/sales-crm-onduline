@@ -50,8 +50,8 @@ export function RevenueDetailDialog({
   const [showDailyDialog, setShowDailyDialog] = useState(false);
   const [selectedDate, setSelectedDate] = useState<number | null>(null);
 
-  // Mock Data - Rumah Sakit (Quarterly)
-  const hospitalQuarterly: QuarterlyData[] = [
+  // Mock Data - Proyek (Quarterly)
+  const projekQuarterly: QuarterlyData[] = [
     { quarter: 'Q1 2025', period: 'Jan-Mar', target: 250000000, actual: 245000000, progress: 98 },
     { quarter: 'Q2 2025', period: 'Apr-Jun', target: 300000000, actual: 285000000, progress: 95 },
     { quarter: 'Q3 2025', period: 'Jul-Sep', target: 280000000, actual: 210000000, progress: 75 },
@@ -74,8 +74,8 @@ export function RevenueDetailDialog({
     { month: 'Dec', target: 50000000, actual: 25000000, progress: 50 }
   ];
 
-  // Mock Data - IntraDoc (Monthly)
-  const intradocMonthly: MonthlyData[] = [
+  // Mock Data - Distributor (Monthly)
+  const distributorMonthly: MonthlyData[] = [
     { month: 'Jan', target: 35000000, actual: 38000000, progress: 109 },
     { month: 'Feb', target: 33000000, actual: 32000000, progress: 97 },
     { month: 'Mar', target: 37000000, actual: 36000000, progress: 97 },
@@ -91,11 +91,11 @@ export function RevenueDetailDialog({
   ];
 
   // Calculate totals
-  const hospitalTotal = {
-    target: hospitalQuarterly.reduce((sum, q) => sum + q.target, 0),
-    actual: hospitalQuarterly.reduce((sum, q) => sum + q.actual, 0)
+  const projekTotal = {
+    target: projekQuarterly.reduce((sum, q) => sum + q.target, 0),
+    actual: projekQuarterly.reduce((sum, q) => sum + q.actual, 0)
   };
-  hospitalTotal.progress = (hospitalTotal.actual / hospitalTotal.target) * 100;
+  projekTotal.progress = (projekTotal.actual / projekTotal.target) * 100;
 
   const retailTotal = {
     target: retailMonthly.reduce((sum, m) => sum + m.target, 0),
@@ -103,15 +103,15 @@ export function RevenueDetailDialog({
   };
   retailTotal.progress = (retailTotal.actual / retailTotal.target) * 100;
 
-  const intradocTotal = {
-    target: intradocMonthly.reduce((sum, m) => sum + m.target, 0),
-    actual: intradocMonthly.reduce((sum, m) => sum + m.actual, 0)
+  const distributorTotal = {
+    target: distributorMonthly.reduce((sum, m) => sum + m.target, 0),
+    actual: distributorMonthly.reduce((sum, m) => sum + m.actual, 0)
   };
-  intradocTotal.progress = (intradocTotal.actual / intradocTotal.target) * 100;
+  distributorTotal.progress = (distributorTotal.actual / distributorTotal.target) * 100;
 
   const grandTotal = {
-    target: hospitalTotal.target + retailTotal.target + intradocTotal.target,
-    actual: hospitalTotal.actual + retailTotal.actual + intradocTotal.actual
+    target: projekTotal.target + retailTotal.target + distributorTotal.target,
+    actual: projekTotal.actual + retailTotal.actual + distributorTotal.actual
   };
   grandTotal.progress = (grandTotal.actual / grandTotal.target) * 100;
 
@@ -178,25 +178,25 @@ export function RevenueDetailDialog({
     const dailyData = [];
     
     const clients = [
-      'RS Siloam Jakarta',
-      'RS Hermina Bekasi',
-      'RS Harapan Kita',
-      'Klinik Pratama Sehat',
-      'RS Premiere Bintaro',
-      'RS Mitra Keluarga',
-      'Klinik Kimia Farma',
-      'RS Pondok Indah',
+      'Toko Bangunan Sinar Jaya',
+      'Distributor Atap Nusantara',
+      'CV Karya Konstruksi Mandiri',
+      'Toko Bangunan Berkah Jaya',
+      'PT Graha Bangun Persada',
+      'Toko Bangunan Makmur Abadi',
+      'CV Mitra Atap Sejahtera',
+      'Distributor Bahan Bangunan Prima',
     ];
 
     const doctors = [
-      'Dr. Ahmad Hidayat, Sp.PD',
-      'Dr. Siti Nurhaliza, Sp.A',
-      'Dr. Budi Santoso, Sp.B',
-      'Dr. Rina Wijaya, Sp.OG',
-      'Dr. Hendra Kusuma, Sp.JP',
-      'Dr. Maya Sari, Sp.M',
-      'Dr. Rudi Hartono, Sp.THT',
-      'Dr. Lisa Amelia, Sp.KK',
+      'Bpk. Ahmad Hidayat, Pemilik Toko',
+      'Ibu Siti Nurhaliza, Purchasing Manager',
+      'Bpk. Budi Santoso, Kepala Proyek',
+      'Ibu Rina Wijaya, Owner',
+      'Bpk. Hendra Kusuma, General Manager',
+      'Ibu Maya Sari, Kepala Gudang',
+      'Bpk. Rudi Hartono, Procurement Lead',
+      'Ibu Lisa Amelia, Owner',
     ];
 
     for (let day = 1; day <= daysInMonth; day++) {
@@ -300,20 +300,20 @@ export function RevenueDetailDialog({
               </CardContent>
             </Card>
 
-            {/* Hospital Segment */}
+            {/* Segmen Proyek */}
             <Card className="border-2 border-blue-400 bg-gradient-to-br from-blue-50 to-[#EEF7F5]">
               <CardContent className="p-4">
                 <div className="flex items-center gap-1 mb-1">
                   <Building2 className="w-3.5 h-3.5 text-blue-600" />
-                  <div className="text-xs font-semibold text-gray-600">Hospital Segment</div>
+                  <div className="text-xs font-semibold text-gray-600">Segmen Proyek</div>
                 </div>
                 <div className="text-xl font-bold text-blue-600 mb-1">
-                  {formatCurrency(hospitalTotal.actual)}
+                  {formatCurrency(projekTotal.actual)}
                 </div>
                 <div className="text-xs text-gray-600 space-y-0.5 mb-2">
-                  <div>Target: {formatCurrency(hospitalTotal.target)}</div>
+                  <div>Target: {formatCurrency(projekTotal.target)}</div>
                   {(() => {
-                    const gap = calculateGap(hospitalTotal.actual, hospitalTotal.target);
+                    const gap = calculateGap(projekTotal.actual, projekTotal.target);
                     const { label, value, isPositive } = formatGap(gap);
                     return (
                       <div className={`font-semibold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
@@ -322,8 +322,8 @@ export function RevenueDetailDialog({
                     );
                   })()}
                 </div>
-                <Progress value={hospitalTotal.progress} className="h-1.5 mb-1" />
-                <div className="text-xs font-semibold">{hospitalTotal.progress.toFixed(1)}%</div>
+                <Progress value={projekTotal.progress} className="h-1.5 mb-1" />
+                <div className="text-xs font-semibold">{projekTotal.progress.toFixed(1)}%</div>
               </CardContent>
             </Card>
 
@@ -356,33 +356,33 @@ export function RevenueDetailDialog({
           </div>
 
           {/* Segment Breakdown Tabs */}
-          <Tabs defaultValue="hospital" className="w-full">
+          <Tabs defaultValue="projek" className="w-full">
             <TabsList className="h-14 bg-gray-100/50 p-1 flex overflow-x-auto no-scrollbar justify-start w-full">
-              <TabsTrigger value="hospital" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 flex-1">
-                <span className="font-bold text-xs">Rumah Sakit</span>
+              <TabsTrigger value="projek" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 flex-1">
+                <span className="font-bold text-xs">Proyek</span>
                 <span className="text-[8px] uppercase tracking-wider font-semibold opacity-60">QUARTERLY</span>
               </TabsTrigger>
               <TabsTrigger value="retail" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 flex-1">
                 <span className="font-bold text-xs">IntraClinic</span>
                 <span className="text-[8px] uppercase tracking-wider font-semibold opacity-60">MONTHLY</span>
               </TabsTrigger>
-              <TabsTrigger value="intradoc" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 flex-1">
-                <span className="font-bold text-xs">IntraDoc</span>
+              <TabsTrigger value="distributor" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 flex-1">
+                <span className="font-bold text-xs">Distributor</span>
                 <span className="text-[8px] uppercase tracking-wider font-semibold opacity-60">MONTHLY</span>
               </TabsTrigger>
             </TabsList>
 
-            {/* Hospital Quarterly View */}
-            <TabsContent value="hospital" className="space-y-4">
+            {/* Projek Quarterly View */}
+            <TabsContent value="projek" className="space-y-4">
               <div className="p-4 bg-gradient-to-r from-blue-50 to-[#EEF7F5] rounded-lg border border-blue-200">
                 <h3 className="font-semibold flex items-center gap-2 mb-3">
                   <Building2 className="w-4 h-4 text-blue-600" />
-                  Rumah Sakit - Quarterly Breakdown {year}
+                  Proyek - Quarterly Breakdown {year}
                 </h3>
                 
                 {/* Quarterly Cards - 2 columns */}
                 <div className="grid grid-cols-2 gap-3">
-                  {hospitalQuarterly.map((quarter, index) => (
+                  {projekQuarterly.map((quarter, index) => (
                     <Card key={index} className={`border-2 ${getProgressColor(quarter.progress)}`}>
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between mb-2">
@@ -469,19 +469,19 @@ export function RevenueDetailDialog({
               </div>
             </TabsContent>
 
-            {/* IntraDoc Monthly View */}
-            <TabsContent value="intradoc" className="space-y-4">
+            {/* Distributor Monthly View */}
+            <TabsContent value="distributor" className="space-y-4">
               <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200">
                 <h3 className="font-semibold flex items-center gap-2 mb-3">
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
                   </svg>
-                  IntraDoc - Monthly Breakdown {year}
+                  Distributor - Monthly Breakdown {year}
                 </h3>
                 
                 {/* Monthly Cards - 4 columns, more compact */}
                 <div className="grid grid-cols-4 gap-2">
-                  {intradocMonthly.map((month, index) => {
+                  {distributorMonthly.map((month, index) => {
                     const gap = month.actual - month.target;
                     const gapInMillions = (Math.abs(gap) / 1000000).toFixed(0);
                     const isPositive = gap >= 0;
@@ -527,7 +527,7 @@ export function RevenueDetailDialog({
             <VisuallyHidden>
               <DialogTitle>Daily Breakdown - {selectedMonth.fullMonth} 2025</DialogTitle>
               <DialogDescription>
-                Detailed visit records by day with client and doctor information for {selectedMonth.fullMonth}
+                Detailed visit records by day with client and PIC information for {selectedMonth.fullMonth}
               </DialogDescription>
             </VisuallyHidden>
 

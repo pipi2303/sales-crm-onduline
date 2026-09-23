@@ -149,19 +149,20 @@ export function ProductCatalog() {
   };
 
   const getCategorySubtext = (category: string) => {
+    // Bab 10 #3 (23 Sep 2026): keys here are matched against real
+    // product.category values coming from /api/products (ProductCategory
+    // model, prisma/schema.prisma -- codes ATAP/WATERPROOFING/
+    // PHOTOVOLTAIC/GREEN_ROOF/ACCESSORIES). An unmatched category still
+    // falls back to 'KATALOG PRODUK' below, so this mapping only needs to
+    // cover the categories Onduline actually sells -- it no longer lists
+    // hospital-software modules that were never real product data here.
     const mapping: Record<string, string> = {
       'all': 'SEMUA PRODUK',
-      'Hospital Management System': 'SISTEM ENTERPRISE',
-      'Document Management': 'ARSIP DIGITAL',
-      'Telemedicine': 'LAYANAN JARAK JAUH',
-      'Electronic Medical Record': 'REKAM MEDIS DIGITAL',
-      'Radiology': 'PENCITRAAN MEDIS',
-      'Laboratory': 'SISTEM INFORMASI LAB',
-      'Pharmacy Management': 'STOK & DISPENSING',
-      'Finance & Billing': 'TRANSAKSI & KLAIM',
-      'Mobile Application': 'PASIEN & DOKTER APP',
-      'Nursing Management': 'ASUHAN KEPERAWATAN',
-      'Inventory & Supply Chain': 'LOGISTIK MEDIS'
+      'Atap Bitumen': 'GENTENG BITUMEN',
+      'Waterproofing': 'PELAPIS ANTI BOCOR',
+      'Solar': 'PANEL SURYA ATAP',
+      'Green Roof': 'ATAP HIJAU',
+      'Aksesoris & Talang': 'AKSESORIS & TALANG',
     };
     return mapping[category] || 'KATALOG PRODUK';
   };

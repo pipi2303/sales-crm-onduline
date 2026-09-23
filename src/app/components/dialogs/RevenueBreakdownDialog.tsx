@@ -10,8 +10,8 @@ import { TeamMember } from './sales-dialog-types';
 interface RevenueBreakdownDialogProps {
   selectedMember: TeamMember | null;
   onClose: () => void;
-  tab: 'hospital' | 'retail' | 'intradoc';
-  onTabChange: (tab: 'hospital' | 'retail' | 'intradoc') => void;
+  tab: 'projek' | 'retail' | 'distributor';
+  onTabChange: (tab: 'projek' | 'retail' | 'distributor') => void;
 }
 
 export function RevenueBreakdownDialog({
@@ -28,7 +28,7 @@ export function RevenueBreakdownDialog({
         <DialogHeader className="sr-only">
           <DialogTitle>Revenue Breakdown - {selectedMember.name}</DialogTitle>
           <DialogDescription>
-            Detailed revenue performance analysis for {selectedMember.name} across Hospital, Retail, and IntraDoc segments.
+            Detailed revenue performance analysis for {selectedMember.name} across Proyek, Retail, and Distributor segments.
           </DialogDescription>
         </DialogHeader>
 
@@ -116,37 +116,37 @@ export function RevenueBreakdownDialog({
 
           <Tabs value={tab} onValueChange={(v: any) => onTabChange(v)} className="space-y-6">
             <TabsList className="h-auto bg-gray-100/80 p-1 grid grid-cols-3 gap-1 rounded-xl">
-              <TabsTrigger value="hospital" className="flex flex-col gap-0.5 py-2.5 data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg border-transparent">
-                <span className="font-bold text-sm">Hospital</span>
-                <span className="text-[10px] uppercase tracking-wider font-bold opacity-50">FASKES & RS</span>
+              <TabsTrigger value="projek" className="flex flex-col gap-0.5 py-2.5 data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg border-transparent">
+                <span className="font-bold text-sm">Proyek</span>
+                <span className="text-[10px] uppercase tracking-wider font-bold opacity-50">KONTRAKTOR & DEVELOPER</span>
               </TabsTrigger>
               <TabsTrigger value="retail" className="flex flex-col gap-0.5 py-2.5 data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg border-transparent">
                 <span className="font-bold text-sm">Retail</span>
                 <span className="text-[10px] uppercase tracking-wider font-bold opacity-50">PASAR RITEL</span>
               </TabsTrigger>
-              <TabsTrigger value="intradoc" className="flex flex-col gap-0.5 py-2.5 data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg border-transparent">
-                <span className="font-bold text-sm">IntraDoc</span>
-                <span className="text-[10px] uppercase tracking-wider font-bold opacity-50">MODUL KHUSUS</span>
+              <TabsTrigger value="distributor" className="flex flex-col gap-0.5 py-2.5 data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg border-transparent">
+                <span className="font-bold text-sm">Distributor</span>
+                <span className="text-[10px] uppercase tracking-wider font-bold opacity-50">JALUR DISTRIBUTOR</span>
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="hospital" className="space-y-4 outline-none">
+            <TabsContent value="projek" className="space-y-4 outline-none">
                <Card className="border border-blue-100">
                  <CardHeader className="bg-blue-50/50 border-b border-blue-100">
                    <CardTitle className="flex items-center gap-2 text-blue-800 text-base">
                      <Building2 className="h-5 w-5" />
-                     Rumah Sakit Segment Breakdown
+                     Proyek Segment Breakdown
                    </CardTitle>
                  </CardHeader>
                  <CardContent className="pt-6">
                     <div className="space-y-4">
                       <p className="text-sm text-gray-600 leading-relaxed">
-                        Analisis performa pada segmen Rumah Sakit menunjukkan kontribusi yang stabil. Terdapat 12 institusi aktif dengan rata-rata nilai kontrak di atas 150M.
+                        Analisis performa pada segmen Proyek menunjukkan kontribusi yang stabil. Terdapat 12 klien aktif dengan rata-rata nilai kontrak di atas 150M.
                       </p>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
                           <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">Active Accounts</p>
-                          <p className="text-xl font-black text-gray-900">12 Hospitals</p>
+                          <p className="text-xl font-black text-gray-900">12 Klien</p>
                         </div>
                         <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
                           <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">Segment Pipeline</p>
@@ -165,11 +165,11 @@ export function RevenueBreakdownDialog({
               />
             </TabsContent>
 
-            <TabsContent value="intradoc" className="outline-none">
+            <TabsContent value="distributor" className="outline-none">
               <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl mb-4">
                 <p className="text-sm text-emerald-800 font-medium flex items-center gap-2">
                   <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                  Menampilkan data performa khusus modul IntraDoc untuk periode berjalan.
+                  Menampilkan data performa khusus jalur Distributor untuk periode berjalan.
                 </p>
               </div>
               <RetailMonthlyBreakdown 

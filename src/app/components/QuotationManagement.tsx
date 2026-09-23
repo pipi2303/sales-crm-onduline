@@ -31,9 +31,9 @@ const QUOTATIONS = [
   {
     id: 'Q-2026-001',
     quoteNumber: 'QTN/2026/02/001',
-    clientName: 'Dr. Ahmad Subarjo',
-    clientCompany: 'RS Siloam Karawaci',
-    clientEmail: 'ahmad.s@siloam.com',
+    clientName: 'Ahmad Subarjo',
+    clientCompany: 'Toko Bangunan Sinar Jaya',
+    clientEmail: 'ahmad.s@sinarjayabangunan.co.id',
     totalAmount: 125000000,
     status: 'approved',
     createdDate: new Date('2026-02-10'),
@@ -44,8 +44,8 @@ const QUOTATIONS = [
     id: 'Q-2026-002',
     quoteNumber: 'QTN/2026/02/002',
     clientName: 'Sarah Wilson',
-    clientCompany: 'Klinik Medika Pratama',
-    clientEmail: 'sarah@medika.id',
+    clientCompany: 'CV Karya Konstruksi Mandiri',
+    clientEmail: 'sarah@karyakonstruksi.co.id',
     totalAmount: 45750000,
     status: 'pending',
     createdDate: new Date('2026-02-15'),
@@ -56,8 +56,8 @@ const QUOTATIONS = [
     id: 'Q-2026-003',
     quoteNumber: 'QTN/2026/02/003',
     clientName: 'Budi Santoso',
-    clientCompany: 'Apotek Kimia Farma Unit 4',
-    clientEmail: 'budi@kimiafarma.co.id',
+    clientCompany: 'Distributor Atap Nusantara',
+    clientEmail: 'budi@atap-nusantara.co.id',
     totalAmount: 18900000,
     status: 'expired',
     createdDate: new Date('2026-01-05'),
@@ -420,7 +420,7 @@ export function QuotationManagement() {
                    <Input placeholder="Name" className="h-12" />
                  </div>
                  <div className="space-y-2">
-                   <Label className="text-[10px] font-black uppercase tracking-widest text-gray-500">Entity/Hospital</Label>
+                   <Label className="text-[10px] font-black uppercase tracking-widest text-gray-500">Nama Perusahaan/Client</Label>
                    <Input placeholder="Company Name" className="h-12" />
                  </div>
                </div>
@@ -436,7 +436,7 @@ export function QuotationManagement() {
                     <SelectContent>
                       <SelectItem value="standard">Standard Enterprise</SelectItem>
                       <SelectItem value="priority">Priority Partner (10% Disc)</SelectItem>
-                      <SelectItem value="hospital">Government/Public Sector</SelectItem>
+                      <SelectItem value="government">Government/Public Sector</SelectItem>
                     </SelectContent>
                  </Select>
                </div>

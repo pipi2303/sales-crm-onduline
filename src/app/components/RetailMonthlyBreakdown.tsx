@@ -9,31 +9,31 @@ interface RetailMonthlyBreakdownProps {
   target: number;
 }
 
-// Data dummy client doctor per hari
+// Data dummy client & PIC per hari
 const getDailyData = (month: string, monthNum: number) => {
   const daysInMonth = new Date(2025, monthNum, 0).getDate();
   const dailyData = [];
   
   const clients = [
-    'RS Siloam Jakarta',
-    'RS Hermina Bekasi',
-    'RS Harapan Kita',
-    'Klinik Pratama Sehat',
-    'RS Premiere Bintaro',
-    'RS Mitra Keluarga',
-    'Klinik Kimia Farma',
-    'RS Pondok Indah',
+    'Toko Bangunan Sinar Jaya',
+    'Distributor Atap Nusantara',
+    'CV Karya Konstruksi Mandiri',
+    'Toko Bangunan Berkah Jaya',
+    'PT Graha Bangun Persada',
+    'Toko Bangunan Makmur Abadi',
+    'CV Mitra Atap Sejahtera',
+    'Distributor Bahan Bangunan Prima',
   ];
 
   const doctors = [
-    'Dr. Ahmad Hidayat, Sp.PD',
-    'Dr. Siti Nurhaliza, Sp.A',
-    'Dr. Budi Santoso, Sp.B',
-    'Dr. Rina Wijaya, Sp.OG',
-    'Dr. Hendra Kusuma, Sp.JP',
-    'Dr. Maya Sari, Sp.M',
-    'Dr. Rudi Hartono, Sp.THT',
-    'Dr. Lisa Amelia, Sp.KK',
+    'Bpk. Ahmad Hidayat, Pemilik Toko',
+    'Ibu Siti Nurhaliza, Purchasing Manager',
+    'Bpk. Budi Santoso, Kepala Proyek',
+    'Ibu Rina Wijaya, Owner',
+    'Bpk. Hendra Kusuma, General Manager',
+    'Ibu Maya Sari, Kepala Gudang',
+    'Bpk. Rudi Hartono, Procurement Lead',
+    'Ibu Lisa Amelia, Owner',
   ];
 
   for (let day = 1; day <= daysInMonth; day++) {

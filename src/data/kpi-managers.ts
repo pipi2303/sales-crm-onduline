@@ -4,8 +4,8 @@ export const KPI_MANAGERS: Manager[] = [
   {
     id: 'MGR-001',
     name: 'Budi Santoso',
-    position: 'Sales Manager - Rumah Sakit',
-    department: 'Hospital Division',
+    position: 'Sales Manager - Proyek',
+    department: 'Proyek Division',
     teamMembers: [
       { id: 'TM-001', name: 'Ahmad Hidayat', position: 'Senior Sales Executive', managerId: 'MGR-001' },
       { id: 'TM-002', name: 'Siti Rahmawati', position: 'Sales Executive', managerId: 'MGR-001' },
@@ -30,8 +30,8 @@ export const KPI_MANAGERS: Manager[] = [
   {
     id: 'MGR-003',
     name: 'Hendra Gunawan',
-    position: 'Sales Manager - Enterprise',
-    department: 'Enterprise Division',
+    position: 'Sales Manager - Distributor',
+    department: 'Distributor Division',
     teamMembers: [
       { id: 'TM-011', name: 'Diana Safitri', position: 'Senior Sales Executive', managerId: 'MGR-003' },
       { id: 'TM-012', name: 'Irfan Hakim', position: 'Sales Executive', managerId: 'MGR-003' },
