@@ -3,9 +3,9 @@
 // Distributor (Bab 5 hierarchy); `distributor` is only present when the
 // API included the relation (api/stores GET does).
 
-import type { ApprovalStatus } from './distributor';
+import type { ApprovalStatus, SalesRepRef } from './distributor';
 
-export type { ApprovalStatus };
+export type { ApprovalStatus, SalesRepRef };
 
 export interface StoreDistributorRef {
   id: string;
@@ -28,6 +28,8 @@ export interface Store {
   decidedById: string | null;
   decidedAt: Date | null;
   rejectionNote: string;
+  salesRepId: string | null;
+  salesRep: SalesRepRef | null;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -83,6 +83,10 @@ function fromApiDistributor(row: any): Distributor {
     decidedById: row.decidedById ?? null,
     decidedAt: row.decidedAt ? new Date(row.decidedAt) : null,
     rejectionNote: row.rejectionNote ?? '',
+    salesRepId: row.salesRepId ?? null,
+    salesRep: row.salesRep
+      ? { id: row.salesRep.id, name: row.salesRep.name, email: row.salesRep.email }
+      : null,
     createdAt: new Date(row.createdAt),
     updatedAt: new Date(row.updatedAt),
   };

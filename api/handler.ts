@@ -238,6 +238,7 @@ async function handleDistributors(id: string | undefined, req: ApiRequest, res: 
 
       if (req.method === 'GET') {
         const distributors = await prisma.distributor.findMany({
+          include: { salesRep: { select: { id: true, name: true, email: true } } },
           orderBy: { createdAt: 'desc' },
         });
         res.status(200).json({ success: true, data: distributors });
@@ -277,7 +278,7 @@ async function handleDistributors(id: string | undefined, req: ApiRequest, res: 
       requireAuth(user);
       const distributor = await prisma.distributor.findUnique({
         where: { id },
-        include: { stores: true },
+        include: { stores: true, salesRep: { select: { id: true, name: true, email: true } } },
       });
       if (!distributor) {
         res.status(404).json({ success: false, error: 'Distributor not found' });
@@ -312,6 +313,10 @@ async function handleDistributors(id: string | undefined, req: ApiRequest, res: 
             decidedAt: new Date(),
           }),
           ...(body.rejectionNote !== undefined && { rejectionNote: body.rejectionNote as string }),
+          // Bab 12 follow-up (insight #7): penugasan PIC sales rep, lepas
+          // dari alur approve/reject -- null diperbolehkan untuk melepas
+          // penugasan.
+          ...(body.salesRepId !== undefined && { salesRepId: body.salesRepId as string | null }),
         },
       });
       if (isDeciding) {
@@ -1365,7 +1370,7 @@ async function handleStores(id: string | undefined, req: ApiRequest, res: ApiRes
 
       if (req.method === 'GET') {
         const stores = await prisma.store.findMany({
-          include: { distributor: true },
+          include: { distributor: true, salesRep: { select: { id: true, name: true, email: true } } },
           orderBy: { createdAt: 'desc' },
         });
         res.status(200).json({ success: true, data: stores });
@@ -1405,7 +1410,7 @@ async function handleStores(id: string | undefined, req: ApiRequest, res: ApiRes
       requireAuth(user);
       const store = await prisma.store.findUnique({
         where: { id },
-        include: { distributor: true, tasks: true },
+        include: { distributor: true, tasks: true, salesRep: { select: { id: true, name: true, email: true } } },
       });
       if (!store) {
         res.status(404).json({ success: false, error: 'Store not found' });
@@ -1441,6 +1446,9 @@ async function handleStores(id: string | undefined, req: ApiRequest, res: ApiRes
             decidedAt: new Date(),
           }),
           ...(body.rejectionNote !== undefined && { rejectionNote: body.rejectionNote as string }),
+          // Bab 12 follow-up (insight #7) -- lihat komentar yang sama di
+          // handleDistributors.
+          ...(body.salesRepId !== undefined && { salesRepId: body.salesRepId as string | null }),
         },
       });
       if (isDeciding) {
@@ -2097,15 +2105,19 @@ async function handleUsers(id: string | undefined, req: ApiRequest, res: ApiResp
     const user = await getUserFromToken(extractBearerToken(req.headers.authorization));
 
     if (!id) {
-      requireRole(user, ['SUPER_ADMIN']);
-
       if (req.method === 'GET') {
+        // Bab 12 follow-up: dibutuhkan approver non-SUPER_ADMIN (Sales
+        // Manager / Master Data Admin) untuk mengisi dropdown penugasan PIC
+        // sales rep di Distributor/Store -- serializeUser() sudah membuang
+        // passwordHash, jadi aman diperluas ke role approval ini.
+        requireRole(user, ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADMIN']);
         const users = await prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
         res.status(200).json({ success: true, data: users.map(serializeUser) });
         return;
       }
 
       if (req.method === 'POST') {
+        requireRole(user, ['SUPER_ADMIN']);
         const body = (req.body ?? {}) as Record<string, unknown>;
         if (!body.email || !body.name || !body.role || !body.password) {
           res.status(400).json({ success: false, error: 'email, name, role, dan password wajib diisi' });

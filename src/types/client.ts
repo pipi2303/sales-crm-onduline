@@ -38,6 +38,14 @@ export interface Client {
   npwp: string;
   vendor_sebelumnya: string;
 
+  // Bab 12 follow-up (insight #1/#6, 23 Sep 2026): sudah didukung penuh di
+  // Prisma model & api/handler.ts (POST create + PUT editableFields) sejak
+  // awal -- field ini murni menutup celah di layer frontend supaya
+  // Client bisa di-join ke Distributor/Store untuk agregasi heatmap
+  // performa & penetrasi kategori produk.
+  distributor_id: string;
+  store_id: string;
+
   // Bab 10 gap #1 ("Client tanpa approval workflow", 23 Sep 2026) -- same
   // shape as Distributor/Store's Bab 9 workflow, kept as plain strings
   // (not Date objects) to match every other field on this interface.

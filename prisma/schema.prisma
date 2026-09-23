@@ -97,6 +97,8 @@ model User {
   clientsDecided        Client[]        @relation("ClientDecidedBy")
   opportunitiesOwned    Opportunity[]   @relation("OpportunityOwner")
   tasksOwned            Task[]          @relation("TaskOwner")
+  distributorsAssigned  Distributor[]   @relation("DistributorSalesRep")
+  storesAssigned        Store[]         @relation("StoreSalesRep")
 
   @@map("users")
 }
@@ -146,6 +148,18 @@ model Distributor {
   decidedAt      DateTime?      @map("decided_at")
   rejectionNote  String?        @map("rejection_note") // "khusus jika ditolak"
 
+  // Bab 12 follow-up (distribusi beban per sales rep, 23 Sep 2026): siapa
+  // yang menangani akun Distributor ini sehari-hari -- BEDA dari
+  // submittedBy/decidedBy (siapa yang mengajukan/menyetujui). Ditugaskan
+  // oleh approver lewat PUT (DISTRIBUTOR_APPROVER_ROLES), sama seperti
+  // approve/reject. Menunjuk ke User (bukan model SalesRep terpisah yang
+  // cuma dipakai untuk KPI/commission, dan bukan Karyawan yang malah
+  // localStorage-only) supaya konsisten dengan Opportunity.ownerId/
+  // Task.ownerId -- satu-satunya model "orang" yang benar-benar terhubung
+  // ke akun login & RBAC.
+  salesRepId String? @map("sales_rep_id")
+  salesRep   User?   @relation("DistributorSalesRep", fields: [salesRepId], references: [id])
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -153,6 +167,7 @@ model Distributor {
   clients Client[]
 
   @@map("distributors")
+  @@index([salesRepId])
 }
 
 model Store {
@@ -174,6 +189,10 @@ model Store {
   decidedAt      DateTime?      @map("decided_at")
   rejectionNote  String?        @map("rejection_note")
 
+  // Bab 12 follow-up -- lihat komentar yang sama di model Distributor.
+  salesRepId String? @map("sales_rep_id")
+  salesRep   User?   @relation("StoreSalesRep", fields: [salesRepId], references: [id])
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -181,6 +200,7 @@ model Store {
   tasks   Task[]
 
   @@map("stores")
+  @@index([salesRepId])
 }
 
 // Sales project (B2B) vs sales retail (toko) — "dua alur kerja berbeda"

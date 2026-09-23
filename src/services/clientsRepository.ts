@@ -75,6 +75,8 @@ const FIELD_MAP: Record<keyof Client, string> = {
   status_esign: 'statusEsign',
   npwp: 'npwp',
   vendor_sebelumnya: 'vendorSebelumnya',
+  distributor_id: 'distributorId',
+  store_id: 'storeId',
   status: 'status',
   submitted_by_id: 'submittedById',
   submitted_at: 'submittedAt',
