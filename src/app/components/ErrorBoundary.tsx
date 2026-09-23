@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { reportError } from '@/utils/sentry';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -38,6 +39,9 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('[ErrorBoundary] Caught render error:', error, errorInfo);
+    // No-op kalau Sentry belum diaktifkan (VITE_SENTRY_DSN belum di-set)
+    // -- lihat src/utils/sentry.ts.
+    reportError(error, { componentStack: errorInfo.componentStack, fallbackLabel: this.props.fallbackLabel });
   }
 
   handleRetry = () => {
