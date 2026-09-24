@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, Users, Target, DollarSign, Calendar, FileText, Award, Activity, RefreshCw, CheckCircle2, Percent } from 'lucide-react';
+import { TrendingUp, Users, Target, DollarSign, Calendar, FileText, Award, Activity, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -229,7 +229,7 @@ export function Home() {
       textColor: 'text-blue-600'
     },
     {
-      title: 'Demos Scheduled',
+      title: 'Meeting & Demo Scheduled',
       value: formatNumber(stats.demosScheduled),
       change: '5 this week',
       icon: Calendar,
@@ -333,13 +333,7 @@ export function Home() {
 
       {/* Bab 13 -- Revenue MTD/YTD, Win Rate, Kepatuhan Visit Toko (data nyata dari Opportunity/Task) */}
       <Card className="hover:shadow-lg transition-shadow border-[#013E37]/20">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Percent className="h-5 w-5 text-[#013E37]" />
-            Ringkasan Bab 13
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           {bab13Loading ? (
             <div className="flex items-center justify-center h-20">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#013E37]"></div>

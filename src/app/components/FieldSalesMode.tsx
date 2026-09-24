@@ -45,6 +45,10 @@ import {
   ChevronUp,
   Building2,
   PhoneCall,
+  MessageCircle,
+  Map as MapIcon,
+  CloudOff,
+  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Badge } from '@/app/components/ui/badge';
@@ -53,13 +57,16 @@ import { useConfirm } from '@/app/components/ui/confirm-dialog';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { tasksRepository } from '@/services/tasksRepository';
 import { opportunitiesRepository } from '@/services/opportunitiesRepository';
+import { storesRepository } from '@/services/storesRepository';
 import { clientContactsRepository } from '@/services/clientContactsRepository';
 import { clientCommunicationsRepository } from '@/services/clientCommunicationsRepository';
 import { AddCommunicationDialog } from '@/app/components/AddCommunicationDialog';
 import type { Task, TaskType } from '@/types/task';
 import type { Opportunity } from '@/types/opportunity';
+import type { Store } from '@/types/store';
 import type { ClientContact } from '@/types/clientContact';
 import type { NewCommunicationInput } from '@/types/communication';
+import type { CheckInInput } from '@/services/tasksRepository';
 
 const TASK_TYPE_LABEL: Record<TaskType, string> = {
   visit: 'Kunjungan',
@@ -115,6 +122,83 @@ async function resizeImageToDataUrl(file: File, maxDimension = 1280, quality = 0
   return canvas.toDataURL('image/jpeg', quality);
 }
 
+// Bab 36 (24 Sep 2026): WhatsApp deep link dari nomor telepon Indonesia --
+// wa.me butuh kode negara "62" tanpa "+"/"0" di depan.
+function toWhatsAppLink(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  const withCountryCode = digits.startsWith('0')
+    ? `62${digits.slice(1)}`
+    : digits.startsWith('62')
+    ? digits
+    : `62${digits}`;
+  return `https://wa.me/${withCountryCode}`;
+}
+
+// Bab 36: link arah Google Maps ke koordinat toko tujuan.
+function toMapsDirectionsLink(lat: number, lng: number): string {
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+}
+
+// Bab 36: haversine distance (meter) -- duplikasi kecil dari pola yang
+// sama di DistributorStoreMap.tsx (bukan diimpor; lihat catatan desain
+// "deliberate duplication" di atas file ini).
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// Jarak maksimum (meter) dari koordinat toko tujuan supaya check-in
+// dianggap tervalidasi lokasinya. Dipilih longgar (bukan 200m seperti
+// DUPLICATE_RADIUS_METERS di DistributorStoreMap.tsx yang tujuannya beda
+// -- deteksi duplikasi pendaftaran, bukan validasi kunjungan) supaya
+// toleran terhadap akurasi GPS HP & radius bangunan toko.
+const CHECKIN_PROXIMITY_METERS = 500;
+
+// Bab 36: antrean check-in offline. Kalau tasksRepository.checkIn() gagal
+// karena masalah koneksi (pesan error tetap, lihat apiFetch di
+// tasksRepository.ts), payload check-in -- termasuk foto yang sudah
+// di-resize -- disimpan di localStorage alih-alih dibuang, supaya bisa
+// dikirim ulang otomatis begitu koneksi pulih.
+const OFFLINE_QUEUE_KEY = 'fieldSalesMode.offlineCheckInQueue';
+const NETWORK_ERROR_MESSAGE = 'Tidak dapat terhubung ke server. Periksa koneksi Anda dan coba lagi.';
+
+interface QueuedCheckIn {
+  taskId: string;
+  taskTitle: string;
+  input: CheckInInput;
+  queuedAt: string;
+}
+
+function readOfflineQueue(): QueuedCheckIn[] {
+  try {
+    const raw = localStorage.getItem(OFFLINE_QUEUE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeOfflineQueue(queue: QueuedCheckIn[]): void {
+  try {
+    if (queue.length === 0) localStorage.removeItem(OFFLINE_QUEUE_KEY);
+    else localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+  } catch {
+    // localStorage penuh/diblokir (mis. private browsing) -- antrean
+    // offline jadi tidak tersedia, tapi tidak fatal: check-in yang
+    // gagal koneksi akan tetap gagal dengan toast error seperti
+    // perilaku sebelum Bab 36, bukan crash.
+  }
+}
+
 // Info client ringkas -- diturunkan dari Opportunity yang relatedTo-nya
 // cocok, bukan dari Client langsung. Lihat catatan desain di atas file.
 interface BriefClientInfo {
@@ -131,10 +215,15 @@ export function FieldSalesMode() {
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [showUpcoming, setShowUpcoming] = useState(false);
+
+  // Bab 36: antrean check-in offline -- lihat catatan desain di atas file.
+  const [offlineQueue, setOfflineQueue] = useState<QueuedCheckIn[]>(() => readOfflineQueue());
+  const [flushingQueue, setFlushingQueue] = useState(false);
 
   // GPS check-in state -- sama pola dengan TaskManagement.tsx.
   const [checkInBusy, setCheckInBusy] = useState(false);
@@ -147,20 +236,34 @@ export function FieldSalesMode() {
   const [commsSaving, setCommsSaving] = useState(false);
 
   const loadData = async () => {
-    const [taskRes, oppRes] = await Promise.all([
+    const [taskRes, oppRes, storeRes] = await Promise.all([
       tasksRepository.getAll(),
       opportunitiesRepository.getAll(),
+      storesRepository.getAll(),
     ]);
     if (taskRes.success && taskRes.data) setTasks(taskRes.data);
     else toast.error(taskRes.error || 'Gagal memuat daftar tugas');
     if (oppRes.success && oppRes.data) setOpportunities(oppRes.data);
     // Opportunity gagal dimuat bukan blocker -- tugas tetap tampil, cuma
     // tanpa info client ringkas.
+    if (storeRes.success && storeRes.data) setStores(storeRes.data);
+    // Store gagal dimuat juga bukan blocker -- tugas tetap tampil, cuma
+    // tanpa tombol "Buka di Maps" & tanpa validasi proximity check-in.
   };
 
   useEffect(() => {
     setLoading(true);
     loadData().finally(() => setLoading(false));
+  }, []);
+
+  // Bab 36: kirim ulang antrean check-in offline begitu komponen dibuka
+  // (mis. sales buka lagi app-nya setelah dapat sinyal) dan begitu
+  // browser melaporkan koneksi pulih (event 'online').
+  useEffect(() => {
+    flushOfflineQueue();
+    window.addEventListener('online', flushOfflineQueue);
+    return () => window.removeEventListener('online', flushOfflineQueue);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleRefresh = async () => {
@@ -181,6 +284,20 @@ export function FieldSalesMode() {
     return map;
   }, [opportunities]);
 
+  // Bab 36: Task -> Store (via Task.storeId, foreign key sungguhan --
+  // beda dari relatedTo yang free-text) -- dipakai untuk tombol "Buka di
+  // Maps" dan validasi proximity check-in.
+  const storeById = useMemo(() => {
+    const map = new Map<string, Store>();
+    for (const s of stores) map.set(s.id, s);
+    return map;
+  }, [stores]);
+
+  const getTaskStore = (task: Task): Store | null => {
+    if (!task.storeId) return null;
+    return storeById.get(task.storeId) ?? null;
+  };
+
   const getBriefClientInfo = (task: Task): BriefClientInfo | null => {
     const key = task.relatedTo?.trim().toLowerCase();
     if (!key) return null;
@@ -199,10 +316,16 @@ export function FieldSalesMode() {
   // nama (Task.assignedTo adalah free text yang isinya nama, sama seperti
   // TaskManagement.tsx men-filter "tugas per anggota tim" -- lihat
   // TASK_ASSIGNEES di sana) karena Task tidak punya kolom userId.
-  const myOpenTasks = useMemo(
-    () => tasks.filter((t) => t.assignedTo === user?.name && t.status !== 'completed'),
-    [tasks, user?.name]
-  );
+  // Bab 36: dibuat trim + case-insensitive (sebelumnya exact-match string
+  // ketat) supaya beda spasi/kapitalisasi kecil antara Task.assignedTo
+  // dan nama akun tidak membuat tugas diam-diam hilang dari daftar.
+  const myOpenTasks = useMemo(() => {
+    const myName = user?.name?.trim().toLowerCase();
+    if (!myName) return [];
+    return tasks.filter(
+      (t) => t.assignedTo?.trim().toLowerCase() === myName && t.status !== 'completed'
+    );
+  }, [tasks, user?.name]);
 
   const todayTasks = useMemo(
     () =>
@@ -237,7 +360,10 @@ export function FieldSalesMode() {
   };
 
   // --- GPS + foto check-in -- duplikasi alur performCheckIn dari
-  // TaskManagement.tsx (lihat catatan desain di atas file). ---
+  // TaskManagement.tsx (lihat catatan desain di atas file). Bab 36
+  // menambahkan validasi proximity sungguhan + antrean offline di atas
+  // alur dasar ini (submitCheckIn/queueOfflineCheckIn/flushOfflineQueue
+  // di bawah). ---
   const performCheckIn = async (taskId: string, photoDataUrl?: string) => {
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
@@ -254,47 +380,36 @@ export function FieldSalesMode() {
       return;
     }
 
+    const targetStore = getTaskStore(task);
+
     setCheckInBusy(true);
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude, accuracy } = position.coords;
-        try {
-          const result = await tasksRepository.checkIn(taskId, {
-            lat: latitude,
-            lng: longitude,
-            accuracy,
-            locationValidated: true,
-            photoDataUrl,
-          });
-          if (result.success && result.data) {
-            setTasks((prev) => prev.map((t) => (t.id === taskId ? (result.data as Task) : t)));
-            toast.success(`Check-in berhasil (± ${Math.round(accuracy)}m)`);
-          } else {
-            toast.error(result.error || 'Gagal menyimpan data check-in');
-          }
-        } catch (error) {
-          console.error('Failed to save check-in:', error);
-          toast.error('Gagal menyimpan data check-in');
-        } finally {
-          setCheckInBusy(false);
+
+        // Bab 36: validasi proximity sungguhan -- sebelumnya
+        // locationValidated selalu true begitu izin GPS diberikan, tanpa
+        // memeriksa apakah lokasi itu benar-benar dekat toko tujuan.
+        // Kalau toko tujuan tidak diketahui (task tanpa storeId, atau
+        // toko belum punya koordinat GPS tersimpan), tetap dianggap
+        // valid seperti perilaku lama -- tidak ada dasar untuk menolak.
+        let locationValidated = true;
+        let distanceMeters: number | null = null;
+        if (targetStore?.gpsLat != null && targetStore?.gpsLng != null) {
+          distanceMeters = haversineMeters(latitude, longitude, targetStore.gpsLat, targetStore.gpsLng);
+          locationValidated = distanceMeters <= CHECKIN_PROXIMITY_METERS;
         }
+
+        await submitCheckIn(
+          task,
+          { lat: latitude, lng: longitude, accuracy, locationValidated, photoDataUrl },
+          distanceMeters
+        );
       },
       async (error) => {
         if (error.code === error.PERMISSION_DENIED) {
           toast.error('Izin lokasi diperlukan untuk validasi kunjungan. Foto tetap disimpan tanpa data lokasi.');
-          try {
-            const result = await tasksRepository.checkIn(taskId, {
-              locationValidated: false,
-              photoDataUrl,
-            });
-            if (result.success && result.data) {
-              setTasks((prev) => prev.map((t) => (t.id === taskId ? (result.data as Task) : t)));
-            }
-          } catch (e) {
-            console.error('Failed to mark location unvalidated:', e);
-          } finally {
-            setCheckInBusy(false);
-          }
+          await submitCheckIn(task, { locationValidated: false, photoDataUrl }, null);
         } else {
           setCheckInBusy(false);
           toast.error('Gagal mengambil lokasi (sinyal lemah / timeout). Coba lagi.');
@@ -302,6 +417,75 @@ export function FieldSalesMode() {
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
+  };
+
+  // Bab 36: dipisah dari performCheckIn supaya bisa dipakai ulang oleh
+  // flushOfflineQueue() saat mengirim ulang antrean tersimpan. Kalau
+  // gagal murni karena koneksi (pesan error tetap dari apiFetch, lihat
+  // tasksRepository.ts), payload diantrekan offline alih-alih dibuang.
+  const submitCheckIn = async (task: Task, input: CheckInInput, distanceMeters: number | null) => {
+    try {
+      const result = await tasksRepository.checkIn(task.id, input);
+      if (result.success && result.data) {
+        setTasks((prev) => prev.map((t) => (t.id === task.id ? (result.data as Task) : t)));
+        if (input.locationValidated === false && distanceMeters != null) {
+          toast.warning(
+            `Check-in tersimpan, tapi lokasi Anda sekitar ${Math.round(distanceMeters)}m dari toko tujuan.`
+          );
+        } else if (input.accuracy != null) {
+          toast.success(`Check-in berhasil (± ${Math.round(input.accuracy)}m)`);
+        } else {
+          toast.success('Check-in berhasil');
+        }
+      } else if (result.error === NETWORK_ERROR_MESSAGE) {
+        queueOfflineCheckIn(task, input);
+      } else {
+        toast.error(result.error || 'Gagal menyimpan data check-in');
+      }
+    } catch (error) {
+      console.error('Failed to save check-in:', error);
+      queueOfflineCheckIn(task, input);
+    } finally {
+      setCheckInBusy(false);
+    }
+  };
+
+  const queueOfflineCheckIn = (task: Task, input: CheckInInput) => {
+    const queue = readOfflineQueue();
+    queue.push({ taskId: task.id, taskTitle: task.title, input, queuedAt: new Date().toISOString() });
+    writeOfflineQueue(queue);
+    setOfflineQueue(queue);
+    toast.warning('Koneksi bermasalah -- check-in disimpan di perangkat dan akan dikirim otomatis saat online kembali.');
+  };
+
+  // Bab 36: kirim ulang seluruh antrean check-in offline. Dipanggil saat
+  // komponen dibuka dan saat event 'online' browser terpicu (lihat
+  // useEffect di atas), plus tombol retry manual di banner antrean.
+  const flushOfflineQueue = async () => {
+    const queue = readOfflineQueue();
+    if (queue.length === 0) return;
+    setFlushingQueue(true);
+    const remaining: QueuedCheckIn[] = [];
+    let sent = 0;
+    for (const item of queue) {
+      try {
+        const result = await tasksRepository.checkIn(item.taskId, item.input);
+        if (result.success && result.data) {
+          setTasks((prev) => prev.map((t) => (t.id === item.taskId ? (result.data as Task) : t)));
+          sent += 1;
+        } else {
+          remaining.push(item);
+        }
+      } catch {
+        remaining.push(item);
+      }
+    }
+    writeOfflineQueue(remaining);
+    setOfflineQueue(remaining);
+    setFlushingQueue(false);
+    if (sent > 0) {
+      toast.success(`${sent} check-in tertunda berhasil dikirim`);
+    }
   };
 
   const handleCheckIn = (taskId: string) => {
@@ -393,6 +577,20 @@ export function FieldSalesMode() {
         </div>
       </div>
 
+      {offlineQueue.length > 0 && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="p-3 text-sm text-amber-800 flex items-center justify-between gap-2">
+            <span className="flex items-center gap-2">
+              <CloudOff className="h-4 w-4 shrink-0" />
+              {offlineQueue.length} check-in menunggu koneksi untuk dikirim
+            </span>
+            <Button size="sm" variant="outline" disabled={flushingQueue} onClick={flushOfflineQueue}>
+              {flushingQueue ? 'Mengirim...' : 'Coba Kirim'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {!user?.name && (
         <Card className="border-amber-200 bg-amber-50">
           <CardContent className="p-4 text-sm text-amber-800">
@@ -423,6 +621,7 @@ export function FieldSalesMode() {
                 onCheckIn={() => handleCheckIn(task.id)}
                 checkInBusy={checkInBusy}
                 clientInfo={getBriefClientInfo(task)}
+                store={getTaskStore(task)}
                 onQuickAddComms={() => handleOpenCommsDialog(task)}
               />
             ))}
@@ -451,6 +650,7 @@ export function FieldSalesMode() {
                   onCheckIn={() => handleCheckIn(task.id)}
                   checkInBusy={checkInBusy}
                   clientInfo={getBriefClientInfo(task)}
+                  store={getTaskStore(task)}
                   onQuickAddComms={() => handleOpenCommsDialog(task)}
                 />
               ))}
@@ -480,6 +680,7 @@ interface TaskCardProps {
   onCheckIn: () => void;
   checkInBusy: boolean;
   clientInfo: BriefClientInfo | null;
+  store: Store | null;
   onQuickAddComms: () => void;
 }
 
@@ -491,6 +692,7 @@ function TaskCard({
   onCheckIn,
   checkInBusy,
   clientInfo,
+  store,
   onQuickAddComms,
 }: TaskCardProps) {
   const priority = PRIORITY_BADGE[task.priority];
@@ -519,9 +721,14 @@ function TaskCard({
                 {task.dueDate ? new Date(task.dueDate).toLocaleDateString('id-ID') : 'Tanpa tanggal'}
                 {overdue ? ' (terlambat)' : ''}
               </span>
-              {task.checkInAt && (
+              {task.checkInAt && task.locationValidated !== false && (
                 <span className="flex items-center gap-1 text-green-700 ml-2">
                   <CheckCircle2 className="h-3 w-3" /> Sudah check-in
+                </span>
+              )}
+              {task.checkInAt && task.locationValidated === false && (
+                <span className="flex items-center gap-1 text-amber-700 ml-2">
+                  <AlertTriangle className="h-3 w-3" /> Check-in (lokasi tidak tervalidasi)
                 </span>
               )}
             </div>
@@ -545,9 +752,19 @@ function TaskCard({
                   </div>
                 )}
                 {clientInfo.phone && (
-                  <a href={`tel:${clientInfo.phone}`} className="flex items-center gap-2 text-blue-600">
-                    <PhoneCall className="h-3.5 w-3.5" /> {clientInfo.phone}
-                  </a>
+                  <div className="flex items-center gap-3">
+                    <a href={`tel:${clientInfo.phone}`} className="flex items-center gap-2 text-blue-600">
+                      <PhoneCall className="h-3.5 w-3.5" /> {clientInfo.phone}
+                    </a>
+                    <a
+                      href={toWhatsAppLink(clientInfo.phone)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-green-600"
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                    </a>
+                  </div>
                 )}
                 {clientInfo.email && (
                   <a href={`mailto:${clientInfo.email}`} className="flex items-center gap-2 text-blue-600">
@@ -566,6 +783,22 @@ function TaskCard({
                 <Button size="sm" variant="outline" disabled={checkInBusy} onClick={onCheckIn}>
                   <Navigation className="h-3.5 w-3.5 mr-1.5" />
                   {checkInBusy ? 'Menyimpan...' : task.checkInAt ? 'Check In Ulang' : 'Check-in GPS'}
+                </Button>
+              )}
+              {store && store.gpsLat != null && store.gpsLng != null && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    window.open(
+                      toMapsDirectionsLink(store.gpsLat as number, store.gpsLng as number),
+                      '_blank',
+                      'noopener,noreferrer'
+                    )
+                  }
+                >
+                  <MapIcon className="h-3.5 w-3.5 mr-1.5" />
+                  Buka di Maps
                 </Button>
               )}
               {clientInfo?.clientId && (
