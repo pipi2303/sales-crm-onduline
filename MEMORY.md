@@ -3944,3 +3944,72 @@ raw-SQL di handleClients/handleEmployees bisa opsional diganti ke
 ### Status
 Semua 12 temuan diperbaiki dan di-commit. `git push` masih perlu dilakukan
 user sendiri (tidak ada kredensial git di sandbox ini).
+
+## 36. Field Sales Mode: implementasi 5 rekomendasi peningkatan + rapikan Home -- 24 Sep 2026
+
+Menindaklanjuti permintaan user "kerjakan semuanya di mobile app" atas 5
+rekomendasi dari laporan insight Field Sales Mode sebelumnya, plus dua
+permintaan kecil terpisah untuk Home.tsx.
+
+### Field Sales Mode (src/app/components/FieldSalesMode.tsx)
+1. **Link WhatsApp** -- ditambahkan `toWhatsAppLink()` (konversi nomor
+   Indonesia ke format `wa.me/62...`) di samping link `tel:` yang sudah
+   ada pada info kontak klien ringkas.
+2. **Tombol "Buka di Maps"** -- `toMapsDirectionsLink()` membuka Google
+   Maps directions ke koordinat GPS Store tujuan tugas (`Task.storeId` --
+   foreign key sungguhan, beda dari `relatedTo` yang free-text ke
+   Opportunity). Tombol hanya tampil saat toko tujuan punya `gpsLat`/
+   `gpsLng` tersimpan.
+3. **Validasi proximity check-in sungguhan** -- sebelumnya
+   `locationValidated` otomatis `true` begitu izin GPS browser diberikan,
+   tanpa mengecek jarak sama sekali. Sekarang dihitung dari jarak
+   haversine ke koordinat toko tujuan (radius `CHECKIN_PROXIMITY_METERS =
+   500`m, sengaja lebih longgar dari `DUPLICATE_RADIUS_METERS = 200`m di
+   DistributorStoreMap.tsx yang tujuannya beda -- deteksi duplikasi
+   pendaftaran, bukan validasi kunjungan). Kalau toko tujuan/koordinatnya
+   tidak diketahui, tetap dianggap valid seperti perilaku lama. Badge
+   amber "Check-in (lokasi tidak tervalidasi)" ditambahkan di TaskCard
+   saat `locationValidated === false`.
+4. **Antrean check-in offline** -- check-in yang gagal karena masalah
+   koneksi (dideteksi dari pesan error tetap `apiFetch`:
+   "Tidak dapat terhubung ke server...") disimpan ke `localStorage`
+   (`fieldSalesMode.offlineCheckInQueue`) alih-alih hilang begitu saja.
+   Dikirim ulang otomatis saat event `online` browser atau saat komponen
+   dibuka kembali, plus banner amber + tombol "Coba Kirim" manual.
+5. **`assignedTo` matching diperketat** -- `myOpenTasks` sebelumnya exact
+   string match; sekarang trim + case-insensitive supaya beda spasi/
+   kapitalisasi kecil antara `Task.assignedTo` dan nama akun user tidak
+   membuat tugas diam-diam hilang dari daftar.
+
+Semua kode di atas ditulis sebagai script patch Python (`content.count(old)
+== 1` di-assert sebelum `write()`, atomik) dan dijalankan lewat shell di
+komputer user (bukan di sandbox cloud) karena file ini ada di folder yang
+ter-hubung. Catatan proses: percobaan pertama gagal di langkah TaskCard
+call-sites karena diasumsikan dua blok JSX (todayTasks.map vs
+upcomingTasks.map) identik persis termasuk indentasi -- ternyata beda
+(14 spasi vs 16 spasi, karena blok upcomingTasks bersarang satu level
+lebih dalam). Diperbaiki jadi dua patch terpisah dengan indentasi yang
+benar untuk masing-masing.
+
+### Home (src/app/components/Home.tsx)
+- Dihapus header kartu "Ringkasan Bab 13" (ikon `Percent` + judul teks) --
+  permintaan user langsung, konten statistik (Revenue MTD/YTD, Win Rate,
+  Kepatuhan Visit Toko) di bawahnya tetap tampil apa adanya.
+- Kartu statistik "Demos Scheduled" di-rename jadi
+  "Meeting & Demo Scheduled" -- permintaan user langsung.
+
+### Verifikasi
+`npx tsc --noEmit`: 131 error sebelum dan sesudah, dibandingkan lewat
+teknik baseline-diff (backup file edited -> restore `git show HEAD:path`
+-> tsc baseline -> restore edited -> tsc lagi -> `comm -13`/`comm -23`).
+Satu-satunya selisih adalah error implicit-any yang sudah ada sebelumnya
+di Home.tsx, bergeser 6 baris karena penghapusan header kartu (bukan
+error baru). `npx vite build`: sukses (`dist/` di-mv-aside dulu karena
+sandbox ini tidak boleh unlink saat vite membersihkan dist/, lalu
+build dari nol). `npx vitest run`: 11/11 tes tetap lulus.
+
+### Status
+Dikomit (`6ad51f0c`). `git push` masih perlu dilakukan user sendiri (tidak
+ada kredensial git di sandbox ini). Task #47/insight dummy data Field
+Sales Mode masih berjalan terpisah (lihat permintaan lanjutan user
+"cek secara deep analysis...").
