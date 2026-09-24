@@ -3288,3 +3288,184 @@ buktinya).
 
 Tidak ada perubahan kode di section ini -- murni laporan
 review+smoke-test sesuai permintaan user.
+
+## 31. Bab 30 lanjutan -- perbaiki semua temuan review + bangun Contract/Quotation/Lead-conversion + seed data terhubung -- 24 Sep 2026
+
+Tindak lanjut langsung dari Bab 30 (deep review + smoke test grup menu
+Sales Pipeline). Instruksi user: "perbaiki semuanya, perhatikan
+datanya, apabila tidak ada datanya maka tambahkan data dummy-nya yang
+terhubung dengan yang lain jika memungkinkan". Lima commit terpisah,
+masing-masing sudah diverifikasi (tsc/build/vitest) dan didokumentasikan
+di pesan commit-nya sendiri secara rinci -- ringkasan di bawah.
+
+### Commit 1 (`59c3d595`) -- fix bug kritis Discount Approval/Opportunity/Lead
+
+Semua temuan kecil-menengah dari Bab 30 diperbaiki dalam satu batch:
+- **Discount Approval**: 7 (bukan 6 seperti perkiraan awal Bab 30 --
+  satu lagi ketemu saat verifikasi tsc: `s.action === 'pending'` di
+  baris pengecekan `pendingStep`) mismatch literal lowercase vs enum
+  Prisma asli di `api/handler.ts`, plus layer translasi STATUS_IN/
+  STEP_ACTION_IN yang ternyata sama sekali tidak ada di
+  `discountApprovalsRepository.ts` (tanpa ini, fix casing di atas cuma
+  memindahkan bug ke sisi frontend). Ditambah validasi originalPrice/
+  discountPercent.
+- **Opportunity**: input Close Date yang tadinya tidak ada UI-nya,
+  `handleSubmit` yang salah baca `formData.stage` (tidak pernah ada,
+  seharusnya `financialData.stage` -- ini me-reset status Closed Won/
+  Lost balik ke 'open' setiap kali diedit), default ownerName
+  'Current User' yang override fallback nama user asli, getReminders()
+  yang tidak pernah menghitung priority/reminderMessage/daysUntilClose,
+  reopen/close yang kirim `undefined` alih-alih `null` (JSON.stringify
+  drop `undefined` tapi simpan `null` -- pola bug yang sekarang
+  terdokumentasi sebagai kelas bug berulang di codebase ini, worth
+  di-cek lagi tiap kali ada field yang perlu bisa di-"clear"), dan
+  `contractPeriod` yang di-drop diam-diam (tidak ada di tipe maupun
+  EXTRA_KEYS opportunitiesRepository.ts).
+- **Lead**: validasi backend yang menolak `value = 0` (falsy check),
+  form utama yang tidak pernah mengirim `companies` ke backend, dan
+  dialog detail Lead yang tombol "Tambah Perusahaan"-nya cuma update
+  state lokal + toast sukses palsu (tidak pernah panggil API).
+- Saat verifikasi (baseline tsc 108 error pre-existing dikonfirmasi
+  ulang lewat `git stash`), ketemu 2 regresi tipe baru dari perubahan
+  di atas dan langsung diperbaiki: `LeadManagement.tsx`'s `result.data`
+  yang kehilangan narrowing di dalam closure `.map()` (fix: tampung ke
+  `const updatedLead` dulu), dan mismatch lowercase enum yang disebut
+  di atas.
+
+### Commit 2 (`f66950d7`) -- backend Contract sungguhan
+
+Contract module sebelumnya 100% palsu: `Contract.tsx` baca dari
+`contractsApi.getAll()` (localStorage-only, endpoint `/api/contracts`
+tidak pernah ada), `ContractFormModal` submit ke
+`https://mock-project-id.supabase.co/...` yang tidak pernah dijawab,
+dan `contractsApi` tidak pernah punya method `delete` sama sekali.
+
+Model `Contract` baru di `prisma/schema.prisma` (`clientId`/
+`opportunityId` sebagai relasi Prisma ASLI, `opportunityId` di-`@unique`-
+kan karena 1 opportunity Closed-Won paling banyak 1 kontrak resmi),
+migration manual di
+`prisma/migrations/20260924020000_add_contracts/migration.sql`,
+`handleContracts()` CRUD penuh di `api/handler.ts`,
+`src/services/contractsRepository.ts` baru (pola sama seperti
+`leadsRepository.ts`), `Contract.tsx`/`ContractForm.tsx` di-rewire
+penuh. Ketemu bonus: `Home.tsx` dan `SalesReports.tsx` (dashboard/
+report) ternyata JUGA masih baca dari `contractsApi` lama (selalu
+kosong/basi) -- disambungkan ke repository yang sama sekalian.
+
+### Commit 3 (`30e79970`) -- backend Quotation sungguhan, satukan CPQ & Quotation Management
+
+Ternyata ada DUA fitur "quotation" yang sama sekali tidak sadar satu
+sama lain: `ConfigurePriceQuote.tsx` (menu CPQ, `useState<Quote[]>`
+dengan dummy seed) dan `QuotationManagement.tsx` (array module-level
+`QUOTATIONS` yang di-hardcode, KPI card angka statis, hampir semua
+tombol aksi tanpa `onClick`). Bug konkret yang ditemukan: "Additional
+Discount (%)" di CPQ di-capture di form tapi TIDAK PERNAH dikurangkan
+dari `totalAmount` yang disimpan/ditampilkan.
+
+Model `Quotation` + `QuotationItem` baru (pola sama seperti Contract),
+migration di
+`prisma/migrations/20260924030000_add_quotations/migration.sql`,
+`handleQuotations()` di `api/handler.ts` -- **subtotal/totalAmount
+SENGAJA dihitung ulang di server** dari `items[]` +
+`additionalDiscountPercent` (`computeQuotationTotals()`), tidak
+dipercaya dari body sama sekali -- ini yang memperbaiki bug discount di
+atas secara struktural (tidak mungkin terulang). `quotationsRepository.ts`
+baru dipakai BERSAMA oleh kedua UI. `QuotationManagement.tsx`: KPI card
+dihitung dari data asli, dialog "New Quotation" jadi form terkontrol
+(dipakai juga untuk edit), Export Report (CSV), semua tombol Detail
+Dialog (Send to Client/Download PDF/Edit Content/Duplicate/Cancel
+Quote) sekarang berfungsi, Status Distribution pie chart dari data
+asli. Revenue Trend chart (6 bulan) TETAP ilustratif -- di luar cakupan
+task ini, belum diturunkan dari data historis asli.
+
+### Commit 4 (`7ce6611b`) -- Lead -> Opportunity conversion
+
+Sebelumnya sama sekali tidak ada implementasi fungsional:
+`src/services/api.ts`'s `convertLead()` menunjuk ke route yang tidak
+pernah ada (dead code, tidak dipanggil dari mana pun), satu-satunya UI
+yang menyinggung "Convert to Opportunity" adalah card dekoratif di
+`DemoScheduler.tsx`'s dialog "Demo Follow-up Actions" yang juga tidak
+wired ke apa pun (dan itu 1 dari 4 aksi follow-up demo -- Send Email/
+Generate Proposal/Convert/Schedule -- yang semuanya belum wired;
+**masih di luar cakupan**, tidak disentuh).
+
+`POST /api/leads/:id` baru (pola "action" sama seperti
+`handleDiscountApprovals`, bukan update field biasa lewat PUT) --
+membuat Opportunity baru dari data Lead, menaut via `leadId` (relasi
+yang sudah ada di schema sejak awal, cuma belum pernah dipakai untuk
+ini), default `closeDate` 30 hari dari sekarang, lalu set status Lead
+jadi `WON`. Menolak lead yang sudah pernah dikonversi. Tombol "Convert
+to Opportunity" ditambahkan di action row tiap lead dan di header
+dialog Detail Lead (`LeadManagement.tsx`), dengan konfirmasi sebelum
+eksekusi.
+
+### Commit 5 (`b265fa68`) -- seed data dummy yang benar-benar terhubung
+
+Tiga fungsi baru di `prisma/seed.ts` (`seedContracts()`,
+`seedQuotations()`, `seedDiscountApprovals()`, dipanggil dari `main()`):
+semuanya QUERY Client/Opportunity SUNGGUHAN yang sudah ada di database
+(bukan bikin data palsu baru) --
+- `seedContracts()`: Opportunity Closed-Won yang belum punya Contract
+  (`contract: null`) -- persis 11 deal Rp 904.7M yang ditemukan smoke
+  test Bab 30 tanpa satu pun Contract.
+- `seedQuotations()`: campuran Opportunity OPEN/WON/LOST sungguhan,
+  item quotation diambil dari `OpportunityProduct` sungguhan milik
+  opportunity itu sendiri (bukan produk acak).
+- `seedDiscountApprovals()`: 5 skenario menaut ke Client sungguhan,
+  memvariasikan `discountPercent` supaya keempat level approval
+  (`discountLevelForPercent`) semua terwakili plus satu REJECTED --
+  production DB sebelumnya punya NOL discount approval request
+  sungguhan.
+
+Semua idempotent lewat unique key masing-masing, aman dijalankan
+berkali-kali.
+
+### Yang BELUM dikerjakan / masih perlu tindakan manual user
+
+1. **Migration belum di-apply ke production DB.** Tidak satu pun dari
+   3 migration Bab 30 lanjutan (`add_contracts`, `add_quotations`, plus
+   migration Contract/Quotation lain yang mungkin masih pending dari
+   Bab sebelumnya seperti `add_client_communications`) sudah dijalankan
+   -- sandbox `device_bash` ini tidak punya jalur jaringan ke
+   `binaries.prisma.sh` (untuk `prisma generate`/`migrate`) maupun ke
+   host Neon (`ep-falling-recipe-au94dqgg-pooler...neon.tech`, dites
+   langsung, DNS gagal resolve -- egress sandbox ini HTTP(S)-only lewat
+   allowlist proxy, bukan TCP bebas). **User WAJIB menjalankan dari
+   mesin dengan akses jaringan penuh, urutan:**
+   ```
+   npx prisma migrate deploy
+   npx prisma generate
+   npm run db:seed
+   ```
+   Sampai ini dijalankan, fitur Contract/Quotation di production akan
+   500 (tabel belum ada), dan `npx tsc` akan terus menunjukkan error
+   "Property 'contract'/'quotation' does not exist on PrismaClient" --
+   ini SUDAH DIKONFIRMASI bukan bug kode (skema valid, sudah di-review
+   manual baris-per-baris tanpa bantuan `prisma validate`), murni
+   Prisma Client lokal yang belum di-generate ulang.
+2. **DemoScheduler.tsx's "Demo Follow-up Actions" dialog** (Send Email/
+   Generate Proposal/Convert to Opportunity/Schedule Follow-up) masih
+   sepenuhnya dekoratif, termasuk card "Convert to Opportunity"-nya
+   sendiri -- fitur konversi yang sungguhan sekarang ada di
+   `LeadManagement.tsx`, bukan di sini.
+3. **QuotationManagement.tsx's Revenue Trend chart** (`ANALYTICS_DATA`,
+   6 bulan) tetap data ilustratif, belum diturunkan dari riwayat
+   quotation asli per bulan.
+4. **QuotationManagement.tsx's "New Quotation" dialog** tidak punya
+   product-line-item picker (beda dengan CPQ yang punya) -- dialog ini
+   sekarang fungsional lewat field "Estimasi Total (Rp)" (satu line
+   item generik), bukan pemilihan produk per baris seperti di CPQ.
+   Kalau butuh presisi produk per baris dari menu ini juga, perlu
+   membangun product picker terpisah (di luar cakupan task ini).
+5. Item lain di luar grup menu Sales Pipeline (mis. Templates/Settings
+   tab di Quotation Management yang masih statis) belum disentuh --
+   tidak termasuk temuan smoke test Bab 30 yang jadi dasar instruksi
+   "perbaiki semuanya" di sesi ini.
+
+Diverifikasi keseluruhan (kumulatif kelima commit): `tsc --noEmit`
+(0 error baru vs baseline 108 pre-existing, di luar 8 error
+`prisma.contract`/`prisma.quotation does not exist` yang sudah
+dijelaskan di poin 1 di atas), `vite build` (sukses), `vitest run`
+(11/11 tetap lulus). Tidak ada commit yang di-push (tidak ada kredensial
+git di sandbox ini) -- semua 5 commit ada di local branch `main`, siap
+di-push oleh user.
