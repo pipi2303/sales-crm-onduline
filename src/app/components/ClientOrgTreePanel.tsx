@@ -6,6 +6,14 @@
 // persis di bawah "Data Pengambil Keputusan" yang sudah ada (nama_pic
 // tunggal) -- section itu TETAP ADA sebagai ringkasan cepat, panel ini
 // untuk pemetaan lengkap (banyak kontak + hierarki + influence role).
+//
+// Update 24 Sep 2026 (follow-up "peningkatan natural" setelah user tanya
+// next steps): daftar kartu flat diganti jadi pohon hierarki sungguhan
+// (mengikuti reports_to_id, garis penghubung ala file-tree) supaya
+// "Organisation Tree" beneran kelihatan strukturnya sekali lihat, bukan
+// cuma grid kartu. Juga ditambah 2 banner peringatan ringan (belum ada
+// Decision Maker teridentifikasi / ada hubungan Negative) -- data untuk
+// ini sudah ada, cuma belum ditonjolkan ke user.
 
 import React, { useEffect, useState } from 'react';
 import { Button } from '@/app/components/ui/button';
@@ -15,7 +23,7 @@ import { Label } from '@/app/components/ui/label';
 import { Textarea } from '@/app/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, MessagesSquare, Loader2, CalendarPlus } from 'lucide-react';
+import { Plus, Pencil, Trash2, MessagesSquare, Loader2, CalendarPlus, AlertTriangle } from 'lucide-react';
 import { clientContactsRepository } from '@/services/clientContactsRepository';
 import { LogMeetingDialog } from '@/app/components/LogMeetingDialog';
 import type { ClientContact, InfluenceRole, RelationshipStatus, RelationshipCloseness } from '@/types/clientContact';
@@ -59,6 +67,116 @@ const EMPTY_FORM: FormState = {
   notes: '',
 };
 
+// --- Kartu satu kontak -- dipakai baik untuk node di pohon maupun sudah
+// cukup mandiri kalau nanti perlu dipakai di tempat lain. ---
+interface ContactCardProps {
+  contact: ClientContact;
+  nameById: Map<string, string>;
+  onLogMeeting: (contact: ClientContact) => void;
+  onEdit: (contact: ClientContact) => void;
+  onDelete: (contact: ClientContact) => void;
+}
+
+function ContactCard({ contact, nameById, onLogMeeting, onEdit, onDelete }: ContactCardProps) {
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="flex items-center gap-2">
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${RELATIONSHIP_DOT[contact.relationship_status]}`}
+              title={RELATIONSHIP_STATUS_LABELS[contact.relationship_status]}
+            />
+            <p className="font-semibold text-gray-900">{contact.nama}</p>
+          </div>
+          <p className="text-sm text-gray-500">{contact.jabatan || '-'}</p>
+        </div>
+        <div className="flex gap-1">
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7 text-indigo-600 hover:text-indigo-700"
+            title="Catat Pertemuan"
+            onClick={() => onLogMeeting(contact)}
+          >
+            <CalendarPlus className="h-3.5 w-3.5" />
+          </Button>
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit(contact)}>
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7 text-red-600 hover:text-red-700"
+            onClick={() => onDelete(contact)}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5 mt-3">
+        <Badge variant="secondary">{INFLUENCE_ROLE_LABELS[contact.influence_role]}</Badge>
+        <Badge variant="outline">{RELATIONSHIP_CLOSENESS_LABELS[contact.closeness]}</Badge>
+      </div>
+
+      <div className="flex items-center justify-between mt-3 text-xs text-gray-500">
+        <span className="flex items-center gap-1">
+          <MessagesSquare className="h-3.5 w-3.5" /> {contact.meeting_count} pertemuan tercatat
+        </span>
+        {contact.reports_to_id && (
+          <span>
+            Lapor ke: <span className="font-medium text-gray-700">{nameById.get(contact.reports_to_id) ?? '-'}</span>
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// --- Node pohon -- render kartu + rekursif anak-anaknya lewat garis
+// penghubung ala file-tree. `ancestorIds` cuma jaga-jaga kalau suatu saat
+// ada siklus di data (backend sekarang cuma cegah "lapor ke diri
+// sendiri", bukan siklus lebih panjang A->B->A) supaya tidak infinite
+// loop/crash render -- bukan validasi utama, cuma pengaman tampilan. ---
+interface ContactNodeProps {
+  contact: ClientContact;
+  childrenByParent: Map<string, ClientContact[]>;
+  nameById: Map<string, string>;
+  ancestorIds: Set<string>;
+  onLogMeeting: (contact: ClientContact) => void;
+  onEdit: (contact: ClientContact) => void;
+  onDelete: (contact: ClientContact) => void;
+}
+
+function ContactNode({ contact, childrenByParent, nameById, ancestorIds, onLogMeeting, onEdit, onDelete }: ContactNodeProps) {
+  const children = (childrenByParent.get(contact.id) ?? []).filter((c) => !ancestorIds.has(c.id));
+  const nextAncestors = new Set(ancestorIds);
+  nextAncestors.add(contact.id);
+
+  return (
+    <div>
+      <ContactCard contact={contact} nameById={nameById} onLogMeeting={onLogMeeting} onEdit={onEdit} onDelete={onDelete} />
+      {children.length > 0 && (
+        <div className="ml-6 mt-2 pl-4 border-l-2 border-indigo-100 space-y-2">
+          {children.map((child) => (
+            <ContactNode
+              key={child.id}
+              contact={child}
+              childrenByParent={childrenByParent}
+              nameById={nameById}
+              ancestorIds={nextAncestors}
+              onLogMeeting={onLogMeeting}
+              onEdit={onEdit}
+              onDelete={onDelete}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ClientOrgTreePanel({ clientId }: ClientOrgTreePanelProps) {
   const [contacts, setContacts] = useState<ClientContact[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,6 +204,24 @@ export function ClientOrgTreePanel({ clientId }: ClientOrgTreePanelProps) {
   }, [clientId]);
 
   const nameById = new Map(contacts.map((c) => [c.id, c.nama]));
+
+  // Root = kontak tanpa reports_to_id, ATAU yang atasannya sudah tidak
+  // ada di daftar ini (mis. baru dihapus) -- supaya tidak ada kontak yang
+  // "hilang" dari tampilan pohon kalau data sempat tidak konsisten.
+  const validIds = new Set(contacts.map((c) => c.id));
+  const childrenByParent = new Map<string, ClientContact[]>();
+  const roots: ClientContact[] = [];
+  for (const c of contacts) {
+    if (c.reports_to_id && validIds.has(c.reports_to_id)) {
+      if (!childrenByParent.has(c.reports_to_id)) childrenByParent.set(c.reports_to_id, []);
+      childrenByParent.get(c.reports_to_id)!.push(c);
+    } else {
+      roots.push(c);
+    }
+  }
+
+  const hasDecisionMaker = contacts.some((c) => c.influence_role === 'decision-maker');
+  const negativeContacts = contacts.filter((c) => c.relationship_status === 'negative');
 
   const resetForm = () => {
     setForm(EMPTY_FORM);
@@ -167,61 +303,39 @@ export function ClientOrgTreePanel({ clientId }: ClientOrgTreePanelProps) {
         </p>
       )}
 
-      {contacts.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {contacts.map((contact) => (
-            <div key={contact.id} className="bg-white rounded-lg border border-gray-200 p-4">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`h-2.5 w-2.5 rounded-full ${RELATIONSHIP_DOT[contact.relationship_status]}`}
-                      title={RELATIONSHIP_STATUS_LABELS[contact.relationship_status]}
-                    />
-                    <p className="font-semibold text-gray-900">{contact.nama}</p>
-                  </div>
-                  <p className="text-sm text-gray-500">{contact.jabatan || '-'}</p>
-                </div>
-                <div className="flex gap-1">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7 text-indigo-600 hover:text-indigo-700"
-                    title="Catat Pertemuan"
-                    onClick={() => setLoggingContact(contact)}
-                  >
-                    <CalendarPlus className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(contact)}>
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7 text-red-600 hover:text-red-700"
-                    onClick={() => handleDelete(contact)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
+      {contacts.length > 0 && !hasDecisionMaker && (
+        <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>
+            Belum ada kontak dengan peran <strong>Decision Maker</strong> yang teridentifikasi di organisasi ini —
+            risiko deal &quot;single-threaded&quot; kalau kontak utama Anda ternyata bukan pengambil keputusan akhir.
+          </span>
+        </div>
+      )}
 
-              <div className="flex flex-wrap gap-1.5 mt-3">
-                <Badge variant="secondary">{INFLUENCE_ROLE_LABELS[contact.influence_role]}</Badge>
-                <Badge variant="outline">{RELATIONSHIP_CLOSENESS_LABELS[contact.closeness]}</Badge>
-              </div>
+      {negativeContacts.length > 0 && (
+        <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>
+            Hubungan renggang (Negative) dengan: <strong>{negativeContacts.map((c) => c.nama).join(', ')}</strong> —
+            perlu perhatian ekstra sebelum lanjut ke tahap berikutnya.
+          </span>
+        </div>
+      )}
 
-              <div className="flex items-center justify-between mt-3 text-xs text-gray-500">
-                <span className="flex items-center gap-1">
-                  <MessagesSquare className="h-3.5 w-3.5" /> {contact.meeting_count} pertemuan tercatat
-                </span>
-                {contact.reports_to_id && (
-                  <span>
-                    Lapor ke: <span className="font-medium text-gray-700">{nameById.get(contact.reports_to_id) ?? '-'}</span>
-                  </span>
-                )}
-              </div>
-            </div>
+      {roots.length > 0 && (
+        <div className="space-y-4">
+          {roots.map((root) => (
+            <ContactNode
+              key={root.id}
+              contact={root}
+              childrenByParent={childrenByParent}
+              nameById={nameById}
+              ancestorIds={new Set([root.id])}
+              onLogMeeting={setLoggingContact}
+              onEdit={startEdit}
+              onDelete={handleDelete}
+            />
           ))}
         </div>
       )}
@@ -348,7 +462,9 @@ export function ClientOrgTreePanel({ clientId }: ClientOrgTreePanelProps) {
       {loggingContact && (
         <LogMeetingDialog
           open={!!loggingContact}
-          onOpenChange={(v) => { if (!v) setLoggingContact(null); }}
+          onOpenChange={(v) => {
+            if (!v) setLoggingContact(null);
+          }}
           clientId={clientId}
           contact={loggingContact}
           onLogged={load}
