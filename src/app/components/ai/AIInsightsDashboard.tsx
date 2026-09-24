@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   TrendingUp, TrendingDown, DollarSign, Target, Users, 
   AlertTriangle, CheckCircle, Zap, Brain, Calendar,
-  Award, ArrowUpRight, ArrowDownRight, Sparkles
+  Award, ArrowUpRight, ArrowDownRight, Sparkles, RefreshCw
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
@@ -265,9 +265,10 @@ export function AIInsightsDashboard() {
             </div>
             <button
               onClick={generateInsights}
-              className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+              className="inline-flex items-center justify-center px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+              aria-label="Refresh"
             >
-              Refresh
+              <RefreshCw className="h-4 w-4" />
             </button>
           </div>
 

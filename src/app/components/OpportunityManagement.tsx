@@ -344,9 +344,9 @@ export function OpportunityManagement() {
             variant="outline" 
             onClick={fetchData}
             className="flex items-center gap-2"
+            aria-label="Refresh"
           >
             <RefreshCw className="w-4 h-4" />
-            Refresh
           </Button>
           <Button 
             onClick={handleCreate} 

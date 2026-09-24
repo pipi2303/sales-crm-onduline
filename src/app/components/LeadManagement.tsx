@@ -290,9 +290,9 @@ export function LeadManagement() {
             variant="outline" 
             onClick={fetchLeads}
             className="flex items-center gap-2"
+            aria-label="Refresh"
           >
             <RefreshCw className="w-4 h-4" />
-            Refresh
           </Button>
           {leads.length > 0 && (
             <Button 

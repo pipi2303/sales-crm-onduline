@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Lightbulb, TrendingUp, AlertTriangle, Clock, Zap, 
   Mail, Phone, Calendar, FileText, Award, Target, Users,
-  CheckCircle, ArrowRight, Sparkles, Brain
+  CheckCircle, ArrowRight, Sparkles, Brain, RefreshCw
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
@@ -281,8 +281,9 @@ export function AISmartRecommendations({ leadData, onActionClick }: AISmartRecom
               variant="ghost"
               onClick={generateRecommendations}
               className="text-white hover:bg-white/20"
+              aria-label="Refresh"
             >
-              Refresh
+              <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
         </CardContent>

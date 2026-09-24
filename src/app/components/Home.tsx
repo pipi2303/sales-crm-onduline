@@ -349,9 +349,9 @@ export function Home() {
             variant="outline" 
             onClick={fetchDashboardData}
             className="flex items-center gap-2"
+            aria-label="Refresh"
           >
             <RefreshCw className="w-4 h-4" />
-            Refresh
           </Button>
         </div>
       </div>

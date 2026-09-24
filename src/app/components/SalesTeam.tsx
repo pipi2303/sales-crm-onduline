@@ -246,9 +246,9 @@ export function SalesTeam() {
             size="sm"
             className="gap-2"
             disabled={loading}
+            aria-label="Refresh"
           >
             <RefreshCw className="h-4 w-4" />
-            Refresh
           </Button>
         </div>
       </div>
