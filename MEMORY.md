@@ -4138,3 +4138,123 @@ lulus.
 ### Status
 Dikomit (`c8ef7c49`). Task #1-7 & #21 di task list sesi ini ditandai
 selesai. `git push` masih perlu dilakukan user sendiri.
+
+## 39. Konsolidasi tombol "Load Dummy Data" ke satu tempat di Home -- 24 Sep 2026
+
+Menindaklanjuti permintaan user: "gabungkan semua button dan fungsi load
+dummy data di home, jadi tombol load dummy data hanya ada di home,
+setelah di tekan maka semua data yang ada akan muncul".
+
+### Masalah sebelum konsolidasi
+Ada 5 mekanisme load-dummy-data terpisah tersebar di 5 file berbeda,
+masing-masing dengan tombol/state/fungsi sendiri-sendiri:
+- `SalesTeam.tsx` -- tombol "Load Dummy Data" untuk entity Client
+  (hanya muncul di tab Client).
+- `SalesRepresentative.tsx` -- tombol untuk entity Employee.
+- `TerritoryManagement.tsx` -- tombol (role-gated `canManageTerritory`)
+  untuk Territory + PerformanceTarget.
+- `LeadManagement.tsx` -- tombol (hanya muncul kalau leads kosong)
+  untuk Lead.
+- `CommissionCalculator.tsx` -- BUKAN tombol, tapi auto-seed diam-diam
+  di dalam `loadData()`: kalau SalesRep atau CommissionRecord kosong
+  saat halaman dibuka, otomatis membuat data seed tanpa interaksi user
+  sama sekali. Ini yang paling mudah terlewat karena tidak ada tombol
+  yang terlihat.
+
+### Perubahan
+- File baru `src/utils/loadAllDummyData.ts` (211 baris) sebagai SATU
+  titik orkestrasi. `loadAllDummyData()` menjalankan 6 langkah
+  berurutan (bukan paralel, karena ada dependency antar-entity):
+  1. Client (dari `clientsDummyData`)
+  2. Employee (dari `salesRepresentativeDummyData`)
+  3. Territory + PerformanceTarget (dari `SEED_TERRITORIES`, konstanta
+     dipindah dari `TerritoryManagement.tsx`) -- membangun
+     `Map<namaTerritory, territoryId>` untuk langkah berikutnya.
+  4. Lead (dari `leadDummyData`) -- `territoryId` diresolve dari Map di
+     langkah 3 berdasarkan nama territory.
+  5. SalesRep (dari `SEED_REPS`, konstanta dipindah dari
+     `CommissionCalculator.tsx`) -- membangun `Map<namaRep, repId>`.
+  6. CommissionRecord (dari `SEED_COMMISSIONS`) -- `salesRepId`
+     diresolve dari Map langkah 5; cek dulu apakah PerformanceTarget
+     yang sesuai sudah ada sebelum membuat baru (menghindari duplikat
+     target row, logika sama persis dengan yang lama di
+     CommissionCalculator).
+  Kalau langkah 3 atau 5 gagal membuat row baru (mis. permission role
+  ditolak) tapi data sejenis sudah ada sebelumnya, ada fallback
+  `repository.getAll()` supaya Map tetap terisi dari data existing dan
+  langkah berikutnya (Lead/Commission) tetap bisa resolve ID-nya.
+- `Home.tsx`: tombol baru "Load Dummy Data" (ikon `Database`) diletakkan
+  di sebelah tombol Refresh yang sudah ada. Saat ditekan: memanggil
+  `loadAllDummyData()`, lalu toast ringkasan (mis. "Data dimuat:
+  4 client, 4 employee, 4 territory, ...") untuk kategori yang
+  berhasil, toast error kalau ada `result.errors`, atau toast info
+  kalau tidak ada yang baru dimuat sama sekali (semua kategori sudah
+  ada isinya). Setelah selesai, dashboard & stats Bab 13 di-refresh
+  otomatis.
+- `SalesTeam.tsx`, `SalesRepresentative.tsx`, `TerritoryManagement.tsx`,
+  `LeadManagement.tsx`: tombol + fungsi + state loading masing-masing
+  dihapus total, diganti komentar singkat yang merujuk ke Bab 39.
+  Khusus `TerritoryManagement.tsx`, empty-state card yang dulu
+  menampilkan tombol (role-gated) sekarang menampilkan teks petunjuk
+  netral: "Buka halaman Home dan klik 'Load Dummy Data' untuk memuat
+  data contoh." -- variabel `canManageTerritory` TIDAK dihapus karena
+  masih dipakai di tempat lain (gating tombol Add/Edit Territory).
+- `CommissionCalculator.tsx`: `loadData()` disederhanakan jadi murni
+  baca data (`getAll()` untuk SalesRep dan CommissionRecord), tanpa
+  cabang auto-seed-on-empty. Konstanta `SEED_REPS` & `SEED_COMMISSIONS`
+  dipindah ke `loadAllDummyData.ts`. Import `SalesRep` &
+  `CommissionStatus` dicek via grep -- keduanya masih dipakai di tempat
+  lain di file ini (type annotation `Record<string, SalesRep>` dan
+  field `status: CommissionStatus`), jadi tidak dihapus.
+
+### Keterbatasan yang diketahui (bukan regresi baru)
+`loadAllDummyData()` TIDAK idempotent -- sama seperti 5 mekanisme lama
+yang digantikannya, tidak satu pun dari mekanisme asli mengecek
+"apakah data ini sudah ada" per kategori sebelum membuat baru (kecuali
+implisit lewat gating UI seperti "tombol Lead hanya muncul kalau leads
+kosong", yang sekarang hilang karena button-nya sudah tidak ada).
+Konsekuensinya: menekan tombol "Load Dummy Data" di Home dua kali akan
+menduplikasi SEMUA kategori sekaligus (dulu, risiko duplikasi hanya per
+kategori kalau user sengaja klik tombol yang sama berkali-kali). Ini
+didokumentasikan di komentar header `loadAllDummyData.ts` dan di sini
+sebagai catatan sadar, bukan sesuatu yang diperbaiki di putaran ini
+(di luar scope permintaan user, dan menambah proteksi idempotency
+butuh keputusan produk soal "apa artinya duplikat" per entity).
+
+### Verifikasi
+- `npx tsc --noEmit`: baseline-diff (revert 6 file ke versi HEAD lewat
+  `git show HEAD:path`, ukur "before" -> 131 error; kembalikan versi
+  yang sudah diedit, ukur "after" -> 131 error juga). `comm -13`/`comm
+  -23` pada output yang di-sort mengonfirmasi 3 baris yang berbeda
+  posisi hanyalah pergeseran nomor baris dari error pre-existing yang
+  identik (pesan & tipe error sama persis di Home.tsx dan
+  LeadManagement.tsx) -- nol error baru sungguhan.
+- `npx vite build`: sukses (exit 0).
+- `npx vitest run`: 11/11 test tetap lulus.
+- Import `SalesRep`/`CommissionStatus` di `CommissionCalculator.tsx`
+  dikonfirmasi masih terpakai (tidak ada dead import tersisa).
+
+### Status
+Dikomit (`d4e5ef6c`). 6 file temporary Python patch script
+(`.claude_consolidate_tmp*.py`) dan file backup verifikasi sudah
+dibersihkan dari working tree, tidak ikut dikomit. `git push` masih
+perlu dilakukan user sendiri.
+
+**Tindakan yang masih perlu dilakukan user:**
+1. `git push` semua commit lokal (sandbox ini tidak punya kredensial
+   push).
+2. Klik tombol "Load Dummy Data" yang baru (di halaman Home produksi,
+   setelah deploy) untuk benar-benar mengisi database live -- sandbox
+   ini tidak bisa menjangkau database live maupun domain produksi
+   (dikonfirmasi di Bab 37: device_bash gagal DNS ke Neon Postgres dan
+   dapat 403 dari proxy saat curl ke domain Vercel; percobaan browser
+   automation ke domain produksi juga diblokir classifier keamanan
+   sebanyak 2x -- tidak dicoba lagi sesuai instruksi tool).
+3. Cek dashboard deployment Vercel terkait error console
+   chunk-loading yang dilaporkan sebelumnya (`Failed to fetch
+   dynamically imported module` / 404 pada `storesRepository-*.js`) --
+   belum ada laporan balik dari user soal ini.
+4. Putuskan file-file ikon aplikasi kesehatan yang tidak terkait
+   (`activity.svg`, `ai-chat.svg`, dll., di folder "Claude outputs/")
+   -- masih untracked, belum dikomit atau dihapus, belum ada arahan
+   dari user.
