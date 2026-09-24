@@ -2791,3 +2791,18 @@ bisa -- lihat keterbatasan sandbox di atas) -- baru tervalidasi lewat
 `tsc`/review manual. User perlu jalankan `npm run db:seed` (atau `npx
 prisma db seed`) sendiri setelah migrate untuk benar-benar mengisi data
 contoh ini ke database.
+
+### Catatan tambahan -- tsc sempat tidak stabil sesaat setelah `git stash pop`
+
+Ditemukan saat menyusun daftar "next steps": satu kali `npx tsc --noEmit`
+sempat melaporkan 104 error dengan ISI BERBEDA (baris-baris error
+`Prisma.InputJsonValue`/`Role` yang biasanya muncul malah hilang, digantikan
+error lain di sekitar `DiscountApprovalStatus`) tepat setelah `git stash
+pop`. 3x run berikutnya tanpa ubah kode apa pun stabil di 100 error,
+identik. Dugaan penyebab: staleness I/O sesaat pada mount FUSE ke
+komputer user (`device_bash` jalan lewat bridge jaringan, bukan disk
+lokal) tepat setelah operasi git yang menulis banyak file sekaligus.
+Mitigasi ke depan: kalau perlu bandingkan tsc sebelum/sesudah git
+stash/checkout, kasih jeda (`sync; sleep 1`) sebelum menjalankan tsc, dan
+jangan percaya hasil comparison dari SATU run tanpa run ulang untuk
+konfirmasi stabil.
