@@ -2850,3 +2850,79 @@ Verifikasi: `tsc --noEmit` stabil 100 error (2x run dengan jeda
 `sync; sleep 1` untuk hindari staleness FUSE-mount yang sempat ketemu
 sebelumnya -- lihat catatan di atas), nol baris baru; `vite build`
 sukses; `vitest run` 11/11 lulus.
+
+### TEMUAN BESAR -- Prisma Client di sandbox ini TERNYATA SUDAH ASLI (bukan stub lagi) -- 24 Sep 2026
+
+Sepanjang sesi ini (lihat section-section sebelumnya soal Bab 16.5),
+berulang kali dicatat bahwa `node_modules/.prisma/client` di sandbox
+Claude MAUPUN di komputer user lewat `device_bash` cuma stub kosong
+(`PrismaClient: any`, `default.d.ts` 3989 byte) karena `npx prisma
+generate` selalu gagal 403 mengunduh binary dari `binaries.prisma.sh`.
+Kesimpulan itu SEKARANG SUDAH TIDAK BERLAKU LAGI, ditemukan saat
+memverifikasi fitur ClientCommunication (Bab 16.5 lanjutan):
+
+- `node_modules/.prisma/client/default.d.ts` sekarang cuma 23 byte
+  (re-export shim), dan `node_modules/.prisma/client/index.d.ts`
+  sekarang **2,164,664 byte** -- client asli hasil generate sungguhan,
+  timestamp file **24 Sep 2026 02:54:32 UTC**.
+- Ini terjadi di TENGAH sesi ini, kemungkinan besar **user menjalankan
+  `npx prisma generate` sendiri di Terminal Mac-nya** (bukan lewat
+  sesi Claude ini) sesuai instruksi manual yang berulang kali
+  diberikan -- device_bash langsung melihat perubahan itu karena
+  filesystem-nya sama.
+- **Koreksi ke catatan sebelumnya**: "tsc sempat tidak stabil sesaat
+  setelah git stash pop" (2x run beda hasil, 104 vs 100 error dengan
+  ISI BERBEDA) BUKAN staleness I/O FUSE-mount seperti diduga saat itu
+  -- itu adalah race condition sungguhan: tsc kebetulan jalan PAS
+  `prisma generate` user sedang menulis `index.d.ts` (state transisi,
+  file belum lengkap). Begitu proses generate selesai, hasil tsc
+  stabil kembali.
+
+**Dampak praktis ke depan**: `tsc --noEmit` di sandbox ini SEKARANG
+BISA dipercaya untuk menangkap salah nama model/field Prisma (tidak
+lagi cuma review manual seperti yang dilakukan berulang kali di
+section-section sebelumnya untuk ClientContact/ClientIntelligence).
+Bukti nyata: begitu `ClientCommunication` ditambahkan ke schema tapi
+`prisma generate` BELUM di-rerun, tsc langsung melaporkan error
+spesifik & akurat: `Property 'clientCommunication' does not exist on
+type 'PrismaClient<...>'` dan `'communications' does not exist in type
+'ClientContactCountOutputTypeSelect<DefaultArgs>'` (8 baris,
+tersebar di api/handler.ts) -- ini SEPENUHNYA DIHARAPKAN (bukan bug di
+kode), akan hilang begitu user jalankan `npx prisma generate` lagi
+setelah pull perubahan Bab 16.5 lanjutan ini.
+
+**Efek samping yang juga ditemukan** (bukan bug baru, cuma sekarang
+KETAHUAN karena tipe sungguhan): baseline tsc 100 error yang sudah
+lama dicatat TERNYATA sudah termasuk beberapa error nyata di alur
+Discount Approval (`api/handler.ts` sekitar baris 1988-2193) --
+`DiscountApprovalStatus`/`DiscountStepAction` dibandingkan/di-assign
+dengan string lowercase (`'pending'`, `'approved'`) padahal enum
+sungguhan-nya SCREAMING_SNAKE_CASE (`'PENDING'`, `'APPROVED'`, tsc
+bahkan kasih saran "Did you mean...?"). Ini kemungkinan bug fungsional
+NYATA di fitur Discount Approval (bukan cuma noise tipe), TAPI ini
+persis termasuk cakupan "154/104 error TypeScript lama" yang user
+sudah eksplisit minta JANGAN disentuh dulu (lihat instruksi "jangan di
+lanjutkna" sebelumnya) -- jadi TIDAK diperbaiki di sini, cuma dicatat
+supaya kalau nanti triase error lama itu dikerjakan, bagian Discount
+Approval ini masuk daftar prioritas (berpotensi bug fungsional, bukan
+cuma cosmetic type error).
+
+Verifikasi fitur ClientCommunication: manual field-by-field review
+(karena tsc belum bisa validasi model yang baru ditambahkan sampai
+di-generate ulang) -- semua field `prisma.clientCommunication.*` di
+`api/handler.ts` cocok dengan schema. `vite build` sukses (tapi PERLU
+DIINGAT: vite/esbuild TIDAK type-check sama sekali, jadi ini tidak
+membuktikan benar secara tipe, cuma transform berhasil -- konsisten
+dengan pemahaman yang sudah lama dicatat di section 26). `vitest run`
+11/11 tetap lulus.
+
+### PENTING -- langkah manual user (update)
+
+- [ ] `git pull` ambil commit-commit Bab 16.5 lanjutan (ClientCommunication).
+- [ ] `npx prisma migrate deploy` (bikin tabel `client_communications`
+      di database) lalu **`npx prisma generate` SEKALI LAGI** --
+      supaya `clientCommunication` dikenali tipe-nya dan 8 error tsc
+      yang disebutkan di atas hilang.
+- [ ] Coba tab "Komunikasi" di detail Client: tambah komunikasi baru
+      (sekarang beneran tersimpan, termasuk pilih kontak terkait dari
+      org tree kalau ada), refresh halaman, pastikan tidak hilang.
