@@ -4258,3 +4258,62 @@ perlu dilakukan user sendiri.
    (`activity.svg`, `ai-chat.svg`, dll., di folder "Claude outputs/")
    -- masih untracked, belum dikomit atau dihapus, belum ada arahan
    dari user.
+
+## 40. Fix auto-reload untuk error chunk-loading basi setelah deploy -- 24 Sep 2026
+
+Menindaklanjuti permintaan user untuk mengecek dashboard Vercel terkait
+error chunk-loading yang dilaporkan sebelumnya, lalu mengimplementasikan
+perbaikannya.
+
+### Investigasi di dashboard Vercel
+- Production deployment `salesappv20` sudah ter-update otomatis ke
+  commit terbaru (`cf6d75b`, hasil push user) -- status Ready, build
+  sukses, domain `sales-crm.intramedika.co.id` aktif.
+- Runtime Logs project ini hanya retensi window pendek (plan
+  Hobby/free) -- tidak ada entri log tersisa untuk dicari mundur ke
+  waktu error chunk-loading dilaporkan sebelumnya.
+- Observability menunjukkan error rate Vercel Functions 4.3% (6 jam
+  terakhir) -- ini error server-side function/API, bukan error
+  chunk-loading di browser, jadi tidak terkait langsung.
+- Tidak menguji langsung di domain production (`salesappv20.vercel.app`
+  / `sales-crm.intramedika.co.id`) via browser automation -- tetap
+  menghormati pembatasan classifier keamanan yang sudah memblokir 2x
+  percobaan automation ke domain itu sebelumnya di sesi ini (Bab 37).
+
+### Root cause (dari analisis nama file hash yang dilaporkan)
+Pola klasik Vite + Vercel: setiap deploy baru menghasilkan nama file JS
+chunk dengan hash berbeda (code-splitting). Tab browser yang sudah
+lama terbuka SEBELUM deploy baru, lalu user berpindah ke halaman yang
+di-lazy-load (React.lazy / dynamic import) SETELAH deploy baru jalan,
+browser masih minta chunk lama dengan hash lama yang sudah tidak ada
+di build terbaru -> 404 -> "Failed to fetch dynamically imported
+module". Ini akan terus berulang di SETIAP deploy selama ada user
+dengan tab lama terbuka -- bukan bug kode aplikasi, tapi konsekuensi
+arsitektur code-splitting Vite yang belum ditangani di sisi client.
+
+### Perubahan
+`src/main.tsx`: tambah event listener `vite:preloadError` (event
+bawaan Vite yang dipancarkan saat dynamic import gagal) yang otomatis
+`window.location.reload()` satu kali. Pengaman `sessionStorage` (key
+`vite-preload-reload-attempted`) mencegah reload berulang tanpa henti
+kalau error-nya ternyata bukan soal chunk basi (mis. file memang
+hilang permanen di server, bukan sekadar hash lama) -- flag direset
+tiap `main.tsx` jalan dari awal (page load baru, termasuk setelah
+reload otomatis berhasil), supaya deploy berikutnya (jam/hari lain, tab
+yang sama) tetap dapat satu kesempatan auto-reload lagi, bukan diam-diam
+berhenti mencoba selamanya.
+
+### Verifikasi
+- `npx tsc --noEmit`: 131 error sebelum & sesudah, identik persis
+  (tidak ada perubahan sama sekali, bukan cuma pergeseran baris --
+  perubahan ini murni penambahan, tidak menyentuh baris lain).
+- `npx vite build`: sukses; dikonfirmasi via grep bahwa handler
+  benar-benar masuk ke bundle produksi (`dist/assets/index-D9JSZQdd.js`
+  mengandung string `vite-preload-reload-attempted`).
+- `npx vitest run`: 11/11 test tetap lulus.
+
+### Status
+Dikomit (`b206ae56`). `git push` masih perlu dilakukan user sendiri.
+Efek baru akan terlihat di production setelah deploy berikutnya --
+tidak bisa diverifikasi langsung di production dari sandbox ini karena
+pembatasan browser automation ke domain tersebut (lihat di atas).
