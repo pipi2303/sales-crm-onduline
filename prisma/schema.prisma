@@ -99,6 +99,8 @@ model User {
   tasksOwned            Task[]          @relation("TaskOwner")
   distributorsAssigned  Distributor[]   @relation("DistributorSalesRep")
   storesAssigned        Store[]         @relation("StoreSalesRep")
+  clientContactsCreated ClientContact[] @relation("ClientContactCreatedBy")
+  clientIntelUpdated    ClientIntelligence[] @relation("ClientIntelligenceUpdatedBy")
 
   @@map("users")
 }
@@ -279,6 +281,15 @@ model Client {
 
   opportunities Opportunity[]
 
+  // Bab 16.5 -- Organisation Tree / Influence Mapping & Customer
+  // Intelligence (24 Sep 2026, lihat catatan desain di ClientContact/
+  // ClientIntelligence di bawah). namaPic/jabatanPic/statusHubungan di
+  // atas TETAP ADA (bukan dihapus) sebagai ringkasan cepat satu kontak
+  // utama untuk tampilan list -- tidak semua Client akan langsung diisi
+  // org tree lengkap, jadi kolom lama ini tetap jadi fallback yang valid.
+  contacts     ClientContact[]
+  intelligence ClientIntelligence?
+
   @@map("clients")
   @@index([status])
 }
@@ -424,7 +435,17 @@ model OpportunityActivity {
   createdBy     String?     @map("created_by")
   createdAt     DateTime    @default(now()) @map("created_at")
 
+  // Bab 16.5 (24 Sep 2026): opsional -- kalau aktivitas ini adalah
+  // pertemuan dengan salah satu kontak di org tree client-nya, dicatat di
+  // sini supaya "jumlah pertemuan" per kontak (ClientContact) bisa
+  // dihitung dari data yang sudah ada, bukan tabel counter terpisah yang
+  // gampang tidak sinkron. Tetap opsional -- aktivitas lama/general tidak
+  // wajib punya kontak spesifik.
+  contactId String?        @map("contact_id")
+  contact   ClientContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
   @@map("opportunity_activities")
+  @@index([contactId])
 }
 
 // ---------------------------------------------------------------------
@@ -825,3 +846,125 @@ model DiscountApprovalStep {
   @@index([requestId])
 }
 
+
+// ---------------------------------------------------------------------
+// Bab 16.5 -- Organisation Tree & Influence Mapping (24 Sep 2026).
+//
+// Client sebelumnya cuma punya SATU kontak (namaPic/jabatanPic di atas)
+// -- tidak cukup untuk B2B selling nyata, di mana keputusan biasanya
+// melibatkan beberapa orang (buying committee) dan tim sales sering kalah
+// bukan karena kalah produk, tapi karena cuma dekat dengan satu orang
+// yang ternyata bukan pengambil keputusan ("single-threaded deal").
+// ClientContact mengisi celah itu: banyak kontak per Client, masing-
+// masing dengan peran pengaruhnya sendiri (influenceRole) dan status
+// hubungan (relationshipStatus) -- terpisah dari struktur pelaporan
+// (reportsToId, buat "organisation tree"-nya sendiri, siapa lapor ke
+// siapa). Dua sumbu ini sengaja independen: seorang Direktur (posisi
+// tinggi di tree) belum tentu Decision Maker untuk pembelian atap/produk
+// Onduline -- bisa saja itu didelegasikan ke Technical Advisor.
+//
+// "Jumlah pertemuan" tidak disimpan sebagai counter di sini -- dihitung
+// dari OpportunityActivity.contactId (lihat di atas) supaya selalu
+// sinkron dengan riwayat aktivitas asli, bukan angka yang bisa basi.
+// ---------------------------------------------------------------------
+
+enum InfluenceRole {
+  DECISION_MAKER    @map("decision-maker")
+  APPROVER          @map("approver")
+  INFLUENCER        @map("influencer")
+  TECHNICAL_ADVISOR @map("technical-advisor")
+  CONSULTANT        @map("consultant")
+}
+
+enum RelationshipStatus {
+  POSITIVE @map("positive")
+  NEUTRAL  @map("neutral")
+  NEGATIVE @map("negative")
+}
+
+// Kedekatan hubungan -- sengaja skala manual sederhana yang diisi sales
+// rep sendiri (lihat catatan desain: skor otomatis dari frekuensi kontak
+// gampang menyesatkan kalau data pertemuannya masih tipis), bukan field
+// bebas supaya tetap bisa difilter/dikelompokkan di UI.
+enum RelationshipCloseness {
+  BARU_KENAL @map("baru-kenal") // baru dikenal, interaksi minim
+  KENAL_BAIK @map("kenal-baik") // sudah beberapa kali interaksi
+  CHAMPION   @map("champion") // pendukung aktif, sering membantu deal
+}
+
+model ClientContact {
+  id       String @id @default(uuid())
+  clientId String @map("client_id")
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  nama     String
+  jabatan  String?
+  email    String?
+  telepon  String?
+  whatsapp String?
+
+  influenceRole      InfluenceRole          @map("influence_role")
+  relationshipStatus RelationshipStatus     @default(NEUTRAL) @map("relationship_status")
+  closeness          RelationshipCloseness  @default(BARU_KENAL)
+
+  // Struktur organisasi (siapa lapor ke siapa) -- terpisah dari
+  // influenceRole, lihat catatan desain di atas. Self-relation supaya
+  // org tree bisa direnderkan langsung dari data ini tanpa tabel
+  // tambahan.
+  reportsToId String?         @map("reports_to_id")
+  reportsTo   ClientContact?  @relation("ClientContactHierarchy", fields: [reportsToId], references: [id], onDelete: SetNull)
+  reports     ClientContact[] @relation("ClientContactHierarchy")
+
+  notes String?
+
+  createdById String? @map("created_by_id")
+  createdBy   User?   @relation("ClientContactCreatedBy", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  activities OpportunityActivity[]
+
+  @@map("client_contacts")
+  @@index([clientId])
+  @@index([reportsToId])
+}
+
+// ---------------------------------------------------------------------
+// Bab 16.5 -- Customer Intelligence MVP (24 Sep 2026).
+//
+// Digabung dari dua sumber: bagian INTERNAL (riwayat opportunity/
+// contract/aktivitas) tidak perlu tabel baru -- itu query agregasi dari
+// data yang sudah ada (Opportunity, OpportunityActivity, Client). Tabel
+// ini cuma untuk bagian EKSTERNAL: riset manual yang diisi sales rep
+// sendiri (profil bisnis, skala, kompetitor, dst.) -- SENGAJA tidak ada
+// integrasi API/scraping pihak ketiga di MVP ini (lihat diskusi insight
+// sebelumnya: biaya & risiko legal data eksternal otomatis tidak
+// sepadan untuk tahap ini). One-to-one dengan Client -- satu client,
+// satu lembar intelijen yang terus diperbarui, bukan riwayat versi.
+// ---------------------------------------------------------------------
+
+model ClientIntelligence {
+  id       String @id @default(uuid())
+  clientId String @unique @map("client_id")
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  profilBisnis        String? @map("profil_bisnis") // industri, skala usaha, model bisnis singkat
+  proyekBerjalan       String? @map("proyek_berjalan") // proyek yang sedang/akan berjalan yang relevan
+  kompetitorEksisting  String? @map("kompetitor_eksisting") // vendor/produk kompetitor yang dipakai/dipertimbangkan
+  sumberInformasi      String? @map("sumber_informasi") // dari mana info ini didapat (referensi, web, obrolan, dst)
+  catatanTambahan      String? @map("catatan_tambahan")
+  // Link ke sumber eksternal (company profile, berita, LinkedIn, dst) --
+  // [{label, url}], lihat src/types untuk shape-nya. Json bukan tabel
+  // terpisah karena ini murni daftar tautan referensi, tidak butuh query
+  // relasional.
+  links Json?
+
+  updatedById String? @map("updated_by_id")
+  updatedBy   User?   @relation("ClientIntelligenceUpdatedBy", fields: [updatedById], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("client_intelligence")
+}
