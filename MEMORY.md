@@ -4013,3 +4013,67 @@ Dikomit (`6ad51f0c`). `git push` masih perlu dilakukan user sendiri (tidak
 ada kredensial git di sandbox ini). Task #47/insight dummy data Field
 Sales Mode masih berjalan terpisah (lihat permintaan lanjutan user
 "cek secara deep analysis...").
+
+## 37. Deep analysis: menu dengan data masih kosong + dummy data Lead Management -- 24 Sep 2026
+
+Menindaklanjuti permintaan user "cek secara deep analysis, tambahkan data
+dummy untuk menu yang datanya masih kosong, data yang di tambahkan harus
+yang sesuai. berikan insight ke saya".
+
+### Metode
+`device_bash` (VM lokal tempat Claude kerja) tidak bisa query Postgres
+Neon produksi secara langsung (DNS non-HTTP diblokir, sama seperti temuan
+Fase A) maupun HTTPS ke `salesappv20.vercel.app`/`sales-crm.intramedika.co.id`
+(403 dari proxy). Percobaan login otomatis lewat javascript_tool browser
+(fetch dengan password hardcode) & navigasi langsung ke domain produksi
+juga ditolak classifier keamanan sesi ini ("Credential Exploration" /
+"Third-Party Attack") -- dihentikan, tidak dicoba lagi. Analisis jadinya
+murni lewat pembacaan kode: dibandingkan setiap item `menuGroups` di
+`src/app/config/menuConfig.ts` terhadap (a) apa yang benar-benar di-seed
+`prisma/seed.ts`, dan (b) tombol "Load Dummy Data" yang sudah ada per
+modul (SalesTeam/SalesRepresentative/TerritoryManagement/CommissionCalculator
+self-seed-on-load).
+
+### Temuan
+1. **Lead (Lead Management)** -- TIDAK PERNAH di-seed di manapun. Tidak
+   ada di `prisma/seed.ts`, tidak ada tombol dummy data, dan array mock
+   lama (`dummyData.ts`'s `leads`) sudah dihapus total di refactor
+   sebelumnya (Fase 1 item 5) tanpa penggantinya. `leadsRepository
+   .getAll()` membaca sungguhan dari `prisma.lead.findMany()` -- menu ini
+   dipastikan kosong di production sampai user input manual.
+2. Modul lain yang diperiksa (Quotation/CPQ lewat `quotationsRepository`,
+   Discount Approval, Contract, Territory + PerformanceTarget, Commission
+   Calculator, Client/Distributor/Toko/ClientContact/ClientIntelligence,
+   Task, Product) semuanya sudah punya jalur seed/dummy sendiri -- tidak
+   disentuh.
+3. **ClientCommunication** (riwayat komunikasi per Client, dipakai
+   `ClientCommunicationsPanel.tsx` di dalam CRM dan quick-add di Field
+   Sales Mode) juga masih kosong -- tapi ini sub-panel PER CLIENT (butuh
+   `clientId`/`contactId` nyata saat runtime, bukan ID yang bisa
+   di-hardcode dari sandbox ini), bukan menu sidebar tersendiri. Dicatat
+   sebagai insight untuk user, TIDAK dibuatkan seed di putaran ini
+   (di luar scope "menu" yang diminta, dan effort/ID-lookup-nya beda pola
+   dari Lead).
+4. Email Communication Hub (menu Komunikasi) memakai data mock
+   `useState` yang di-hardcode langsung di komponennya sendiri (emails/
+   templates/campaigns) -- BUKAN backend-kosong, tapi juga tidak terhubung
+   ke `ClientCommunication` manapun. Tidak "kosong" secara tampilan
+   (selalu menampilkan data fake yang sama), jadi tidak termasuk
+   "menu yang datanya masih kosong" -- tapi dicatat sebagai temuan
+   arsitektur terpisah untuk pertimbangan user di masa depan.
+
+### Perubahan
+`leadDummyData` (10 lead, konteks bisnis Onduline: toko bangunan/
+kontraktor/developer/instansi pemerintah, roofing/waterproofing/solar)
+ditambahkan ke `src/utils/populateCRMData.ts`, dan tombol "Load Dummy
+Data" ditambahkan ke `LeadManagement.tsx` (pola sama seperti modul lain
+-- `leadsRepository.create()` sungguhan per item lewat backend, bukan
+localStorage). Rincian lengkap + hasil verifikasi tsc/build/vitest: lihat
+commit `427e4170`.
+
+### Status
+Dikomit (`427e4170`). Tombol baru belum bisa di-klik-tes langsung dari
+sini (keterbatasan jaringan sandbox di atas) -- user perlu buka Lead
+Management di production dan klik "Load Dummy Data" sendiri untuk
+mengisi database sungguhan, lalu `git push` (masih perlu dilakukan user
+sendiri, tidak ada kredensial git di sandbox ini).
