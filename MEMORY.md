@@ -4345,3 +4345,33 @@ cuma pergeseran baris -- diff kosong total). `npx vite build`: sukses.
 
 ### Status
 Dikomit (`8998a61a`). `git push` masih perlu dilakukan user sendiri.
+
+## 42. Tooltip per ikon saat sidebar di-collapse -- 24 Sep 2026
+
+Menindaklanjuti permintaan user: "jika sidebar menu di hide, tambahkan
+tooltips untuk masing-masing icon".
+
+### Perubahan
+`src/app/components/layout/Sidebar.tsx`: logic rendering tombol menu
+diekstrak ke `renderMenuItemButton(item: MenuItem)` di dalam komponen
+`Sidebar`. Saat `isSidebarOpen === false` (sidebar di-collapse ke
+icon-only), tiap tombol menu di-wrap `<Tooltip>` (komponen
+`ui/tooltip.tsx` yang sudah ada berbasis Radix, dipakai dengan pola
+yang sama seperti di `AppNotifications.tsx`: `TooltipTrigger asChild`
+membungkus `<button>` asli, `TooltipContent` berisi nama menu). Posisi
+tooltip `side="right"` karena sidebar ada di sisi kiri layar. Saat
+sidebar terbuka, tombol dirender apa adanya tanpa wrapper Tooltip
+(tidak ada perubahan tampilan/perilaku di mode terbuka -- label teks
+menu sudah cukup jelas di situ).
+
+Submenu tidak disentuh -- submenu memang hanya dirender saat
+`isSidebarOpen === true` (kondisi lama, tidak diubah), jadi tidak
+pernah muncul dalam mode icon-only dan tidak butuh tooltip.
+
+### Verifikasi
+`npx tsc --noEmit`: 131 error sebelum & sesudah, identik persis (diff
+kosong total). `npx vite build`: sukses. `npx vitest run`: 11/11 tetap
+lulus.
+
+### Status
+Dikomit (`e43cf775`). `git push` masih perlu dilakukan user sendiri.
