@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { CHART_PRIMARY, CHART_COLORS, CHART_GRID } from '@/styles/chartTheme';
 import { salesData, leadSourceData } from '@/app/data/dummyData';
-import { contractsApi, salesTeamApi } from '@/services/api';
+import { salesTeamApi } from '@/services/api';
+import { contractsRepository } from '@/services/contractsRepository';
 import { leadsRepository } from '@/services/leadsRepository';
 import { toast } from 'sonner';
 import { SalesKPICards } from '@/app/components/SalesKPICards';
@@ -91,7 +92,7 @@ export function SalesReports() {
       setLoading(true);
       const [leadsResult, contractsResult, teamResult] = await Promise.all([
         leadsRepository.getAll(),
-        contractsApi.getAll(),
+        contractsRepository.getAll(),
         salesTeamApi.getAll(),
       ]);
 

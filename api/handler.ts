@@ -2772,6 +2772,131 @@ async function handleAiChat(req: ApiRequest, res: ApiResponse) {
 // Top-level dispatch
 // ---------------------------------------------------------------------
 
+// ---------------------------------------------------------------------
+// /api/contracts, /api/contracts/:id
+//
+// Bab 30 lanjutan (24 Sep 2026, hasil deep review + smoke test grup menu
+// Sales Pipeline) -- lihat catatan desain lengkap di prisma/schema.prisma
+// dekat model Contract. Menggantikan contractsApi (src/services/api.ts,
+// cuma baca localStorage, tidak punya method create/update/delete sama
+// sekali) dan ContractFormModal yang selama ini submit ke URL
+// mock-project-id.supabase.co yang jelas-jelas tidak pernah dijawab.
+async function handleContracts(id: string | undefined, req: ApiRequest, res: ApiResponse) {
+  try {
+    const user = await getUserFromToken(extractBearerToken(req.headers.authorization));
+
+    if (!id) {
+      // GET/POST /api/contracts
+      requireAuth(user);
+
+      if (req.method === 'GET') {
+        const contracts = await prisma.contract.findMany({ orderBy: { createdAt: 'desc' } });
+        res.status(200).json({ success: true, data: contracts });
+        return;
+      }
+
+      if (req.method === 'POST') {
+        const body = (req.body ?? {}) as Record<string, unknown>;
+        if (!body.contractNumber || !body.clientName || !body.company || !body.startDate || !body.endDate) {
+          res.status(400).json({
+            success: false,
+            error: 'contractNumber, clientName, company, startDate, dan endDate wajib diisi',
+          });
+          return;
+        }
+        const value = Number(body.value);
+        if (!Number.isFinite(value) || value < 0) {
+          res.status(400).json({ success: false, error: 'value harus berupa angka >= 0' });
+          return;
+        }
+        const contract = await prisma.contract.create({
+          data: {
+            contractNumber: body.contractNumber as string,
+            clientId: (body.clientId as string) ?? null,
+            clientName: body.clientName as string,
+            company: body.company as string,
+            opportunityId: (body.opportunityId as string) ?? null,
+            product: (body.product as string) ?? '',
+            value,
+            startDate: new Date(body.startDate as string),
+            endDate: new Date(body.endDate as string),
+            status: (body.status as 'DRAFT' | 'PENDING' | 'ACTIVE' | 'EXPIRED' | 'TERMINATED') ?? 'DRAFT',
+            signedBy: (body.signedBy as string) ?? '',
+            salesPerson: (body.salesPerson as string) ?? user.name,
+          },
+        });
+        res.status(201).json({ success: true, data: contract });
+        return;
+      }
+
+      res.status(405).json({ success: false, error: 'Method not allowed' });
+      return;
+    }
+
+    // GET/PUT/DELETE /api/contracts/:id
+    if (req.method === 'GET') {
+      requireAuth(user);
+      const contract = await prisma.contract.findUnique({ where: { id } });
+      if (!contract) {
+        res.status(404).json({ success: false, error: 'Contract not found' });
+        return;
+      }
+      res.status(200).json({ success: true, data: contract });
+      return;
+    }
+
+    if (req.method === 'PUT') {
+      requireAuth(user);
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const contract = await prisma.contract.update({
+        where: { id },
+        data: {
+          ...(body.contractNumber !== undefined && { contractNumber: body.contractNumber as string }),
+          ...(body.clientId !== undefined && { clientId: body.clientId as string | null }),
+          ...(body.clientName !== undefined && { clientName: body.clientName as string }),
+          ...(body.company !== undefined && { company: body.company as string }),
+          ...(body.opportunityId !== undefined && { opportunityId: body.opportunityId as string | null }),
+          ...(body.product !== undefined && { product: body.product as string }),
+          ...(body.value !== undefined && { value: Number(body.value) }),
+          ...(body.startDate !== undefined && { startDate: new Date(body.startDate as string) }),
+          ...(body.endDate !== undefined && { endDate: new Date(body.endDate as string) }),
+          ...(body.status !== undefined && {
+            status: body.status as 'DRAFT' | 'PENDING' | 'ACTIVE' | 'EXPIRED' | 'TERMINATED',
+          }),
+          ...(body.signedBy !== undefined && { signedBy: body.signedBy as string }),
+          ...(body.salesPerson !== undefined && { salesPerson: body.salesPerson as string }),
+        },
+      });
+      res.status(200).json({ success: true, data: contract });
+      return;
+    }
+
+    if (req.method === 'DELETE') {
+      requireRole(user, ['SUPER_ADMIN', 'SALES_MANAGER']);
+      await prisma.contract.delete({ where: { id } });
+      res.status(200).json({ success: true });
+      return;
+    }
+
+    res.status(405).json({ success: false, error: 'Method not allowed' });
+  } catch (err) {
+    if (err instanceof UnauthorizedError || err instanceof ForbiddenError) {
+      res.status(err.status).json({ success: false, error: err.message });
+      return;
+    }
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2025') {
+      res.status(404).json({ success: false, error: 'Contract not found' });
+      return;
+    }
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2002') {
+      res.status(409).json({ success: false, error: 'Nomor kontrak sudah digunakan' });
+      return;
+    }
+    console.error('[api/contracts] unexpected error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   const resource = getParam(req, 'resource');
   const sub = getParam(req, 'id'); // for resource === 'auth', this is the action
@@ -2812,6 +2937,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return;
     case 'opportunities':
       await handleOpportunities(sub, req, res);
+      return;
+    case 'contracts':
+      await handleContracts(sub, req, res);
       return;
     case 'products':
       await handleProducts(sub, req, res);

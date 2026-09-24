@@ -8,7 +8,8 @@ import {
   CHART_TOOLTIP_STYLE, BAR_RADIUS_UP, AREA_GRADIENT_STOPS,
 } from '@/styles/chartTheme';
 import { salesData, leadSourceData, performanceData } from '@/app/data/dummyData';
-import { demosApi, contractsApi, salesTeamApi } from '@/services/api';
+import { demosApi, salesTeamApi } from '@/services/api';
+import { contractsRepository } from '@/services/contractsRepository';
 import { leadsRepository } from '@/services/leadsRepository';
 import { opportunitiesRepository } from '@/services/opportunitiesRepository';
 import { tasksRepository } from '@/services/tasksRepository';
@@ -128,7 +129,7 @@ export function Home() {
       const [leadsResult, demosResult, contractsResult, teamResult] = await Promise.all([
         leadsRepository.getAll(),
         demosApi.getAll(),
-        contractsApi.getAll(),
+        contractsRepository.getAll(),
         salesTeamApi.getAll(),
       ]);
 

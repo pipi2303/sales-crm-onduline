@@ -9,7 +9,7 @@ import { Contract as ContractType } from '@/app/data/dummyData';
 import { ContractFormModal } from '@/app/components/forms/ContractForm';
 import { ContractDetailDialog } from '@/app/components/ContractDetailDialog';
 import { ContractDetailView } from '@/app/components/ContractDetailView';
-import { contractsApi } from '@/services/api';
+import { contractsRepository } from '@/services/contractsRepository';
 import { toast } from 'sonner';
 import { ContractRenewalReminders, ContractTemplates, ContractRiskScoring } from '@/app/components/ContractEnhancements';
 import { ContractAnalytics } from '@/app/components/ContractAnalytics';
@@ -45,16 +45,13 @@ export function Contract() {
   const fetchContracts = async () => {
     try {
       setLoading(true);
-      const result = await contractsApi.getAll();
-      
+      // Bab 30 lanjutan: dulu contractsApi.getAll() (localStorage-only,
+      // tidak pernah sinkron dengan create/edit yang -- sebelum fix ini --
+      // toh selalu gagal diam-diam). Sekarang backend sungguhan.
+      const result = await contractsRepository.getAll();
+
       if (result.success && result.data) {
-        // Convert string dates to Date objects
-        const contractsWithDates = result.data.map(contract => ({
-          ...contract,
-          startDate: contract.startDate instanceof Date ? contract.startDate : new Date(contract.startDate),
-          endDate: contract.endDate instanceof Date ? contract.endDate : new Date(contract.endDate)
-        }));
-        setContracts(contractsWithDates);
+        setContracts(result.data);
       } else {
         toast.error(result.error || 'Failed to load contracts');
       }
@@ -122,9 +119,11 @@ export function Contract() {
 
   const handleDeleteContract = async (id: string) => {
     try {
-      // Delete contract using API (localStorage)
-      const result = await contractsApi.delete(id);
-      
+      // Bab 30 lanjutan: contractsApi tidak pernah punya method `delete`
+      // sama sekali (error TS2339 di tsc) -- tombol hapus di UI sudah ada
+      // dari awal tapi tidak mungkin pernah berfungsi.
+      const result = await contractsRepository.remove(id);
+
       if (result.success) {
         setContracts(contracts.filter(c => c.id !== id));
         toast.success('Kontrak berhasil dihapus');

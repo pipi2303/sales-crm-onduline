@@ -9,10 +9,7 @@ import { Badge } from '@/app/components/ui/badge';
 import { Textarea } from '@/app/components/ui/textarea';
 import { toast } from 'sonner';
 import { Contract as ContractType } from '@/app/data/dummyData';
-import { publicAnonKey } from '/utils/supabase/info';
-
-// Mock API URL - using localStorage only
-const API_URL = 'https://mock-project-id.supabase.co/functions/v1/make-server-67367fc1';
+import { contractsRepository } from '@/services/contractsRepository';
 
 interface ContractFormProps {
   contract: ContractType | null;
@@ -71,15 +68,22 @@ export function ContractFormModal({ contract, onClose, onSuccess }: ContractForm
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.contractNumber || !formData.clientName || !formData.company) {
       toast.error('Harap isi semua field yang wajib!');
+      return;
+    }
+    // Bab 30 lanjutan: startDate/endDate wajib diisi di backend (lihat
+    // api/handler.ts's handleContracts) -- divalidasi juga di sini supaya
+    // pesan errornya jelas alih-alih 400 generik dari server.
+    if (!formData.startDate || !formData.endDate) {
+      toast.error('Tanggal mulai dan tanggal berakhir kontrak wajib diisi!');
       return;
     }
 
     try {
       setLoading(true);
-      
+
       const payload = {
         contractNumber: formData.contractNumber,
         clientName: formData.clientName,
@@ -93,32 +97,18 @@ export function ContractFormModal({ contract, onClose, onSuccess }: ContractForm
         salesPerson: formData.salesPerson,
       };
 
-      const url = contract 
-        ? `${API_URL}/contracts/${contract.id}`
-        : `${API_URL}/contracts`;
-      
-      const method = contract ? 'PUT' : 'POST';
-      
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${publicAnonKey}`,
-          'apikey': publicAnonKey,
-        },
-        body: JSON.stringify(payload),
-      });
+      // Bab 30 lanjutan (24 Sep 2026, hasil deep review + smoke test grup
+      // Sales Pipeline): form ini dulu fetch langsung ke
+      // https://mock-project-id.supabase.co/... yang tidak pernah ada --
+      // setiap submit diam-diam gagal (network error tertangkap catch,
+      // cuma tampil toast error generik). Sekarang lewat backend
+      // sungguhan (contractsRepository -> /api/contracts).
+      const result = contract
+        ? await contractsRepository.update(contract.id, payload)
+        : await contractsRepository.create(payload);
 
-      const result = await response.json();
-      
-      if (result.success) {
-        // Convert dates back to Date objects
-        const contractData: ContractType = {
-          ...result.data,
-          startDate: new Date(result.data.startDate),
-          endDate: new Date(result.data.endDate),
-        };
-        
+      if (result.success && result.data) {
+        const contractData: ContractType = result.data;
         toast.success(contract ? 'Kontrak berhasil diupdate!' : 'Kontrak berhasil ditambahkan!');
         onSuccess(contractData);
       } else {

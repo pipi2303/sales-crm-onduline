@@ -296,6 +296,8 @@ model Client {
   // dari OpportunityActivity (bukan reuse) -- lihat catatan lengkap di
   // model ClientCommunication di bawah.
   communications ClientCommunication[]
+  // Bab 30 lanjutan -- lihat catatan lengkap di model Contract di bawah.
+  contracts      Contract[]
 
   @@map("clients")
   @@index([status])
@@ -412,6 +414,9 @@ model Opportunity {
 
   products   OpportunityProduct[]
   activities OpportunityActivity[]
+  // Bab 30 lanjutan -- 1:1, lihat catatan lengkap di model Contract di
+  // bawah (opportunityId di Contract di-@unique-kan).
+  contract   Contract?
 
   @@map("opportunities")
   @@index([status])
@@ -851,6 +856,63 @@ model DiscountApprovalStep {
 
   @@map("discount_approval_steps")
   @@index([requestId])
+}
+
+
+// ---------------------------------------------------------------------
+// Bab 30 lanjutan (24 Sep 2026, hasil deep review + smoke test grup menu
+// Sales Pipeline) -- Contract module sebelumnya 100% palsu: Contract.tsx
+// fetch dari `contractsApi.getAll()` (fallback ke localStorage, tidak
+// pernah ada endpoint /api/contracts di backend), dan ContractForm.tsx
+// submit ke `https://mock-project-id.supabase.co/...` yang jelas-jelas
+// tidak pernah dijawab siapa pun -- setiap create/edit kontrak diam-diam
+// gagal total. Ini rumah backend sungguhan untuk fitur itu.
+//
+// clientId/opportunityId sengaja dibuat relasi Prisma asli (bukan free
+// text seperti opportunityId di DiscountApprovalRequest) supaya seed data
+// dummy (Bab 30 task #22) bisa benar-benar menautkan Contract ke Client/
+// Opportunity Closed-Won yang sudah ada -- itu salah satu poin utama
+// permintaan user ("data dummy yang terhubung dengan yang lain").
+// opportunityId dibuat @unique karena satu opportunity yang sudah Closed
+// Won paling banyak menghasilkan satu kontrak resmi (1:1), sama seperti
+// pola clientId di Opportunity.
+//
+// Sama seperti DiscountApprovalRequest: migration ini tidak bisa
+// diverifikasi dengan `prisma generate`/`prisma migrate` dari sandbox ini
+// (tidak ada jalur jaringan ke binaries.prisma.sh dari VM device_bash) --
+// harus dijalankan manual (`npx prisma migrate deploy`) dari mesin yang
+// punya akses jaringan penuh (mis. langsung oleh user, atau lewat step
+// build Vercel) sebelum fitur ini benar-benar hidup di production.
+enum ContractStatus {
+  DRAFT      @map("draft")
+  PENDING    @map("pending")
+  ACTIVE     @map("active")
+  EXPIRED    @map("expired")
+  TERMINATED @map("terminated")
+}
+
+model Contract {
+  id             String         @id @default(uuid())
+  contractNumber String         @unique @map("contract_number")
+  clientId       String?        @map("client_id")
+  client         Client?        @relation(fields: [clientId], references: [id])
+  clientName     String         @map("client_name")
+  company        String
+  opportunityId  String?        @unique @map("opportunity_id")
+  opportunity    Opportunity?   @relation(fields: [opportunityId], references: [id])
+  product        String
+  value          Decimal        @db.Decimal(14, 2)
+  startDate      DateTime       @map("start_date")
+  endDate        DateTime       @map("end_date")
+  status         ContractStatus @default(DRAFT)
+  signedBy       String         @map("signed_by")
+  salesPerson    String         @map("sales_person")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  @@map("contracts")
+  @@index([clientId])
+  @@index([status])
 }
 
 
