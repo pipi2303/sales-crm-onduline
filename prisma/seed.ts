@@ -14,6 +14,7 @@ import { distributorSeeds, storeSeeds } from './seedData/distributorsAndStores.j
 import { productCategorySeeds, productFamilySeeds, productInstanceSeeds } from './seedData/productCatalog.js';
 import { clientSeeds, opportunitySeeds } from './seedData/clientsAndOpportunities.js';
 import { visitTaskSeeds } from './seedData/visitTasks.js';
+import { clientContactSeeds, clientIntelligenceSeeds, sampleMeetingSeeds } from './seedData/clientContactsAndIntelligence.js';
 
 const prisma = new PrismaClient();
 
@@ -388,6 +389,124 @@ async function seedOpportunities() {
   console.log(`Seeded ${created} opportunities (${skipped} already existed, dilewati) -- Fase A dummy data realistis`);
 }
 
+// Bab 16.5 lanjutan (24 Sep 2026): contoh Organisation Tree/Influence Map
+// + Customer Intelligence untuk sebagian client (lihat rationale lengkap
+// di seedData/clientContactsAndIntelligence.ts -- cuma 4 dari 12 client,
+// sengaja, supaya data demo mencerminkan kenyataan bahwa tidak semua
+// client langsung diisi lengkap). Idempotent lewat findFirst-by-
+// (clientId+nama) untuk ClientContact (tidak ada unique key bisnis, sama
+// seperti pola Opportunity di atas) dan upsert-by-clientId untuk
+// ClientIntelligence (memang @unique). Sample meeting di-skip kalau
+// activity dengan opportunityId+contactId+description yang sama sudah ada.
+async function seedClientContactsAndIntelligence() {
+  const clientByCustId = new Map<string, NonNullable<Awaited<ReturnType<typeof prisma.client.findUnique>>>>();
+  for (const custId of new Set(clientContactSeeds.map((c) => c.clientIdCustomer))) {
+    const client = await prisma.client.findUnique({ where: { idCustomer: custId } });
+    if (!client) {
+      throw new Error(`seedClientContactsAndIntelligence: client "${custId}" not found -- run seedClients() first`);
+    }
+    clientByCustId.set(custId, client);
+  }
+
+  // Pass 1: create/update tiap kontak TANPA reportsToId dulu (supaya urutan
+  // atasan/bawahan di array tidak masalah), simpan id per (clientIdCustomer, nama).
+  const contactIdByKey = new Map<string, string>();
+  let createdContacts = 0;
+  for (const c of clientContactSeeds) {
+    const client = clientByCustId.get(c.clientIdCustomer)!;
+    const key = `${c.clientIdCustomer}::${c.nama}`;
+    const existing = await prisma.clientContact.findFirst({ where: { clientId: client.id, nama: c.nama } });
+    if (existing) {
+      contactIdByKey.set(key, existing.id);
+      continue;
+    }
+    const created = await prisma.clientContact.create({
+      data: {
+        clientId: client.id,
+        nama: c.nama,
+        jabatan: c.jabatan,
+        email: c.email ?? null,
+        telepon: c.telepon ?? null,
+        whatsapp: c.whatsapp ?? null,
+        influenceRole: c.influenceRole,
+        relationshipStatus: c.relationshipStatus,
+        closeness: c.closeness,
+        notes: c.notes ?? null,
+      },
+    });
+    contactIdByKey.set(key, created.id);
+    createdContacts += 1;
+  }
+
+  // Pass 2: isi reportsToId setelah semua kontak per client punya id.
+  for (const c of clientContactSeeds) {
+    if (!c.reportsToNama) continue;
+    const contactId = contactIdByKey.get(`${c.clientIdCustomer}::${c.nama}`);
+    const bossId = contactIdByKey.get(`${c.clientIdCustomer}::${c.reportsToNama}`);
+    if (!contactId || !bossId) {
+      throw new Error(
+        `seedClientContactsAndIntelligence: gagal resolve reportsToNama "${c.reportsToNama}" untuk "${c.nama}" (${c.clientIdCustomer})`
+      );
+    }
+    await prisma.clientContact.update({ where: { id: contactId }, data: { reportsToId: bossId } });
+  }
+
+  let createdIntel = 0;
+  for (const intel of clientIntelligenceSeeds) {
+    const client = clientByCustId.get(intel.clientIdCustomer);
+    if (!client) {
+      throw new Error(`seedClientContactsAndIntelligence: client "${intel.clientIdCustomer}" not found for intelligence seed`);
+    }
+    const fields = {
+      profilBisnis: intel.profilBisnis ?? null,
+      proyekBerjalan: intel.proyekBerjalan ?? null,
+      kompetitorEksisting: intel.kompetitorEksisting ?? null,
+      sumberInformasi: intel.sumberInformasi ?? null,
+      catatanTambahan: intel.catatanTambahan ?? null,
+    };
+    await prisma.clientIntelligence.upsert({
+      where: { clientId: client.id },
+      update: fields,
+      create: { clientId: client.id, ...fields },
+    });
+    createdIntel += 1;
+  }
+
+  let createdMeetings = 0;
+  let skippedMeetings = 0;
+  for (const m of sampleMeetingSeeds) {
+    const client = clientByCustId.get(m.clientIdCustomer);
+    if (!client) {
+      throw new Error(`seedClientContactsAndIntelligence: client "${m.clientIdCustomer}" not found for sample meeting`);
+    }
+    const opportunity = await prisma.opportunity.findFirst({ where: { clientId: client.id, name: m.opportunityName } });
+    if (!opportunity) {
+      throw new Error(`seedClientContactsAndIntelligence: opportunity "${m.opportunityName}" not found -- run seedOpportunities() first`);
+    }
+    const contactId = contactIdByKey.get(`${m.clientIdCustomer}::${m.contactNama}`);
+    if (!contactId) {
+      throw new Error(`seedClientContactsAndIntelligence: contact "${m.contactNama}" not found for sample meeting (${m.clientIdCustomer})`);
+    }
+    const existing = await prisma.opportunityActivity.findFirst({
+      where: { opportunityId: opportunity.id, contactId, description: m.description },
+    });
+    if (existing) {
+      skippedMeetings += 1;
+      continue;
+    }
+    const createdAt = new Date();
+    createdAt.setDate(createdAt.getDate() - m.daysAgo);
+    await prisma.opportunityActivity.create({
+      data: { opportunityId: opportunity.id, type: m.type, description: m.description, contactId, createdAt },
+    });
+    createdMeetings += 1;
+  }
+
+  console.log(
+    `Seeded ${createdContacts} client contacts, ${createdIntel} client intelligence records, ${createdMeetings} sample meetings (${skippedMeetings} already existed) -- Bab 16.5`
+  );
+}
+
 // Fase B (Bab 13) follow-up: kepatuhan visit KPI butuh Task nyata
 // bertipe VISIT dengan checkInAt terisi/kosong -- lihat seedData/visitTasks.ts
 // untuk rationale lengkap (31/38 = ~81.6% kepatuhan, sengaja tidak sempurna).
@@ -469,6 +588,7 @@ async function main() {
   await seedProductInstances();
   await seedClients();
   await seedOpportunities();
+  await seedClientContactsAndIntelligence();
   await seedVisitTasks();
 }
 
