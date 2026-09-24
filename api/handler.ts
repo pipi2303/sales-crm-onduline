@@ -68,6 +68,9 @@ interface ActivityInput {
   description: string;
   createdBy?: string;
   createdAt?: string;
+  // Bab 16.5 (24 Sep 2026): opsional -- lihat catatan di schema.prisma
+  // OpportunityActivity.contactId.
+  contactId?: string | null;
 }
 
 function getParam(req: ApiRequest, name: string): string | undefined {
@@ -575,7 +578,18 @@ async function handleClients(id: string | undefined, req: ApiRequest, res: ApiRe
     // GET/PUT/DELETE /api/clients/:id
     if (req.method === 'GET') {
       requireAuth(user);
-      const client = await prisma.client.findUnique({ where: { id }, include: { opportunities: true } });
+      const client = await prisma.client.findUnique({
+        where: { id },
+        include: {
+          opportunities: true,
+          // Bab 16.5 (24 Sep 2026): org tree/influence + customer
+          // intelligence, dimuat sekalian di sini supaya halaman detail
+          // client tidak perlu request terpisah untuk data yang selalu
+          // ditampilkan bareng.
+          contacts: { include: { _count: { select: { activities: true } } }, orderBy: { createdAt: 'asc' } },
+          intelligence: true,
+        },
+      });
       if (!client) {
         res.status(404).json({ success: false, error: 'Client not found' });
         return;
@@ -654,6 +668,192 @@ async function handleClients(id: string | undefined, req: ApiRequest, res: ApiRe
       return;
     }
     console.error('[api/clients] unexpected error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
+// ---------------------------------------------------------------------
+// /api/client-contacts, /api/client-contacts/:id
+//
+// Bab 16.5 (24 Sep 2026): Organisation Tree & Influence Mapping -- lihat
+// catatan desain lengkap di prisma/schema.prisma dekat model
+// ClientContact. List/create lewat query string ?clientId= (satu client
+// sekaligus -- tidak ada kebutuhan nyata untuk daftar semua kontak lintas
+// client di UI manapun).
+// ---------------------------------------------------------------------
+
+async function handleClientContacts(id: string | undefined, req: ApiRequest, res: ApiResponse) {
+  try {
+    const user = await getUserFromToken(extractBearerToken(req.headers.authorization));
+    requireAuth(user);
+
+    if (!id) {
+      const clientId = getParam(req, 'clientId');
+
+      if (req.method === 'GET') {
+        if (!clientId) {
+          res.status(400).json({ success: false, error: 'clientId wajib diisi' });
+          return;
+        }
+        const contacts = await prisma.clientContact.findMany({
+          where: { clientId },
+          include: { _count: { select: { activities: true } } },
+          orderBy: { createdAt: 'asc' },
+        });
+        res.status(200).json({ success: true, data: contacts });
+        return;
+      }
+
+      if (req.method === 'POST') {
+        const body = (req.body ?? {}) as Record<string, unknown>;
+        if (!body.clientId || !body.nama || !body.influenceRole) {
+          res.status(400).json({ success: false, error: 'clientId, nama, dan influenceRole wajib diisi' });
+          return;
+        }
+        const contact = await prisma.clientContact.create({
+          data: {
+            clientId: body.clientId as string,
+            nama: body.nama as string,
+            jabatan: (body.jabatan as string) ?? null,
+            email: (body.email as string) ?? null,
+            telepon: (body.telepon as string) ?? null,
+            whatsapp: (body.whatsapp as string) ?? null,
+            influenceRole: body.influenceRole as
+              | 'DECISION_MAKER'
+              | 'APPROVER'
+              | 'INFLUENCER'
+              | 'TECHNICAL_ADVISOR'
+              | 'CONSULTANT',
+            relationshipStatus: (body.relationshipStatus as 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE') ?? 'NEUTRAL',
+            closeness: (body.closeness as 'BARU_KENAL' | 'KENAL_BAIK' | 'CHAMPION') ?? 'BARU_KENAL',
+            reportsToId: (body.reportsToId as string) ?? null,
+            notes: (body.notes as string) ?? null,
+            createdById: user.id,
+          },
+        });
+        res.status(201).json({ success: true, data: contact });
+        return;
+      }
+
+      res.status(405).json({ success: false, error: 'Method not allowed' });
+      return;
+    }
+
+    // GET/PUT/DELETE /api/client-contacts/:id
+    if (req.method === 'GET') {
+      const contact = await prisma.clientContact.findUnique({
+        where: { id },
+        include: {
+          _count: { select: { activities: true } },
+          activities: { orderBy: { createdAt: 'desc' } },
+        },
+      });
+      if (!contact) {
+        res.status(404).json({ success: false, error: 'Contact not found' });
+        return;
+      }
+      res.status(200).json({ success: true, data: contact });
+      return;
+    }
+
+    if (req.method === 'PUT') {
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      if (body.reportsToId !== undefined && body.reportsToId === id) {
+        res.status(400).json({ success: false, error: 'Kontak tidak bisa melapor ke dirinya sendiri' });
+        return;
+      }
+      const editableFields = [
+        'nama', 'jabatan', 'email', 'telepon', 'whatsapp',
+        'influenceRole', 'relationshipStatus', 'closeness', 'reportsToId', 'notes',
+      ] as const;
+      const data: Record<string, unknown> = {};
+      for (const field of editableFields) {
+        if (body[field] !== undefined) data[field] = body[field];
+      }
+      const contact = await prisma.clientContact.update({ where: { id }, data });
+      res.status(200).json({ success: true, data: contact });
+      return;
+    }
+
+    if (req.method === 'DELETE') {
+      await prisma.clientContact.delete({ where: { id } });
+      res.status(200).json({ success: true });
+      return;
+    }
+
+    res.status(405).json({ success: false, error: 'Method not allowed' });
+  } catch (err) {
+    if (err instanceof UnauthorizedError || err instanceof ForbiddenError) {
+      res.status(err.status).json({ success: false, error: err.message });
+      return;
+    }
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2025') {
+      res.status(404).json({ success: false, error: 'Contact not found' });
+      return;
+    }
+    console.error('[api/client-contacts] unexpected error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
+// ---------------------------------------------------------------------
+// /api/client-intelligence/:clientId
+//
+// Bab 16.5 (24 Sep 2026): Customer Intelligence MVP -- satu-satu dengan
+// Client (lihat catatan desain di schema.prisma). URL-nya pakai clientId
+// langsung (bukan id record intelligence-nya sendiri) karena relasinya
+// 1:1 -- GET mengembalikan data: null kalau belum pernah diisi (bukan
+// 404), supaya frontend bisa langsung render form kosong tanpa
+// nge-handle error khusus.
+// ---------------------------------------------------------------------
+
+async function handleClientIntelligence(clientId: string | undefined, req: ApiRequest, res: ApiResponse) {
+  try {
+    const user = await getUserFromToken(extractBearerToken(req.headers.authorization));
+    requireAuth(user);
+
+    if (!clientId) {
+      res.status(400).json({ success: false, error: 'clientId wajib diisi di URL' });
+      return;
+    }
+
+    if (req.method === 'GET') {
+      const intelligence = await prisma.clientIntelligence.findUnique({ where: { clientId } });
+      res.status(200).json({ success: true, data: intelligence ?? null });
+      return;
+    }
+
+    if (req.method === 'PUT') {
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const fields = {
+        profilBisnis: (body.profilBisnis as string) ?? null,
+        proyekBerjalan: (body.proyekBerjalan as string) ?? null,
+        kompetitorEksisting: (body.kompetitorEksisting as string) ?? null,
+        sumberInformasi: (body.sumberInformasi as string) ?? null,
+        catatanTambahan: (body.catatanTambahan as string) ?? null,
+        // `as object`, bukan Prisma.InputJsonValue -- pola yang sama
+        // dipakai Opportunity.extra di atas (Prisma.InputJsonValue tidak
+        // ter-export dengan benar dari client version ini, lihat 154
+        // error tsc pre-existing di MEMORY.md section 26/27).
+        links: body.links !== undefined ? (body.links as object) : undefined,
+        updatedById: user.id,
+      };
+      const intelligence = await prisma.clientIntelligence.upsert({
+        where: { clientId },
+        create: { clientId, ...fields },
+        update: fields,
+      });
+      res.status(200).json({ success: true, data: intelligence });
+      return;
+    }
+
+    res.status(405).json({ success: false, error: 'Method not allowed' });
+  } catch (err) {
+    if (err instanceof UnauthorizedError || err instanceof ForbiddenError) {
+      res.status(err.status).json({ success: false, error: err.message });
+      return;
+    }
+    console.error('[api/client-intelligence] unexpected error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 }
@@ -1141,6 +1341,7 @@ async function handleOpportunities(id: string | undefined, req: ApiRequest, res:
                 description: a.description,
                 createdBy: a.createdBy ?? user!.id,
                 createdAt: a.createdAt ? new Date(a.createdAt) : new Date(),
+                contactId: a.contactId ?? null,
               })),
             },
           }),
@@ -1165,6 +1366,7 @@ async function handleOpportunities(id: string | undefined, req: ApiRequest, res:
           type: body.type as string,
           description: body.description as string,
           createdBy: user.id,
+          contactId: (body.contactId as string) ?? null,
         },
       });
       res.status(201).json({ success: true, data: activity });
@@ -2480,6 +2682,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return;
     case 'tasks':
       await handleTasks(sub, req, res);
+      return;
+    case 'client-contacts':
+      await handleClientContacts(sub, req, res);
+      return;
+    case 'client-intelligence':
+      await handleClientIntelligence(sub, req, res);
       return;
     case 'ai-chat':
       await handleAiChat(req, res);
