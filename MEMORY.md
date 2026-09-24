@@ -4317,3 +4317,31 @@ Dikomit (`b206ae56`). `git push` masih perlu dilakukan user sendiri.
 Efek baru akan terlihat di production setelah deploy berikutnya --
 tidak bisa diverifikasi langsung di production dari sandbox ini karena
 pembatasan browser automation ke domain tersebut (lihat di atas).
+
+## 41. Ganti judul menu di header dengan tanggal & jam -- 24 Sep 2026
+
+Menindaklanjuti permintaan user: "change judul menu di header di
+sebelah kanan judul aplikasi dengan tanggal dan jam (model simple)".
+
+### Perubahan
+`src/app/components/layout/Header.tsx`: teks judul menu aktif
+(`{activeMenuName}`, dulu tampil di `<h2>` sebelah kanan brand
+"Sales & CRM") diganti tampilan tanggal & jam berjalan. Ditambah hook
+kecil `useSimpleClock()` (state `Date`, `setInterval` 60 detik --
+cukup untuk tampilan jam header, tidak perlu presisi detik supaya
+re-render minimal). Format: `id-ID` locale, `"<hari>, <tanggal>
+<bulan> <tahun>  <jam>:<menit>"` (mis. "Kamis, 24 September 2026
+15:12").
+
+Prop `activeMenuName` di `HeaderProps` TIDAK dihapus (App.tsx masih
+mengirimnya apa adanya) -- hanya sudah tidak dipakai lagi di JSX
+Header, supaya perubahan ini tetap kontrak-kompatibel kalau nanti ada
+kebutuhan lain untuk nilai itu (mis. document.title).
+
+### Verifikasi
+`npx tsc --noEmit`: 131 error sebelum & sesudah, identik persis (bukan
+cuma pergeseran baris -- diff kosong total). `npx vite build`: sukses.
+`npx vitest run`: 11/11 tetap lulus.
+
+### Status
+Dikomit (`8998a61a`). `git push` masih perlu dilakukan user sendiri.
