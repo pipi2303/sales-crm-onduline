@@ -162,4 +162,19 @@ export const leadsRepository = {
   async clearAll(): Promise<Result<void>> {
     return apiFetch<void>('/api/leads', { method: 'DELETE' });
   },
+
+  // Bab 30 lanjutan (24 Sep 2026, hasil deep review + smoke test grup
+  // menu Sales Pipeline): Lead -> Opportunity conversion. Sebelumnya
+  // tidak ada implementasi sama sekali (src/services/api.ts's
+  // convertLead() menunjuk ke route yang tidak pernah ada dan tidak
+  // dipanggil di mana pun). Mengembalikan Opportunity yang baru dibuat
+  // (bukan Lead) -- dipakai sebagai `any` di sini karena leadsRepository
+  // tidak mengimpor tipe Opportunity; pemanggil (LeadManagement.tsx)
+  // hanya butuh id/name-nya untuk toast konfirmasi.
+  async convertToOpportunity(id: string, overrides?: { name?: string; closeDate?: string }): Promise<Result<any>> {
+    return apiFetch<any>(`/api/leads/${id}`, {
+      method: 'POST',
+      body: JSON.stringify(overrides ?? {}),
+    });
+  },
 };

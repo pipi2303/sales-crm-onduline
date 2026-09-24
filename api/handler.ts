@@ -435,7 +435,7 @@ async function handleLeads(id: string | undefined, req: ApiRequest, res: ApiResp
       return;
     }
 
-    // GET/PUT/DELETE /api/leads/:id
+    // GET/POST/PUT/DELETE /api/leads/:id
     if (req.method === 'GET') {
       requireAuth(user);
       const lead = await prisma.lead.findUnique({ where: { id }, include: { opportunities: true } });
@@ -444,6 +444,60 @@ async function handleLeads(id: string | undefined, req: ApiRequest, res: ApiResp
         return;
       }
       res.status(200).json({ success: true, data: lead });
+      return;
+    }
+
+    // Bab 30 lanjutan (24 Sep 2026, hasil deep review + smoke test grup
+    // menu Sales Pipeline) -- Lead -> Opportunity conversion. Sebelumnya
+    // tidak ada sama sekali: src/services/api.ts punya `convertLead()`
+    // yang menunjuk ke route yang tidak pernah ada (dead code, tidak
+    // dipanggil di mana pun), dan satu-satunya UI yang menyinggung
+    // "Convert to Opportunity" adalah card dekoratif di DemoScheduler.tsx
+    // yang tidak wired ke apa pun. POST (bukan PUT) dipakai di sini --
+    // sama seperti pola "action" di handleDiscountApprovals -- karena ini
+    // bukan update field Lead biasa, tapi aksi yang membuat record baru
+    // (Opportunity) dan mengubah status Lead sebagai efek sampingnya.
+    if (req.method === 'POST') {
+      requireAuth(user);
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const lead = await prisma.lead.findUnique({ where: { id } });
+      if (!lead) {
+        res.status(404).json({ success: false, error: 'Lead not found' });
+        return;
+      }
+      if (lead.status === 'WON') {
+        res.status(400).json({ success: false, error: 'Lead ini sudah pernah dikonversi menjadi Opportunity' });
+        return;
+      }
+      // closeDate wajib diisi di Opportunity (lihat handleOpportunities'
+      // POST) tapi Lead tidak punya tanggal target close -- default 30
+      // hari dari sekarang, bisa diedit user setelah konversi.
+      const defaultCloseDate = new Date();
+      defaultCloseDate.setDate(defaultCloseDate.getDate() + 30);
+
+      const opportunity = await prisma.opportunity.create({
+        data: {
+          name: (body.name as string) || `${lead.company} - ${lead.name}`,
+          leadId: lead.id,
+          clientName: lead.company,
+          contactPerson: lead.name,
+          email: lead.email,
+          phone: lead.phone,
+          totalValue: Number(lead.value) || 0,
+          closeDate: body.closeDate ? new Date(body.closeDate as string) : defaultCloseDate,
+          stage: 'PROSPECTING',
+          status: 'OPEN',
+          ownerId: (body.ownerId as string) ?? user.id,
+          ownerName: (body.ownerName as string) ?? user.name,
+          source: lead.source,
+          notes: lead.notes,
+          createdBy: user.id,
+        },
+      });
+
+      await prisma.lead.update({ where: { id: lead.id }, data: { status: 'WON' } });
+
+      res.status(201).json({ success: true, data: opportunity });
       return;
     }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, Edit2, Trash2, Eye, Phone, Mail, Building2, RefreshCw, X } from 'lucide-react';
+import { Plus, Search, Filter, Edit2, Trash2, Eye, Phone, Mail, Building2, RefreshCw, X, ArrowRightCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { useConfirm } from '@/app/components/ui/confirm-dialog';
@@ -174,6 +174,33 @@ export function LeadManagement() {
       toast.error('Terjadi kesalahan saat menyimpan lead');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Bab 30 lanjutan (24 Sep 2026, hasil deep review + smoke test grup menu
+  // Sales Pipeline): Lead -> Opportunity conversion. Sebelumnya sama
+  // sekali tidak ada implementasi (convertLead() di src/services/api.ts
+  // menunjuk ke route yang tidak pernah ada, tidak dipanggil di mana
+  // pun) -- satu-satunya UI yang menyinggung ini adalah card dekoratif
+  // di DemoScheduler.tsx yang juga tidak wired ke apa pun.
+  const handleConvertToOpportunity = async (lead: ExtendedLead) => {
+    if (lead.status === 'won') {
+      toast.error('Lead ini sudah pernah dikonversi menjadi Opportunity');
+      return;
+    }
+    if (!(await confirm(
+      `Konversi lead "${lead.name}" (${lead.company}) menjadi Opportunity baru? Status lead akan berubah menjadi Won.`,
+      { confirmText: 'Konversi', title: 'Convert to Opportunity' },
+    ))) {
+      return;
+    }
+
+    const result = await leadsRepository.convertToOpportunity(lead.id);
+    if (result.success && result.data) {
+      toast.success(`Opportunity "${result.data.name}" berhasil dibuat dari lead ini!`);
+      fetchLeads();
+    } else {
+      toast.error(result.error || 'Gagal mengonversi lead menjadi opportunity');
     }
   };
 
@@ -354,6 +381,18 @@ export function LeadManagement() {
 
                   {/* Right Section - Actions */}
                   <div className="flex gap-2 ml-4" onClick={(e) => e.stopPropagation()}>
+                    {lead.status !== 'won' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="hover:bg-green-50 hover:text-green-700 hover:border-green-300"
+                        onClick={() => handleConvertToOpportunity(lead)}
+                        title="Convert to Opportunity"
+                      >
+                        <ArrowRightCircle className="w-3.5 h-3.5 mr-1.5" />
+                        Convert
+                      </Button>
+                    )}
                     <Button 
                       variant="outline" 
                       size="sm" 
@@ -609,12 +648,24 @@ export function LeadManagement() {
                 <h2 className="text-xl font-bold text-gray-900">Detail Lead</h2>
                 <p className="text-sm text-gray-500 mt-0.5">Informasi karyawan dan perusahaan yang di-lead</p>
               </div>
-              <button
-                onClick={() => setIsDetailOpen(false)}
-                className="text-gray-400 hover:text-gray-600 -mt-1"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-3">
+                {selectedLead && selectedLead.status !== 'won' && (
+                  <Button
+                    size="sm"
+                    className="bg-green-600 text-white hover:bg-green-700 h-8 text-xs px-3"
+                    onClick={() => handleConvertToOpportunity(selectedLead)}
+                  >
+                    <ArrowRightCircle className="w-3.5 h-3.5 mr-1.5" />
+                    Convert to Opportunity
+                  </Button>
+                )}
+                <button
+                  onClick={() => setIsDetailOpen(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
           </div>
           
