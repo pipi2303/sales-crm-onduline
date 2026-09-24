@@ -3690,3 +3690,129 @@ live-verified di Bab 32 (kategori kosong di Edit, Visual Map nol pin,
 search box no-op, Leads selalu 0) sudah diperbaiki di kode -- belum
 di-smoke-test ulang di production karena perubahan belum di-deploy
 (perlu `git push` oleh user + Vercel auto-deploy).
+
+## 34. Deep review + smoke test: grup menu "Tim Penjualan" (CRM, Sales Representative, Commission Calculator)
+
+Task murni investigasi (review kode + smoke test live di
+`sales-crm.intramedika.co.id`), TIDAK ada perubahan kode -- hasil
+disampaikan sebagai laporan insight ke user. Metodologi sama seperti
+Bab 32: 3 subagent riset paralel (satu per komponen), lalu temuan kunci
+diverifikasi langsung lewat smoke test browser (built-in browser --
+sempat logout di tengah sesi, user diminta login manual sendiri karena
+saya tidak diizinkan mengetik password, lalu smoke test dilanjutkan).
+
+### CRM (`SalesTeam.tsx` -- tab Client/Distributor/Toko)
+
+**Bug terkonfirmasi (termasuk live-verified):**
+1. **Form Client diam-diam membuang 8 field saat disimpan** -- Sektor
+   Kepemilikan, Alamat Penagihan/Pengiriman terpisah, Website, dan
+   seluruh panel diskon negosiasi. `clientsRepository.toApiPayload()`
+   hanya meneruskan field yang ada di `FIELD_MAP`-nya; kolom-kolom ini
+   memang tidak ada sama sekali di tabel `Client` Prisma. **LIVE-
+   VERIFIED**: field "Sektor Kepemilikan", "Alamat Penagihan (Billing)"
+   + toggle "sama dengan penagihan", dan "Website" semuanya ADA dan
+   bisa diisi di form Tambah Client Baru production -- tersimpan sukses
+   secara visual tapi hilang di database.
+2. **Alur approval diskon di form Client 100% palsu** -- `setTimeout`
+   4 detik yang otomatis mengubah status jadi "DISETUJUI oleh
+   Director" tanpa manajer sungguhan terlibat, DAN ada 2 salinan
+   simulasi independen (form + detail dialog) yang tidak sinkron satu
+   sama lain maupun dengan sistem discount-approval sungguhan yang
+   sudah ada di backend (dipakai modul lain).
+3. **Celah otorisasi**: `handleClients` PUT hanya mewajibkan role
+   approver ketika status SAAT INI masih PENDING -- begitu status
+   sudah Approved/Rejected, siapa pun bisa mengubah status lewat
+   panggilan API langsung tanpa dicegat DAN tanpa tercatat di audit
+   log (baris `data.status = nextStatus` berjalan unconditional,
+   terpisah dari guard `isDeciding`).
+4. **"Load Dummy Data" di layar ini hanya menulis ke localStorage
+   browser** (`populateCRMToLocalStorage`), tidak pernah menyentuh
+   database -- toast sukses ("N Sales Rep, M Clients, K Partners")
+   bohong untuk data yang ditampilkan Client tab (yang baca dari API
+   sungguhan).
+
+**Gap struktural:** tidak ada Edit/Delete untuk Distributor/Toko (cuma
+Create + Approve/Reject + assign PIC); antrean approval di peta
+mengecualikan record PENDING yang tidak punya GPS -- record semacam
+itu tidak akan pernah bisa di-approve/reject dari UI manapun; 2 panel
+insight ("Performance Heatmap", "Category Penetration") bergantung ke
+`Client.distributorId`/`storeId` yang tidak ada UI-nya sama sekali di
+form Client untuk di-set.
+
+### Sales Representative
+
+**Bug paling besar di seluruh review ini**: layar ini memakai model
+data yang SAMA SEKALI TERPISAH dari "sales rep" yang dipakai di
+tempat lain (Commission Calculator, PIC Distributor/Toko). Memakai
+`employeesApi` lama yang hardcode `USE_LOCAL_STORAGE = true` --
+TIDAK ADA endpoint backend untuk ini sama sekali (`grep` di
+`api/handler.ts` untuk `/employees` nihil). **LIVE-VERIFIED**: dibuka
+di production, halaman menampilkan "Data Sales Representative (0)" --
+"Belum ada data Sales Representative" -- dan daftar network request
+saat halaman dimuat TIDAK ADA satupun panggilan API untuk data
+karyawan (dibanding leads/contracts/opportunities/tasks yang memang
+di-fetch app-wide). Form "Tambah Karyawan" yang dibuka juga
+**live-verified** berisi field HR lengkap (NIK KTP, Payroll &
+Compliance, NDA & Credential Access) -- data sensitif yang tersimpan
+cuma di localStorage tanpa RBAC apapun (auth check di komponen cuma
+kosmetik, tidak benar-benar memblokir render/submit).
+Tombol Hapus juga tidak ada sama sekali di UI (handler-nya ada di
+kode tapi tidak pernah dipasang ke tombol manapun).
+
+Total ada 3 konsep "sales person" yang saling tidak terhubung di
+codebase ini: `Karyawan` (layar ini, localStorage), `SalesRep`
+(dipakai Commission Calculator, di Postgres tapi self-seed dari
+frontend karena `prisma/seed.ts` tidak pernah men-seed-nya), dan
+`User` (akun login sungguhan, dipakai untuk assign PIC
+Distributor/Toko). Menambah orang di satu layar tidak membuatnya
+muncul/assignable di 2 layar lainnya.
+
+### Commission Calculator
+
+**Bug terkonfirmasi (termasuk live-verified):**
+1. **"Konfirmasi Pembayaran" bisa melompati tahap Approved** -- tombol
+   ini cuma di-disable saat status sudah `paid`, tetap aktif untuk
+   status `pending`, dan backend PUT tidak memvalidasi transisi status
+   sama sekali (PENDING bisa langsung ke PAID, bahkan PAID bisa balik
+   ke PENDING).
+2. **"Approve All Pending" memproses SEMUA periode**, bukan cuma
+   periode yang sedang ditampilkan di layar (`filter` jalan di atas
+   array penuh `commissions`, bukan `currentPeriodCommissions`) --
+   DAN tetap menampilkan toast sukses walau tiap request individual
+   gagal (mis. karena role tidak diizinkan backend) karena hasil
+   `update()` tidak pernah dicek.
+3. **Kotak pencarian "Cari tenaga sales..." adalah no-op murni.**
+   **LIVE-VERIFIED**: ketik string acak yang tidak match apapun --
+   keempat baris (Budi/Ani/Dewi/Eko) tetap tampil semua.
+4. **Tombol "Export Payroll" tidak punya handler `onClick` sama
+   sekali** -- klik tidak melakukan apa-apa.
+5. **Angka `baseCommission` di data contoh TIDAK COCOK dengan rumus
+   tier progresif yang dipakai simulator-nya sendiri.**
+   **LIVE-VERIFIED**: Budi Santoso Feb 2024 tercatat Base Comm.
+   Rp13,1M di tabel Commission Records; memasukkan totalSales
+   persis Rp350.000.000 (angka asli Budi) ke Incentive Simulator
+   menghasilkan Rp12,8M -- beda ~Rp350rb untuk input yang identik,
+   membuktikan data contoh dan mesin kalkulasi tidak pernah benar-
+   benar saling diturunkan satu sama lain.
+6. Tidak ada `@@unique([salesRepId, period])` di model
+   `CommissionRecord` walau kode error-handling-nya sudah menyiapkan
+   pesan 409 untuk itu -- proteksi anti-duplikat payout ini tidak
+   pernah benar-benar aktif.
+7. Dropdown periode di-hardcode cuma 3 bulan (Des 2023/Jan 2024/Feb
+   2024) -- record di luar itu (termasuk bulan berjalan sekarang,
+   September 2026) tidak akan pernah muncul di layar ini.
+
+**Gap struktural:** GET `/api/commissions` tidak difilter per role/
+owner -- siapa pun yang login bisa melihat data komisi semua sales
+rep lain; tidak ada UI create/edit/delete per-record komisi individual
+(cuma bulk-seed sekali di awal + approve-all + confirm-payment); data
+seed komisi hidup di komponen frontend (`loadData()`), bukan di
+`prisma/seed.ts`, dan berpotensi race-condition kalau 2 orang buka
+halaman kosong bersamaan (pola sama seperti auto-seed Territory yang
+sudah diperbaiki Bab 33 -- di sini belum).
+
+### Status
+Laporan disampaikan ke user via chat. Tidak ada kode yang diubah pada
+Bab ini -- murni investigasi + smoke test, menunggu arahan user apakah
+mau lanjut "perbaiki semuanya" seperti pola Bab 30->31 dan 32->33
+sebelumnya.
