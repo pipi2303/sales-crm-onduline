@@ -4,7 +4,7 @@ import {
   CheckCircle, Clock, XCircle, DollarSign, Calendar, User, 
   Package, Percent, Mail, Phone, Filter, MoreHorizontal,
   ArrowUpRight, TrendingUp, ChevronRight, Hash, Settings,
-  BarChart3, Layout
+  BarChart3, Building2, Sun
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Badge } from '@/app/components/ui/badge';
@@ -34,15 +34,6 @@ import { CHART_PRIMARY, CHART_GRID, AREA_GRADIENT_STOPS, CHART_TOOLTIP_STYLE, CH
 // tidak sadar akan ConfigurePriceQuote.tsx (fitur "quotation" lain yang
 // terpisah). Sekarang backend sungguhan (quotationsRepository, dipakai
 // bersama oleh CPQ dan menu ini) -- lihat fetchQuotations() di bawah.
-
-const ANALYTICS_DATA = [
-  { month: 'Sep', value: 450000000 },
-  { month: 'Oct', value: 680000000 },
-  { month: 'Nov', value: 520000000 },
-  { month: 'Dec', value: 890000000 },
-  { month: 'Jan', value: 1020000000 },
-  { month: 'Feb', value: 1325575000 },
-];
 
 const PRICING_STRATEGY_DISCOUNT: Record<string, number> = {
   standard: 0,
@@ -241,6 +232,25 @@ export function QuotationManagement() {
     }))
     .filter((entry) => entry.value > 0);
 
+  // Bab 46: Revenue Trend (tab Analytics) dulu pakai ANALYTICS_DATA
+  // hardcode, sekarang dihitung dari quotations asli -- 6 bulan
+  // terakhir (termasuk bulan kosong, supaya sumbu-x tetap 6 titik),
+  // dijumlah dari totalAmount tiap quotation sesuai bulan createdAt-nya.
+  const revenueTrendData = (() => {
+    const now = new Date();
+    const months = Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+      return { key: `${d.getFullYear()}-${d.getMonth()}`, month: d.toLocaleDateString('id-ID', { month: 'short' }), value: 0 };
+    });
+    const byKey = new Map(months.map((m) => [m.key, m]));
+    quotations.forEach((q) => {
+      const key = `${q.createdAt.getFullYear()}-${q.createdAt.getMonth()}`;
+      const bucket = byKey.get(key);
+      if (bucket) bucket.value += q.totalAmount;
+    });
+    return months.map(({ month, value }) => ({ month, value }));
+  })();
+
   return (
     <div className="p-8 bg-gray-50/50 min-h-screen space-y-8">
       {/* Header Section */}
@@ -428,7 +438,7 @@ export function QuotationManagement() {
               <CardContent className="p-6">
                 <div className="h-80 w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={ANALYTICS_DATA}>
+                    <AreaChart data={revenueTrendData}>
                       <defs>
                         <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor={CHART_PRIMARY} stopOpacity={AREA_GRADIENT_STOPS.from}/>
@@ -482,9 +492,9 @@ export function QuotationManagement() {
         <TabsContent value="templates" className="space-y-6">
            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
              {[
-               { title: 'Standard Service', desc: 'Ideal untuk penawaran jasa konsultasi rutin.', icon: FileText },
-               { title: 'Healthcare Package', desc: 'Khusus untuk instalasi alat kesehatan RS.', icon: Package },
-               { title: 'Enterprise Suite', desc: 'Penawaran kompleks dengan multi-year support.', icon: Layout },
+               { title: 'Toko & Distributor', desc: 'Untuk pemesanan stok reguler atap & aksesoris toko bangunan.', icon: Package },
+               { title: 'Proyek Kontraktor', desc: 'Untuk proyek atap & waterproofing skala besar dengan kontraktor.', icon: Building2 },
+               { title: 'Premium & Solar', desc: 'Untuk klien premium (resort/hotel) dengan atap hijau & panel surya.', icon: Sun },
              ].map((tpl, i) => (
                <Card key={i} className="hover:border-[#013E37] transition-colors cursor-pointer group">
                  <CardHeader>
@@ -525,6 +535,14 @@ export function QuotationManagement() {
                <div className="space-y-2">
                  <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Default Tax Rate (%)</Label>
                  <Input type="number" defaultValue="11" className="h-12" />
+               </div>
+               <div className="space-y-2">
+                 <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Masa Berlaku Penawaran (hari)</Label>
+                 <Input type="number" defaultValue="30" className="h-12" />
+               </div>
+               <div className="space-y-2">
+                 <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Prefix Nomor Penawaran</Label>
+                 <Input type="text" defaultValue="QTN" className="h-12" />
                </div>
                <div className="pt-4">
                  <Button className="bg-[#013E37] text-white font-bold h-12 px-8">Save Configuration</Button>
