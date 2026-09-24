@@ -2806,3 +2806,47 @@ Mitigasi ke depan: kalau perlu bandingkan tsc sebelum/sesudah git
 stash/checkout, kasih jeda (`sync; sleep 1`) sebelum menjalankan tsc, dan
 jangan percaya hasil comparison dari SATU run tanpa run ulang untuk
 konfirmasi stabil.
+
+### Follow-up kedua -- "peningkatan natural" yang diminta dikerjakan -- 24 Sep 2026
+
+Dari 3 opsi yang ditawarkan setelah gap 1/2 ditutup, user minta
+"dikerjakan kalau relevan". Yang dikerjakan (commit `e5d6670d`):
+
+1. **Org tree jadi pohon hierarki sungguhan** -- `ClientOrgTreePanel`
+   sebelumnya cuma grid kartu flat (struktur cuma tersirat lewat teks
+   "Lapor ke: X"). Sekarang rekursif dengan garis penghubung ala
+   file-tree per level, mulai dari root (kontak tanpa atasan / atasannya
+   sudah tidak ada di data -- defensif kalau data sempat tidak
+   konsisten). Ada proteksi siklus sederhana (`ancestorIds`) untuk
+   jaga-jaga data lama dengan siklus reports_to lebih panjang dari yang
+   divalidasi backend (backend cuma cegah "lapor ke diri sendiri", bukan
+   siklus A->B->A) -- catatan: ini cuma pengaman TAMPILAN, bukan validasi
+   backend yang diperkuat. Kalau nanti mau strict, perlu tambah cycle
+   check di `handleClientContacts` PUT juga.
+2. **2 banner insight** di panel yang sama: peringatan kalau organisasi
+   client belum punya kontak ber-influence-role Decision Maker (risiko
+   single-threaded deal), dan daftar kontak dengan relationship Negative.
+   Datanya sudah ada sejak awal, cuma belum ditonjolkan.
+
+Yang SENGAJA TIDAK dikerjakan, dengan alasan (bukan lupa):
+
+3. **Menyatukan tab "Komunikasi" (`ClientDetailDialog`, masih
+   `useState` lokal, belum ke backend sama sekali) dengan
+   `LogMeetingDialog`** -- ditimbang tapi dilewati karena ada tension
+   desain: Komunikasi saat ini sengaja TIDAK butuh Opportunity (bisa
+   catat interaksi kapan saja), sedangkan `LogMeetingDialog` mewajibkan
+   pilih Opportunity (constraint skema `OpportunityActivity.opportunityId`
+   non-nullable). Memaksa keduanya jadi satu jalur berarti Komunikasi
+   kehilangan fleksibilitas itu, ATAU perlu perubahan skema (bikin
+   `opportunityId` nullable / tabel activity terpisah untuk level
+   Client) -- keduanya keputusan produk yang lebih besar dari "natural
+   extension", jadi dilempar balik sebagai insight ke user, bukan
+   dieksekusi sepihak. Kalau user mau lanjut ke arah ini, perlu
+   diputuskan dulu: Komunikasi tetap bebas-Opportunity (dan
+   contact-linking-nya dibuat terpisah dari OpportunityActivity), atau
+   digabung penuh (dan kehilangan fleksibilitas "tanpa Opportunity").
+
+Verifikasi: `tsc --noEmit` stabil 100 error (2x run dengan jeda
+`sync; sleep 1` untuk hindari staleness FUSE-mount yang sempat ketemu
+sebelumnya -- lihat catatan di atas), nol baris baru; `vite build`
+sukses; `vitest run` 11/11 lulus.
