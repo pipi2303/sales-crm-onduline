@@ -3075,3 +3075,216 @@ ini **tidak butuh** `prisma migrate deploy` atau `prisma generate`
 ulang -- tidak ada perubahan schema/model Prisma sama sekali, murni
 komponen frontend baru + 1 entri menu. Cukup `git pull` lalu buka menu
 "Field Sales Mode" di sidebar.
+
+## 30. Deep review + smoke test grup menu "Sales Pipeline" -- 24 Sep 2026
+
+### Konteks
+
+User minta: "cek secara deep dan lakukan smoke test untuk group menu
+sales pipeline, berikan insight". Scope = 6 item di grup sidebar
+"Sales Pipeline": Lead Management, Opportunity Management, Configure
+Propose & Quote (CPQ), Quotation Management, Discount Approval,
+Contract.
+
+Metode: (1) code review mendalam per-pasangan komponen (3 sub-agent
+paralel, masing-masing baca komponen + repository + type + bagian
+relevan `api/handler.ts` + `prisma/schema.prisma`, dan jalankan
+`tsc --noEmit` terfilter ke file terkait), lalu (2) smoke test LIVE di
+`sales-crm.intramedika.co.id` (login pakai akun demo seed
+`admin@salesmonitor.com` -- **user sendiri yang mengetik password**,
+Claude tidak diizinkan mengetik password ke form manapun sesuai aturan
+keamanan sesi ini) untuk konfirmasi langsung temuan paling parah.
+
+### TEMUAN PALING PARAH -- 3 dari 6 fitur di grup ini SECARA FUNGSIONAL RUSAK, semua terkonfirmasi LIVE di production
+
+**1. Opportunity Management -- tidak bisa membuat Opportunity baru sama sekali.**
+`OpportunityFormNew.tsx`: field `closeDate` di state `financialData`
+tidak pernah punya input UI (cuma keisi otomatis saat EDIT data lama,
+lewat `loadOpportunity`). `api/handler.ts` mewajibkan `closeDate` utk
+POST /api/opportunities. Hasil: submit form "New Opportunity" SELALU
+gagal, walau field yang diminta (name/clientName/contactPerson) sudah
+diisi lengkap.
+**Dikonfirmasi LIVE**: isi form New Opportunity di production, klik
+Create -> `POST /api/opportunities` balik **400**
+`{"success":false,"error":"name, clientName, contactPerson, dan
+closeDate wajib diisi"}` -- padahal ketiga field itu sudah diisi.
+Dialog malah **tertutup sendiri** tanpa pesan error yang jelas ke
+user (bukan cuma gagal, tapi gagalnya senyap).
+
+**2. Discount Approval -- tidak bisa membuat ATAU memutuskan pengajuan diskon sama sekali.**
+`api/handler.ts` baris ~2080-2193 membandingkan/assign
+`DiscountApprovalStatus`/`DiscountStepAction` (enum Prisma asli:
+`PENDING`/`APPROVED`/`REJECTED`/dst, SCREAMING_SNAKE_CASE) dengan
+string literal huruf kecil (`'pending'`, `'approved'`). Ini sudah
+dicurigai di section 26 ("TEMUAN BESAR") tapi belum diverifikasi
+end-to-end -- sekarang terverifikasi PENUH:
+- Create: payload create memakai literal salah -> Prisma tolak.
+- Decide (Approve/Reject/Counter-Offer): guard
+  `if (current.status !== 'pending')` SELALU true (karena nilai
+  sungguhan dari DB selalu `'PENDING'` huruf besar) -> **setiap**
+  keputusan approval, apapun statusnya, ditolak dengan pesan "Pengajuan
+  sudah berstatus PENDING, tidak bisa diputuskan lagi".
+**Dikonfirmasi LIVE**: isi & submit "New Request" di production (klien
+"SMOKE TEST", diskon 15%) -> `POST /api/discount-approvals` balik
+**500** `{"success":false,"error":"Internal server error"}`. Dialog
+tetap terbuka tanpa pesan error yang jelas untuk user.
+Desain alur berjenjangnya sendiri (advance approvalLevel, tentukan
+approver berikutnya, finalisasi di level terakhir) sudah BENAR secara
+logika -- cuma tidak pernah bisa dicapai karena guard di atas.
+Counter-offer juga jadi dead-end permanen (begitu status berubah ke
+`'counter-offer'`, tidak ada tombol/endpoint yang bisa
+memindahkannya ke status lain).
+
+**3. Contract -- modul ini sepenuhnya terputus dari database asli, murni fasad.**
+Tidak ada model `Contract` di `prisma/schema.prisma`, tidak ada route
+`contract` di `api/handler.ts`. `contractsApi` (`src/services/api.ts`)
+hardcode `USE_LOCAL_STORAGE = true` -- baca/tulis ke
+`localStorage['sales_monitoring_contracts']` di browser, bukan ke
+Postgres. `ContractForm.tsx` malah fetch ke placeholder
+`https://mock-project-id.supabase.co/...` yang tidak pernah ada --
+create/edit kontrak SELALU gagal dengan toast error generik.
+**Dikonfirmasi LIVE**: buka menu Contract di production -> "Total
+Kontrak: 0" dan **nol network request** ke server sama sekali (padahal
+ada 11 deal Closed Won senilai Rp 904,7M yang seharusnya berujung ke
+kontrak). Data kontrak siapa saja yang pernah "dibuat" cuma nyangkut
+di localStorage browser masing-masing, tidak pernah sinkron antar user
+atau antar device.
+
+### Temuan penting lain (bukan "blocks core flow", tapi signifikan)
+
+- **CPQ -> Quotation Management: tidak ada koneksi/handoff sama
+  sekali.** Tidak ada model/route Quotation di backend -- CPQ
+  (`ConfigurePriceQuote.tsx`) simpan quote di local React state yang
+  reset begitu pindah menu (App.tsx tidak keep-alive komponen).
+  QuotationManagement.tsx punya array hardcode SENDIRI dengan shape
+  berbeda -- dua "sumber data quote" yang tidak pernah bertemu.
+  "Quote created successfully!" di CPQ selalu muncul walau tidak ada
+  yang benar-benar tersimpan.
+- **Bug hitung harga di CPQ**: "Additional Discount" header (mis. 10%)
+  disimpan tapi TIDAK PERNAH dikurangkan dari total yang
+  ditampilkan/disimpan -- customer bisa dikutip harga penuh padahal
+  UI-nya menyiratkan sudah didiskon.
+- **Dikonfirmasi LIVE**: tombol "Generate Quotation" di dialog "New
+  Quotation" (Quotation Management) diklik dengan form terisi -> **nol
+  network request tercatat** -- tombol ini memang tidak punya
+  `onClick` sama sekali. Begitu juga "Export Report", tombol
+  Edit/Send per baris, dan sebagian besar tombol di dialog detail
+  quotation (Send to Client/Download PDF/Edit/Duplicate/Cancel) --
+  cuma "View" yang benar-benar berfungsi.
+- **4 KPI card di atas Quotation Management (Total Quotations: 156,
+  Approved Value: Rp 2.4B, dst) adalah angka hardcode**, tidak
+  dihitung dari data yang ditampilkan di tabel bawahnya (yang cuma 3
+  baris dummy).
+- **Lead -> Opportunity: fitur konversi tidak ada sama sekali.**
+  Satu-satunya "Convert to Opportunity" di seluruh codebase cuma kartu
+  dekoratif di `DemoScheduler.tsx` yang cuma nge-toast tanpa API call.
+  `api/services/api.ts` punya helper `convertLead()` ke endpoint
+  `/opportunities/convert-lead/:id` yang **tidak pernah dipanggil dari
+  mana pun** dan **route-nya tidak ada** di `api/handler.ts`.
+- **Mengedit Opportunity yang sudah closed diam-diam
+  mengembalikannya jadi "open"** (`OpportunityFormNew.tsx:498` salah
+  baca dari `formData.stage` yang memang tidak pernah ada -- field
+  asli ada di `financialData.stage`). Merusak KPI won/lost/pipeline
+  value tanpa disadari siapa pun.
+- **"Contract Period" di form Opportunity hilang setiap kali
+  disimpan** (field tidak terdaftar di tipe `Opportunity` maupun di
+  `EXTRA_KEYS` opportunitiesRepository -- terkirim tapi tidak pernah
+  disimpan/dibaca balik).
+- **Opportunity baru selalu tercatat owner "Current User"** (literal
+  string di state awal form, menimpa fallback nama user asli dari
+  backend) -- terlihat di semua tampilan list/pipeline/detail.
+- **Lead: editor "Perusahaan" (multi-company) di dialog Tambah/Edit
+  tidak pernah ikut tersimpan** (state `companies` tidak pernah
+  digabung ke payload submit) -- dan di Lead Detail dialog, tombol
+  "Simpan" pada penambahan perusahaan CUMA update state lokal + toast
+  sukses palsu, tidak ada API call sama sekali.
+- **Lead dengan Nilai = 0 (default field) selalu gagal disimpan**
+  dengan pesan error yang membingungkan (backend pakai `!body.value`,
+  dan `0` itu falsy di JS).
+- **Reminder Opportunity nyaris rusak secara visual**: badge
+  menampilkan literal "undefinedd left" karena
+  `opportunitiesRepository.getReminders()` tidak pernah mengisi
+  `daysUntilClose`/`priority`.
+- **Reopen/tutup ulang Opportunity tidak benar-benar mengosongkan
+  Close Reason/Detail** meski dialog konfirmasi bilang begitu --
+  `JSON.stringify` membuang key ber-nilai `undefined` sebelum sampai
+  ke server, jadi nilai lama tetap nyangkut di DB.
+- **Validasi rentang diskon tidak ada** (frontend & backend) -- nilai
+  negatif bisa lolos sebagai "diskon" level 1 (auto-approved), nilai
+  NaN berpotensi bikin 500 di kolom Decimal.
+
+### Yang justru SUDAH BENAR (supaya tidak semua terdengar buruk)
+
+- Perhitungan status expired Contract (`getEffectiveContractStatus`)
+  benar, konsisten dipakai di semua tempat status kontrak ditampilkan.
+  masalahnya bukan di logika ini, tapi karena modul ini tidak
+  tersambung ke database sama sekali (lihat temuan #3).
+- Desain algoritma advance approval berjenjang (Discount Approval)
+  sudah benar secara logika -- cuma terhalang total oleh bug literal
+  enum di atas (temuan #2). Begitu literal-nya diperbaiki ke
+  SCREAMING_SNAKE_CASE yang benar, alur ini seharusnya langsung jalan.
+  Ini bagian dari cakupan "154/108 error TypeScript lama" yang
+  sebelumnya diminta JANGAN disentuh dulu -- tapi karena baru
+  terverifikasi FEATURE-BREAKING (bukan cosmetic), sebaiknya jadi
+  prioritas nomor satu begitu triase error lama itu mulai dikerjakan.
+- Matematika diskon per-item di CPQ (kalau field-nya reachable) benar
+  secara aritmatika -- tidak ada bug precedence/double-discount.
+- Tidak ada jalur input kuantitas negatif di CPQ (tidak ada input
+  angka manual, cuma tombol +1).
+
+### Error TypeScript lama vs bug runtime asli -- pemisahan tegas
+
+Semua 3 agent mengonfirmasi: mayoritas error `tsc` yang menyentuh
+6 file ini SUDAH ADA di baseline 108 error (section 26/29) dan memang
+cosmetic (tidak berdampak runtime -- vite/esbuild tidak type-check).
+TAPI beberapa di antaranya justru adalah bukti langsung dari bug
+runtime nyata di atas:
+- `OpportunityFormNew.tsx:498` (`formData.stage` tidak ada) ->
+  penyebab temuan "closed Opportunity balik jadi open".
+- `OpportunityFormNew.tsx:293` (`contractPeriod` tidak ada di tipe
+  `Opportunity`) -> penyebab temuan "Contract Period hilang".
+- `api/handler.ts` baris-baris Discount Approval -> penyebab temuan
+  #2 di atas, DAN sudah dikonfirmasi live (500).
+- `Contract.tsx:126` (`contractsApi.delete` tidak ada) -> tombol
+  Delete Contract akan selalu gagal dengan toast error (tertangkap
+  try/catch, tidak crash, tapi delete tidak pernah benar-benar
+  terjadi).
+
+Sisanya (icon `title` prop, union type yang stale tapi runtime-nya
+konsisten, dst) dikonfirmasi cosmetic murni oleh ketiga agent.
+
+### Catatan proses -- kenapa smoke test dilakukan sebagian oleh user
+
+Sesuai aturan keamanan sesi ini, Claude TIDAK BOLEH mengetik password
+ke form manapun (termasuk akun demo seed) -- ini kategori tindakan yang
+harus dilakukan user sendiri. User login manual di browser pane, baru
+Claude lanjutkan klik-klik navigasi & isi form data bisnis (nama
+klien/toko dummy "SMOKE TEST - abaikan") untuk verifikasi read-only +
+satu percobaan create per fitur yang paling kritis. Tidak ada data
+sampah yang benar-benar tersimpan di production (ketiga percobaan
+create di atas justru GAGAL sesuai prediksi review kode -- itulah
+buktinya).
+
+### PENTING -- rekomendasi prioritas perbaikan (belum dikerjakan, ini laporan review saja)
+
+1. **Discount Approval enum literal fix** (`api/handler.ts` ~2080-2193):
+   ganti semua literal huruf kecil ke SCREAMING_SNAKE_CASE yang benar.
+   Ini fix single-file, kecil, tapi memulihkan SATU FITUR PENUH dari
+   mati total ke berfungsi.
+2. **Opportunity creation**: tambahkan input `closeDate` yang benar2
+   dipakai (bukan `salesDetails.closingTarget` yang beda field) ke
+   form "New Opportunity", atau ubah backend agar closeDate opsional
+   dengan default masuk akal.
+3. **Contract module**: keputusan produk yang lebih besar -- apakah
+   dibangun modelnya di Prisma (seperti Client/Opportunity/dst) atau
+   sengaja dihapus/disembunyikan dari menu sampai siap. Saat ini
+   fitur ini AKTIF terlihat di sidebar tapi 100% tidak berfungsi.
+4. **CPQ/Quotation**: sama seperti Contract -- ini butuh keputusan
+   scope (bangun backend sungguhan, atau gabungkan CPQ+Quotation jadi
+   satu alur yang jujur soal statusnya "prototype/demo").
+5. Item lain (owner "Current User", companies Lead tidak tersimpan,
+   reminder "undefinedd left", dst) adalah perbaikan kecil independen,
+   bisa dikerjakan satu-satu kapan saja tanpa saling bergantung.
+
+Tidak ada perubahan kode di section ini -- murni laporan
+review+smoke-test sesuai permintaan user.
