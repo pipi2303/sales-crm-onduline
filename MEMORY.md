@@ -4433,3 +4433,62 @@ tetap lulus.
 
 ### Status
 Dikomit (`d3844453`). `git push` masih perlu dilakukan user sendiri.
+
+## 44. Samakan gaya judul halaman (h1) ke Kelompok 1 di 15 menu -- 24 Sep 2026
+
+Menindaklanjuti insight yang diberikan ke user (audit 28 komponen
+menemukan 7 gaya visual `<h1>` berbeda) dan konfirmasi user: "rapikan
+semuanya dengan gaya konsisten dengan menggunakan desain kelompok 1".
+
+### Scope
+Kelompok 1 = `text-2xl font-bold text-[#013E37]`, title case biasa --
+gaya yang sudah dipakai 11 dari 28 file (Home, LeadManagement,
+OpportunityManagement, ProductCatalog, PerformanceHub, SalesReports,
+SalesRepresentative, SalesTeam, Contract, DemoScheduler,
+DistributorStoreMap). Perubahan hanya menyentuh className (dan, untuk
+teks ALL CAPS literal, teksnya) dari elemen `<h1>` itu sendiri --
+subjudul (`<p>` di bawahnya), border pemisah, dan layout wrapper div
+TIDAK diubah, sesuai scope yang disepakati (murni menyamakan judul,
+bukan redesign penuh header).
+
+### 15 file diubah
+- Kelompok 2 (`text-gray-900` -> `text-[#013E37]`): AdvancedAnalytics,
+  ConfigurePriceQuote, ProposalHistory, SettingsPanel.
+- Kelompok 3 (`text-4xl font-black uppercase` + gradient -> polos;
+  teks ALL CAPS literal diubah ke Title Case karena tanpa class
+  `uppercase` teks akan tetap kapital semua secara harfiah):
+  DiscountApprovalSystem ("DISCOUNT APPROVAL" -> "Discount Approval"),
+  TerritoryManagement ("TERRITORY MANAGEMENT" -> "Territory
+  Management"), CustomReportBuilder ("REPORT BUILDER" -> "Report
+  Builder"), KnowledgeBase ("KNOWLEDGE BASE" -> "Knowledge Base"),
+  IntegrationHub ("INTEGRATION HUB" -> "Integration Hub").
+- Kelompok 4 (`text-4xl font-extrabold uppercase` + gradient -> polos;
+  teks sudah Title Case, tidak perlu diubah): CommissionCalculator,
+  AdminSystem.
+- Kelompok 5 (`uppercase tracking-tight` tanpa gradient -> polos):
+  EmailCommunicationHub, TaskManagement.
+- Kelompok 6 (`font-black tracking-tight` -> `font-bold` polos; ikon &
+  `flex items-center gap-3` wrapper DIPERTAHANKAN -- itu variasi wajar
+  seperti KPIAIEnhanced, bukan bagian dari inkonsistensi yang
+  dilaporkan): QuotationManagement.
+- Kelompok 7 (`text-4xl` + inline `style={{fontFamily: 'Poppins'}}` ->
+  `text-2xl`, font default aplikasi): SalesLeaderboard. Dekorasi ikon
+  Trophy di kanan-kiri judul TIDAK disentuh (bukan bagian dari `<h1>`
+  itu sendiri, tetap wajar sebagai aksen halaman leaderboard).
+
+### Yang sengaja TIDAK disentuh
+`FieldSalesMode.tsx` (mode mobile, `text-lg` memang sesuai konteks
+layar kecil) dan `LoadingScreen.tsx` (splash screen, warna krem di
+atas background gelap memang beda konteks) -- sudah disebutkan
+eksplisit di insight sebelumnya sebagai pengecualian yang wajar.
+
+### Verifikasi
+`npx tsc --noEmit`: 131 error sebelum & sesudah, identik persis (diff
+kosong total). `npx vite build`: sukses. `npx vitest run`: 11/11 tetap
+lulus. Dicek ulang dengan grep bahwa 26 file "normal" kini seragam
+`text-2xl font-bold text-[#013E37]` (dengan variasi `flex items-center
+gap-X` yang wajar untuk 4 halaman berikon: AdvancedAnalytics,
+KPIAIEnhanced, QuotationManagement, SettingsPanel).
+
+### Status
+Dikomit (`fe5c6262`). `git push` masih perlu dilakukan user sendiri.
