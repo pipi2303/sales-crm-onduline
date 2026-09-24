@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Users, RefreshCw, Database, Trash2 } from 'lucide-react';
+import { Search, Plus, Users, RefreshCw, Trash2 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { useConfirm } from '@/app/components/ui/confirm-dialog';
 import { Card, CardContent } from '@/app/components/ui/card';
@@ -16,7 +16,6 @@ import { ExportButton } from '@/app/components/ExportButton';
 // backend (prisma/schema.prisma's Employee model, api/handler.ts's
 // handleEmployees) instead. See that model's comment for the full story.
 import { employeesRepository } from '@/services/employeesRepository';
-import { salesRepresentativeDummyData } from '@/utils/populateCRMData';
 
 export function SalesRepresentative() {
   const confirm = useConfirm();
@@ -99,34 +98,9 @@ export function SalesRepresentative() {
     }
   };
 
-  // Bab 34 fix: used to call populateCRMToLocalStorage(), which wrote
-  // dummy employees only into a localStorage key -- disconnected from
-  // employeesRepository.getAll() (now the real /api/employees this screen
-  // actually reads). Same real-seed pattern as SalesTeam.tsx's client
-  // dummy-data fix / TerritoryManagement.tsx's Bab 33 fix.
-  const [loadingDummy, setLoadingDummy] = useState(false);
-  const handleLoadDummyData = async () => {
-    setLoadingDummy(true);
-    let created = 0;
-    try {
-      for (const seed of salesRepresentativeDummyData) {
-        const { id: _localId, ...payload } = seed as any;
-        const result = await employeesRepository.create(payload);
-        if (result.success) {
-          created += 1;
-        } else {
-          toast.error(result.error || `Gagal membuat karyawan contoh "${seed.nama_lengkap}"`);
-        }
-      }
-      if (created > 0) toast.success(`${created} data karyawan contoh berhasil dimuat`);
-    } catch (error: any) {
-      console.error('Error loading dummy employee data:', error);
-      toast.error(`Gagal memuat data contoh: ${error.message}`);
-    } finally {
-      setLoadingDummy(false);
-      fetchKaryawan();
-    }
-  };
+  // Bab 39 (24 Sep 2026): tombol "Load Dummy Data" khusus Employee di sini
+  // dipindah ke satu tombol gabungan di Home.tsx (lihat
+  // src/utils/loadAllDummyData.ts) -- tidak ada lagi di layar ini.
 
   return (
     <div className="space-y-6">
@@ -138,16 +112,6 @@ export function SalesRepresentative() {
         </div>
         
         <div className="flex gap-2">
-          <Button
-            onClick={handleLoadDummyData}
-            variant="outline"
-            size="sm"
-            disabled={loadingDummy}
-            className="gap-2 border-[#013E37] text-[#013E37] hover:bg-[#013E37] hover:text-white"
-          >
-            <Database className="h-4 w-4" />
-            {loadingDummy ? 'Memuat...' : 'Load Dummy Data'}
-          </Button>
           <Button
             onClick={fetchKaryawan}
             variant="outline"

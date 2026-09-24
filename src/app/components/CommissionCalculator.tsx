@@ -99,30 +99,10 @@ function buildPeriodOptions(): { value: string; iso: string; label: string }[] {
 
 const PERIOD_OPTIONS = buildPeriodOptions();
 
-const SEED_REPS: Array<Omit<SalesRep, 'id' | 'createdAt'>> = [
-  { name: 'Budi Santoso', email: 'budi.santoso@gmail.com', role: 'Sales Executive' },
-  { name: 'Ani Wijaya', email: 'ani.wijaya@gmail.com', role: 'Sales Executive' },
-  { name: 'Dewi Kartika', email: 'dewi.kartika@gmail.com', role: 'Senior Sales Executive' },
-  { name: 'Eko Prasetyo', email: 'eko.prasetyo@gmail.com', role: 'Sales Executive' },
-];
-
-// Bab 34 fix (24 Sep 2026, review grup menu "Tim Penjualan"): these 5
-// baseCommission figures were hand-typed and never actually derived from
-// the progressive tier formula below (calculateSim) -- LIVE-VERIFIED by
-// feeding Budi Santoso's exact totalSales (350jt) into the Incentive
-// Simulator and getting Rp12,75jt back, not the Rp13,125jt this seed
-// claimed. Recomputed all 5 from `tiers` (0-100jt@2.5%, 100-250jt@3.5%,
-// 250-500jt@5.0%, 500jt+@7.0%) so the sample data and the simulator now
-// agree for identical input. totalCommission = recomputed base + the
-// same bonuses as before (bonuses are a separate business figure, not
-// derived from the tier table).
-const SEED_COMMISSIONS = [
-  { salesPersonName: 'Budi Santoso', periodIso: '2024-02-01', target: 300000000, totalSales: 350000000, baseCommission: 12750000, bonuses: 10000000, totalCommission: 22750000, status: 'pending' as CommissionStatus, deals: 3 },
-  { salesPersonName: 'Ani Wijaya', periodIso: '2024-02-01', target: 300000000, totalSales: 280000000, baseCommission: 9250000, bonuses: 7800000, totalCommission: 17050000, status: 'approved' as CommissionStatus, deals: 4 },
-  { salesPersonName: 'Dewi Kartika', periodIso: '2024-02-01', target: 300000000, totalSales: 520000000, baseCommission: 21650000, bonuses: 25000000, totalCommission: 46650000, status: 'approved' as CommissionStatus, deals: 5 },
-  { salesPersonName: 'Eko Prasetyo', periodIso: '2024-02-01', target: 300000000, totalSales: 185000000, baseCommission: 5475000, bonuses: 0, totalCommission: 5475000, status: 'pending' as CommissionStatus, deals: 2 },
-  { salesPersonName: 'Budi Santoso', periodIso: '2024-01-01', target: 300000000, totalSales: 420000000, baseCommission: 16250000, bonuses: 15000000, totalCommission: 31250000, status: 'paid' as CommissionStatus, deals: 6, paymentDate: '2024-02-05' },
-];
+// Bab 39 (24 Sep 2026): SEED_REPS/SEED_COMMISSIONS (dan auto-seed yang
+// memakainya di loadData di bawah) dipindah ke
+// src/utils/loadAllDummyData.ts, dipanggil dari satu tombol "Load Dummy
+// Data" gabungan di Home.tsx. Layar ini sekarang murni membaca.
 
 export function CommissionCalculator() {
   const [activeTab, setActiveTab] = useState('commissions');
@@ -161,47 +141,13 @@ export function CommissionCalculator() {
   const loadData = async () => {
     setLoading(true);
     try {
-      let repsResult = await salesRepsRepository.getAll();
-      let reps = repsResult.data || [];
-      if (reps.length === 0) {
-        for (const seed of SEED_REPS) {
-          await salesRepsRepository.create(seed);
-        }
-        repsResult = await salesRepsRepository.getAll();
-        reps = repsResult.data || [];
-      }
+      const repsResult = await salesRepsRepository.getAll();
+      const reps = repsResult.data || [];
       const repByName: Record<string, SalesRep> = {};
       reps.forEach((r) => { repByName[r.name] = r; });
 
-      let commissionsResult = await commissionsRepository.getAll();
-      let commissionRows = commissionsResult.data || [];
-      if (commissionRows.length === 0) {
-        for (const seed of SEED_COMMISSIONS) {
-          const rep = repByName[seed.salesPersonName];
-          if (!rep) continue;
-
-          const existingTargets = await performanceTargetsRepository.getForEntity({ salesRepId: rep.id } as any);
-          const already = (existingTargets.data || []).find((t) => t.period === seed.periodIso);
-          if (!already) {
-            await performanceTargetsRepository.create({
-              salesRepId: rep.id, period: seed.periodIso, target: seed.target, actual: seed.totalSales,
-            } as any);
-          }
-
-          await commissionsRepository.create({
-            salesRepId: rep.id,
-            period: seed.periodIso,
-            baseCommission: seed.baseCommission,
-            bonuses: seed.bonuses,
-            totalCommission: seed.totalCommission,
-            status: seed.status,
-            deals: seed.deals,
-            paymentDate: seed.paymentDate,
-          });
-        }
-        commissionsResult = await commissionsRepository.getAll();
-        commissionRows = commissionsResult.data || [];
-      }
+      const commissionsResult = await commissionsRepository.getAll();
+      const commissionRows = commissionsResult.data || [];
 
       const targetsResult = await performanceTargetsRepository.getAll();
       const targets: PerformanceTarget[] = targetsResult.data || [];

@@ -52,16 +52,6 @@ function getInitials(name: string | null | undefined): string {
   return name.trim().split(/\s+/).map((n) => n[0]).join('').slice(0, 3).toUpperCase();
 }
 
-// Seed data — same 4 territories this screen has always shipped with as
-// sample data, now created through territoriesRepository + a matching
-// performance_targets row instead of being hardcoded into component state.
-const SEED_TERRITORIES = [
-  { name: 'Jakarta Pusat', region: 'DKI Jakarta', assignedTo: 'Budi Santoso', coverage: 85, revenue: 350000000, target: 300000000 },
-  { name: 'Jakarta Selatan', region: 'DKI Jakarta', assignedTo: 'Ani Wijaya', coverage: 78, revenue: 280000000, target: 300000000 },
-  { name: 'Bandung', region: 'Jawa Barat', assignedTo: 'Dewi Kartika', coverage: 92, revenue: 520000000, target: 400000000 },
-  { name: 'Surabaya', region: 'Jawa Timur', assignedTo: 'Eko Prasetyo', coverage: 65, revenue: 185000000, target: 250000000 },
-];
-
 // Bab 32/33 (24 Sep 2026): mirrors the backend's own requireRole(...,
 // ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADMIN']) on
 // POST/PUT/DELETE /api/territories (see api/handler.ts's handleTerritories)
@@ -147,44 +137,9 @@ export function TerritoryManagement() {
   // loadData() whenever the territories table was empty -- a hidden write
   // side effect inside what looked like a read operation, with three real
   // problems: (1) it fired for every role including ones without write
-  // access, failing 403 silently with no toast, no console warning, just
-  // an empty "0 territories" dashboard with no explanation; (2) it wasn't
-  // gated to any environment, so a genuinely empty production DB would
-  // auto-populate demo data the first time anyone opened this page; (3) it
-  // was racy -- Territory.name has no unique constraint, so two tabs
-  // loading the empty page at the same time could both pass the
-  // `profiles.length === 0` check and both insert a full set of 4
-  // territories. Converted to an explicit button (same "Load Dummy Data"
-  // pattern already used on the CRM Management page), gated to the same
-  // roles that can actually write here.
-  const handleLoadDummyData = async () => {
-    if (!canManageTerritory) return;
-    setLoading(true);
-    try {
-      for (const seed of SEED_TERRITORIES) {
-        const created = await territoriesRepository.create({
-          name: seed.name, region: seed.region, assignedTo: seed.assignedTo,
-          coverage: seed.coverage,
-        });
-        if (created.success && created.data) {
-          await performanceTargetsRepository.create({
-            territoryId: created.data.id,
-            period: getCurrentPeriod(),
-            target: seed.target,
-            actual: seed.revenue,
-          } as any);
-        } else {
-          toast.error(created.error || `Gagal membuat wilayah contoh "${seed.name}"`);
-        }
-      }
-      toast.success('Data contoh wilayah berhasil dimuat');
-    } catch (error: any) {
-      console.error('Error loading dummy territory data:', error);
-      toast.error(`Gagal memuat data contoh: ${error.message}`);
-    } finally {
-      await loadData();
-    }
-  };
+  // Bab 39 (24 Sep 2026): tombol "Load Dummy Data" khusus Territory di
+  // sini dipindah ke satu tombol gabungan di Home.tsx (lihat
+  // src/utils/loadAllDummyData.ts) -- tidak ada lagi di layar ini.
 
   const handleOpenDetail = (territory: TerritoryWithPerformance) => {
     setSelectedTerritory(territory);
@@ -452,17 +407,7 @@ export function TerritoryManagement() {
               <CardContent className="py-12 flex flex-col items-center justify-center gap-3 text-center">
                 <MapPin className="h-8 w-8 text-gray-300" />
                 <p className="text-sm font-bold text-gray-500">Belum ada data wilayah.</p>
-                {canManageTerritory ? (
-                  <Button
-                    variant="outline"
-                    className="border-gray-200 text-gray-600 font-bold uppercase tracking-wider text-xs px-4 h-10 hover:bg-gray-50"
-                    onClick={handleLoadDummyData}
-                  >
-                    Load Dummy Data
-                  </Button>
-                ) : (
-                  <p className="text-xs text-gray-400">Hubungi Sales Manager / Master Data Admin untuk menambahkan wilayah.</p>
-                )}
+                <p className="text-xs text-gray-400">Buka halaman Home dan klik "Load Dummy Data" untuk memuat data contoh.</p>
               </CardContent>
             </Card>
           )}

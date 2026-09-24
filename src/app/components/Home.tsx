@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, Users, Target, DollarSign, Calendar, FileText, Award, Activity, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { TrendingUp, Users, Target, DollarSign, Calendar, FileText, Award, Activity, RefreshCw, CheckCircle2, Database } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -16,6 +16,7 @@ import { tasksRepository } from '@/services/tasksRepository';
 import { toast } from 'sonner';
 import { formatCurrency, formatNumber } from '@/utils/formatters';
 import { initializeDemosData } from '@/utils/initializeDemos';
+import { loadAllDummyData } from '@/utils/loadAllDummyData';
 
 export function Home() {
   const [loading, setLoading] = useState(true);
@@ -31,6 +32,11 @@ export function Home() {
     forecast: 0,
   });
   const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  // Bab 39 (24 Sep 2026): satu-satunya tombol "Load Dummy Data" di
+  // seluruh app -- sebelumnya tersebar di SalesTeam/SalesRepresentative/
+  // TerritoryManagement/LeadManagement (tombol) + CommissionCalculator
+  // (auto-seed diam-diam). Lihat src/utils/loadAllDummyData.ts.
+  const [loadingDummyData, setLoadingDummyData] = useState(false);
   const [bab13Loading, setBab13Loading] = useState(true);
   const [bab13, setBab13] = useState({
     revenueMTD: 0,
@@ -57,6 +63,36 @@ export function Home() {
   // MEMORY.md bagian Fase A). Fetch & loading state terpisah dari
   // fetchDashboardData (berbasis Lead) supaya kegagalan salah satu
   // tidak menjatuhkan yang lain.
+  const handleLoadDummyData = async () => {
+    setLoadingDummyData(true);
+    try {
+      const result = await loadAllDummyData();
+      const parts = [
+        result.clients > 0 && `${result.clients} client`,
+        result.employees > 0 && `${result.employees} karyawan`,
+        result.territories > 0 && `${result.territories} wilayah`,
+        result.leads > 0 && `${result.leads} lead`,
+        result.salesReps > 0 && `${result.salesReps} sales rep`,
+        result.commissions > 0 && `${result.commissions} komisi`,
+      ].filter(Boolean).join(', ');
+      if (parts) toast.success(`Data contoh berhasil dimuat: ${parts}`);
+      if (result.errors.length > 0) {
+        console.error('loadAllDummyData errors:', result.errors);
+        toast.error(`${result.errors.length} item gagal dimuat -- lihat console untuk detail`);
+      }
+      if (!parts && result.errors.length === 0) {
+        toast.info('Tidak ada data contoh baru yang dimuat');
+      }
+    } catch (error: any) {
+      console.error('Error loading all dummy data:', error);
+      toast.error(`Gagal memuat data contoh: ${error.message}`);
+    } finally {
+      setLoadingDummyData(false);
+      fetchDashboardData();
+      fetchBab13Stats();
+    }
+  };
+
   const fetchBab13Stats = async () => {
     try {
       setBab13Loading(true);
@@ -299,14 +335,25 @@ export function Home() {
           </h1>
           <p className="text-gray-600 mt-1">Selamat datang kembali! Berikut ringkasan aktivitas sales Anda hari ini.</p>
         </div>
-        <Button 
-          variant="outline" 
-          onClick={fetchDashboardData}
-          className="flex items-center gap-2"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleLoadDummyData}
+            disabled={loadingDummyData}
+            className="flex items-center gap-2"
+          >
+            <Database className="w-4 h-4" />
+            {loadingDummyData ? 'Memuat...' : 'Load Dummy Data'}
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={fetchDashboardData}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Stats Grid - 2 Rows: 4 cards + 4 cards */}
