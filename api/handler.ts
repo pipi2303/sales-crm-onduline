@@ -586,7 +586,7 @@ async function handleClients(id: string | undefined, req: ApiRequest, res: ApiRe
           // intelligence, dimuat sekalian di sini supaya halaman detail
           // client tidak perlu request terpisah untuk data yang selalu
           // ditampilkan bareng.
-          contacts: { include: { _count: { select: { activities: true } } }, orderBy: { createdAt: 'asc' } },
+          contacts: { include: { _count: { select: { activities: true, communications: true } } }, orderBy: { createdAt: 'asc' } },
           intelligence: true,
         },
       });
@@ -697,7 +697,7 @@ async function handleClientContacts(id: string | undefined, req: ApiRequest, res
         }
         const contacts = await prisma.clientContact.findMany({
           where: { clientId },
-          include: { _count: { select: { activities: true } } },
+          include: { _count: { select: { activities: true, communications: true } } },
           orderBy: { createdAt: 'asc' },
         });
         res.status(200).json({ success: true, data: contacts });
@@ -744,8 +744,9 @@ async function handleClientContacts(id: string | undefined, req: ApiRequest, res
       const contact = await prisma.clientContact.findUnique({
         where: { id },
         include: {
-          _count: { select: { activities: true } },
+          _count: { select: { activities: true, communications: true } },
           activities: { orderBy: { createdAt: 'desc' } },
+          communications: { orderBy: { occurredAt: 'desc' } },
         },
       });
       if (!contact) {
@@ -854,6 +855,123 @@ async function handleClientIntelligence(clientId: string | undefined, req: ApiRe
       return;
     }
     console.error('[api/client-intelligence] unexpected error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
+// ---------------------------------------------------------------------
+// /api/client-communications, /api/client-communications/:id
+//
+// Bab 16.5 lanjutan (24 Sep 2026): menggantikan tab "Komunikasi" yang
+// sebelumnya cuma useState lokal frontend (tidak pernah tersimpan). Lihat
+// catatan desain lengkap di schema.prisma dekat model
+// ClientCommunication untuk kenapa ini SENGAJA terpisah dari
+// OpportunityActivity -- di sini TIDAK ADA kewajiban punya Opportunity
+// sama sekali, cukup clientId.
+// ---------------------------------------------------------------------
+
+const COMMUNICATION_TYPES = ['TELEPON', 'EMAIL', 'MEETING', 'WHATSAPP', 'VISIT'] as const;
+
+async function handleClientCommunications(id: string | undefined, req: ApiRequest, res: ApiResponse) {
+  try {
+    const user = await getUserFromToken(extractBearerToken(req.headers.authorization));
+    requireAuth(user);
+
+    if (!id) {
+      const clientId = getParam(req, 'clientId');
+
+      if (req.method === 'GET') {
+        if (!clientId) {
+          res.status(400).json({ success: false, error: 'clientId wajib diisi' });
+          return;
+        }
+        const communications = await prisma.clientCommunication.findMany({
+          where: { clientId },
+          orderBy: { occurredAt: 'desc' },
+        });
+        res.status(200).json({ success: true, data: communications });
+        return;
+      }
+
+      if (req.method === 'POST') {
+        const body = (req.body ?? {}) as Record<string, unknown>;
+        if (!body.clientId || !body.type || !body.title || !body.description || !body.occurredAt) {
+          res.status(400).json({
+            success: false,
+            error: 'clientId, type, title, description, dan occurredAt wajib diisi',
+          });
+          return;
+        }
+        if (!COMMUNICATION_TYPES.includes(body.type as (typeof COMMUNICATION_TYPES)[number])) {
+          res.status(400).json({ success: false, error: `type tidak valid: ${body.type}` });
+          return;
+        }
+        const communication = await prisma.clientCommunication.create({
+          data: {
+            clientId: body.clientId as string,
+            type: body.type as (typeof COMMUNICATION_TYPES)[number],
+            title: body.title as string,
+            description: body.description as string,
+            categories: body.categories !== undefined ? (body.categories as object) : undefined,
+            contactId: (body.contactId as string) ?? null,
+            occurredAt: new Date(body.occurredAt as string),
+            createdById: user!.id,
+          },
+        });
+        res.status(201).json({ success: true, data: communication });
+        return;
+      }
+
+      res.status(405).json({ success: false, error: 'Method not allowed' });
+      return;
+    }
+
+    // GET/PUT/DELETE /api/client-communications/:id
+    if (req.method === 'GET') {
+      const communication = await prisma.clientCommunication.findUnique({ where: { id } });
+      if (!communication) {
+        res.status(404).json({ success: false, error: 'Communication not found' });
+        return;
+      }
+      res.status(200).json({ success: true, data: communication });
+      return;
+    }
+
+    if (req.method === 'PUT') {
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      if (body.type !== undefined && !COMMUNICATION_TYPES.includes(body.type as (typeof COMMUNICATION_TYPES)[number])) {
+        res.status(400).json({ success: false, error: `type tidak valid: ${body.type}` });
+        return;
+      }
+      const data: Record<string, unknown> = {};
+      if (body.type !== undefined) data.type = body.type;
+      if (body.title !== undefined) data.title = body.title;
+      if (body.description !== undefined) data.description = body.description;
+      if (body.categories !== undefined) data.categories = body.categories;
+      if (body.contactId !== undefined) data.contactId = body.contactId;
+      if (body.occurredAt !== undefined) data.occurredAt = new Date(body.occurredAt as string);
+      const communication = await prisma.clientCommunication.update({ where: { id }, data });
+      res.status(200).json({ success: true, data: communication });
+      return;
+    }
+
+    if (req.method === 'DELETE') {
+      await prisma.clientCommunication.delete({ where: { id } });
+      res.status(200).json({ success: true });
+      return;
+    }
+
+    res.status(405).json({ success: false, error: 'Method not allowed' });
+  } catch (err) {
+    if (err instanceof UnauthorizedError || err instanceof ForbiddenError) {
+      res.status(err.status).json({ success: false, error: err.message });
+      return;
+    }
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2025') {
+      res.status(404).json({ success: false, error: 'Communication not found' });
+      return;
+    }
+    console.error('[api/client-communications] unexpected error:', err);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 }
@@ -2688,6 +2806,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return;
     case 'client-intelligence':
       await handleClientIntelligence(sub, req, res);
+      return;
+    case 'client-communications':
+      await handleClientCommunications(sub, req, res);
       return;
     case 'ai-chat':
       await handleAiChat(req, res);
