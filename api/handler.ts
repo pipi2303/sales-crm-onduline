@@ -1182,6 +1182,36 @@ async function handleClientContacts(id: string | undefined, req: ApiRequest, res
         res.status(400).json({ success: false, error: 'Kontak tidak bisa melapor ke dirinya sendiri' });
         return;
       }
+      // Bab 38 (24 Sep 2026, lanjutan review "no-gap" Bab 16.5): cek di
+      // atas cuma menolak lapor ke diri sendiri secara LANGSUNG
+      // (A->A), bukan siklus lebih panjang (A->B->A, atau A->B->C->A).
+      // ClientOrgTreePanel.tsx's ContactNode SUDAH punya pengaman render
+      // (ancestorIds) supaya siklus tidak bikin infinite loop/crash --
+      // tapi efeknya kontak yang ada di siklus jadi TIDAK PERNAH jadi
+      // root maupun child manapun (reportsToId-nya valid, jadi bukan
+      // root; tapi rantainya melingkar, jadi tidak pernah "sampai" ke
+      // root) -- hilang total dari tampilan tanpa pesan error apa pun.
+      // Ditutup di sini: telusuri rantai reportsToId dari calon atasan
+      // baru ke atas, tolak kalau ketemu id kontak ini sendiri di
+      // tengah jalan. Dibatasi 200 langkah supaya data lama yang
+      // (secara teori) sudah punya siklus tidak bikin loop tak
+      // berujung di sini juga.
+      if (body.reportsToId !== undefined && body.reportsToId !== null) {
+        let cursor: string | null = body.reportsToId as string;
+        let hops = 0;
+        while (cursor && hops < 200) {
+          if (cursor === id) {
+            res.status(400).json({ success: false, error: 'Tidak bisa menyimpan: perubahan ini akan membuat siklus pelaporan (A melapor ke B yang (tidak langsung) melapor balik ke A)' });
+            return;
+          }
+          const parent: { reportsToId: string | null } | null = await prisma.clientContact.findUnique({
+            where: { id: cursor },
+            select: { reportsToId: true },
+          });
+          cursor = parent?.reportsToId ?? null;
+          hops += 1;
+        }
+      }
       const editableFields = [
         'nama', 'jabatan', 'email', 'telepon', 'whatsapp',
         'influenceRole', 'relationshipStatus', 'closeness', 'reportsToId', 'notes',
