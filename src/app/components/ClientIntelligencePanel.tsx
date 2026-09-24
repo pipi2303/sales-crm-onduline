@@ -10,9 +10,10 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from '@/app/components/ui/button';
 import { Label } from '@/app/components/ui/label';
+import { Input } from '@/app/components/ui/input';
 import { Textarea } from '@/app/components/ui/textarea';
 import { toast } from 'sonner';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, Plus, Trash2, ExternalLink } from 'lucide-react';
 import { clientIntelligenceRepository } from '@/services/clientIntelligenceRepository';
 import type { Client } from '@/types/client';
 
@@ -42,6 +43,7 @@ export function ClientIntelligencePanel({ clientId, client }: ClientIntelligence
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [lastUpdated, setLastUpdated] = useState<string>('');
+  const [linkRows, setLinkRows] = useState<{ label: string; url: string }[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,9 +61,13 @@ export function ClientIntelligencePanel({ clientId, client }: ClientIntelligence
             catatan_tambahan: res.data.catatan_tambahan,
           });
           setLastUpdated(res.data.updated_at);
+          setLinkRows(
+            res.data.links ? Object.entries(res.data.links).map(([label, url]) => ({ label, url: String(url) })) : []
+          );
         } else {
           setForm(EMPTY_FORM);
           setLastUpdated('');
+          setLinkRows([]);
         }
       } else {
         toast.error(res.error ?? 'Gagal memuat customer intelligence');
@@ -76,7 +82,11 @@ export function ClientIntelligencePanel({ clientId, client }: ClientIntelligence
 
   const handleSave = async () => {
     setSaving(true);
-    const res = await clientIntelligenceRepository.save(clientId, form);
+    const links = linkRows.reduce<Record<string, string>>((acc, row) => {
+      if (row.label.trim() && row.url.trim()) acc[row.label.trim()] = row.url.trim();
+      return acc;
+    }, {});
+    const res = await clientIntelligenceRepository.save(clientId, { ...form, links: Object.keys(links).length > 0 ? links : null });
     setSaving(false);
     if (!res.success || !res.data) {
       toast.error(res.error ?? 'Gagal menyimpan customer intelligence');
@@ -156,6 +166,49 @@ export function ClientIntelligencePanel({ clientId, client }: ClientIntelligence
           />
         </div>
       </div>
+      <div>
+        <Label className="text-xs">Link Referensi</Label>
+        <div className="space-y-2 mt-1">
+          {linkRows.map((row, idx) => (
+            <div key={idx} className="flex gap-2 items-center">
+              <Input
+                value={row.label}
+                onChange={(e) => setLinkRows((rows) => rows.map((r, i) => (i === idx ? { ...r, label: e.target.value } : r)))}
+                placeholder="Label (mis. Company Profile)"
+                className="flex-1"
+              />
+              <Input
+                value={row.url}
+                onChange={(e) => setLinkRows((rows) => rows.map((r, i) => (i === idx ? { ...r, url: e.target.value } : r)))}
+                placeholder="https://..."
+                className="flex-[2]"
+              />
+              {row.url && (
+                <a href={row.url} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[#013E37]">
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              )}
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-red-600 hover:text-red-700 shrink-0"
+                onClick={() => setLinkRows((rows) => rows.filter((_, i) => i !== idx))}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setLinkRows((rows) => [...rows, { label: '', url: '' }])}
+            className="border-[#013E37] text-[#013E37] hover:bg-[#EEF7F5]"
+          >
+            <Plus className="h-3.5 w-3.5 mr-1.5" /> Tambah Link
+          </Button>
+        </div>
+      </div>
+
       <div>
         <Label className="text-xs">Catatan Tambahan</Label>
         <Textarea
