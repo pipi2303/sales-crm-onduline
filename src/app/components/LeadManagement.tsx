@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, Edit2, Trash2, Eye, Phone, Mail, Building2, RefreshCw, X, ArrowRightCircle } from 'lucide-react';
+import { Plus, Search, Filter, Edit2, Trash2, Eye, Phone, Mail, Building2, RefreshCw, X, ArrowRightCircle, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { useConfirm } from '@/app/components/ui/confirm-dialog';
@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { leadsRepository } from '@/services/leadsRepository';
 import { territoriesRepository } from '@/services/territoriesRepository';
 import type { TerritoryProfile } from '@/types/territory';
+import { leadDummyData } from '@/utils/populateCRMData';
 import { formatCurrency } from '@/utils/formatters';
 
 interface Company {
@@ -82,6 +83,37 @@ export function LeadManagement() {
       toast.error('Error loading leads');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Bab 37 (24 Sep 2026): Lead Management sebelumnya tidak punya data
+  // contoh sama sekali (prisma/seed.ts tidak pernah membuat Lead) --
+  // pola sama seperti "Load Dummy Data" di SalesTeam/SalesRepresentative/
+  // TerritoryManagement (Bab 33-35): leadsRepository.create() sungguhan
+  // per item, territoryName di-resolve ke territoryId lewat daftar
+  // `territories` yang sudah di-fetch di useEffect atas.
+  const [loadingDummyLeads, setLoadingDummyLeads] = useState(false);
+  const handleLoadDummyLeads = async () => {
+    setLoadingDummyLeads(true);
+    let created = 0;
+    try {
+      for (const seed of leadDummyData) {
+        const { territoryName, ...rest } = seed;
+        const territoryId = territories.find((t) => t.name === territoryName)?.id ?? null;
+        const result = await leadsRepository.create({ ...rest, territoryId });
+        if (result.success) {
+          created += 1;
+        } else {
+          toast.error(result.error || `Gagal membuat lead contoh "${seed.company}"`);
+        }
+      }
+      if (created > 0) toast.success(`${created} data lead contoh berhasil dimuat`);
+    } catch (error: any) {
+      console.error('Error loading dummy lead data:', error);
+      toast.error(`Gagal memuat data contoh: ${error.message}`);
+    } finally {
+      setLoadingDummyLeads(false);
+      fetchLeads();
     }
   };
 
@@ -298,6 +330,17 @@ export function LeadManagement() {
             >
               <Trash2 className="w-4 h-4" />
               Clear All
+            </Button>
+          )}
+          {leads.length === 0 && (
+            <Button
+              variant="outline"
+              onClick={handleLoadDummyLeads}
+              disabled={loadingDummyLeads}
+              className="flex items-center gap-2"
+            >
+              <Sparkles className="w-4 h-4" />
+              {loadingDummyLeads ? 'Memuat...' : 'Load Dummy Data'}
             </Button>
           )}
           <Button onClick={handleAddLead} className="bg-[#013E37] hover:bg-[#025C52] text-white">

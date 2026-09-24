@@ -463,6 +463,146 @@ const partnersDummyData = [
   },
 ];
 
+// ===== LEAD DUMMY DATA =====
+// Bab 37 (24 Sep 2026, "cek secara deep analysis, tambahkan data dummy
+// untuk menu yang datanya masih kosong"): Lead Management dibaca dari
+// leadsRepository (backend Postgres, prisma/schema.prisma's Lead model)
+// dan prisma/seed.ts TIDAK pernah membuat satu pun Lead -- beda dari
+// Client/Opportunity/Task/dll yang sudah punya data contoh sejak Fase A.
+// Tidak seperti array lain di file ini (localStorage-backed, lihat
+// header komentar file), array ini dikonsumsi lewat leadsRepository
+// .create() sungguhan (pola sama seperti salesRepresentativeDummyData
+// di SalesRepresentative.tsx / Bab 33-35), bukan ditulis ke localStorage.
+// `territoryName` di sini BUKAN field Lead -- cuma kunci pencarian yang
+// di-resolve LeadManagement.tsx's handleLoadDummyLeads() ke territoryId
+// sungguhan lewat territoriesRepository.getAll() saat tombol diklik,
+// supaya tidak hardcode UUID Territory yang beda-beda per environment.
+// Nama sales (assignedTo) & wilayah (territoryName) sengaja dipakai
+// ulang dari roster yang sudah ada (salesRepresentativeDummyData di atas
+// / SEED_TERRITORIES di prisma/seed.ts) supaya konsisten lintas modul.
+export const leadDummyData = [
+  {
+    name: 'Hendra Gunawan',
+    company: 'Toko Bangunan Sinar Abadi',
+    email: 'hendra.gunawan@sinarabadi.co.id',
+    phone: '081298765001',
+    status: 'new' as const,
+    value: 45000000,
+    source: 'Referral',
+    assignedTo: 'Budi Santoso',
+    territoryName: 'Jakarta Pusat',
+    notes: 'Toko bangunan area Jakarta Pusat, tertarik jadi reseller atap Onduline setelah direkomendasikan toko tetangga yang sudah jadi Client.',
+  },
+  {
+    name: 'Ir. Ratna Puspita',
+    company: 'PT Wijaya Karya Perumahan',
+    email: 'ratna.puspita@wikaperumahan.co.id',
+    phone: '081298765002',
+    status: 'proposal' as const,
+    value: 850000000,
+    source: 'Pameran Konstruksi Indonesia 2026',
+    assignedTo: 'Siti Nurhaliza',
+    territoryName: 'Jakarta Selatan',
+    notes: 'Developer perumahan skala menengah, sedang evaluasi proposal atap + waterproofing untuk 120 unit cluster tahap 1. Menunggu approval budget internal.',
+  },
+  {
+    name: 'Yusuf Firmansyah',
+    company: 'CV Roof Solution Bandung',
+    email: 'yusuf.firmansyah@roofsolution.id',
+    phone: '081298765003',
+    status: 'contacted' as const,
+    value: 120000000,
+    source: 'Website',
+    assignedTo: 'Andi Wijaya',
+    territoryName: 'Bandung',
+    notes: 'Kontraktor spesialis renovasi atap, mengisi form kontak di website Onduline. Sudah ditelepon sekali, minta dikirimkan katalog produk lengkap.',
+  },
+  {
+    name: 'Lina Kusuma',
+    company: 'Toko Material Makmur Jaya',
+    email: 'lina.kusuma@makmurjaya.co.id',
+    phone: '081298765004',
+    status: 'qualified' as const,
+    value: 65000000,
+    source: 'Cold Call',
+    assignedTo: 'Rudi Hartono',
+    territoryName: 'Surabaya',
+    notes: 'Toko material bangunan, omzet cukup besar untuk area Surabaya Timur. Sudah dikonfirmasi punya budget dan wewenang keputusan pembelian.',
+  },
+  {
+    name: 'Ir. Bambang Setiawan',
+    company: 'Perumahan Green Valley Residence',
+    email: 'bambang.setiawan@greenvalley.co.id',
+    phone: '081298765005',
+    status: 'negotiation' as const,
+    value: 620000000,
+    source: 'Referral',
+    assignedTo: 'Dewi Lestari',
+    territoryName: 'Bandung',
+    notes: 'Developer perumahan hijau, sedang negosiasi harga untuk paket atap + solar panel (Photovoltaic) 80 unit. Kompetitor juga masuk penawaran.',
+  },
+  {
+    name: 'Agus Salim',
+    company: 'Kontraktor Bangun Perkasa',
+    email: 'agus.salim@bangunperkasa.co.id',
+    phone: '081298765006',
+    status: 'new' as const,
+    value: 95000000,
+    source: 'Instagram Ads',
+    assignedTo: 'Budi Santoso',
+    territoryName: 'Jakarta Pusat',
+    notes: 'Klik iklan Instagram produk atap ringan Onduline, mengisi form minat untuk proyek ruko 6 unit.',
+  },
+  {
+    name: 'Siti Aminah',
+    company: 'UD Atap Sejahtera',
+    email: 'siti.aminah@atapsejahtera.id',
+    phone: '081298765007',
+    status: 'contacted' as const,
+    value: 38000000,
+    source: 'WhatsApp Business',
+    assignedTo: 'Rudi Hartono',
+    territoryName: 'Surabaya',
+    notes: 'Usaha dagang atap & aksesoris skala kecil, chat masuk lewat WhatsApp Business bertanya harga grosir.',
+  },
+  {
+    name: 'Drs. Harto Wibowo',
+    company: 'Dinas Perumahan Kota Bandung',
+    email: 'harto.wibowo@bandung.go.id',
+    phone: '081298765008',
+    status: 'qualified' as const,
+    value: 1200000000,
+    source: 'Tender Instansi Pemerintah',
+    assignedTo: 'Andi Wijaya',
+    territoryName: 'Bandung',
+    notes: 'Proyek rumah susun sederhana sewa (rusunawa), masuk lewat undangan tender terbatas. Perlu dokumen kelengkapan legalitas & TKDN.',
+  },
+  {
+    name: 'Maya Anggraini',
+    company: 'Toko Bangunan Cahaya Timur',
+    email: 'maya.anggraini@cahayatimur.co.id',
+    phone: '081298765009',
+    status: 'new' as const,
+    value: 52000000,
+    source: 'Referral',
+    assignedTo: 'Siti Nurhaliza',
+    territoryName: 'Jakarta Selatan',
+    notes: 'Direkomendasikan oleh Toko Material Jaya Bandung (Client existing) yang punya jaringan toko di Jakarta Selatan.',
+  },
+  {
+    name: 'Doni Iskandar',
+    company: 'CV Konstruksi Prima Surabaya',
+    email: 'doni.iskandar@konstruksiprima.co.id',
+    phone: '081298765010',
+    status: 'lost' as const,
+    value: 180000000,
+    source: 'Cold Call',
+    assignedTo: 'Rudi Hartono',
+    territoryName: 'Surabaya',
+    notes: 'Kalah dari kompetitor yang menawarkan harga lebih murah untuk proyek gudang. Disimpan sebagai catatan follow-up untuk proyek berikutnya.',
+  },
+];
+
 // ===== CONTRACTS DUMMY DATA =====
 // Fase 1 (23 Sep 2026): rewritten to roofing/waterproofing/solar supply
 // agreements against the clients above, instead of the original HMS
