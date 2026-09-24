@@ -49,18 +49,6 @@ export const menuGroups: MenuGroup[] = [
     ],
   },
   {
-    // Bab 17 (24 Sep 2026): menu terpisah dari 'Task Management' biasa --
-    // ini bukan modul baru, cuma tampilan mobile-optimized dari data yang
-    // sama (Task + Opportunity + ClientCommunication), diletakkan di
-    // urutan paling atas supaya sales lapangan yang buka app dari HP
-    // langsung sampai di sini tanpa scroll. Lihat FieldSalesMode.tsx.
-    id: 'mobile-sales-lapangan',
-    label: 'Mobile / Sales Lapangan',
-    items: [
-      { id: 'field-sales-mode', name: 'Field Sales Mode', icon: Smartphone, component: FieldSalesMode },
-    ],
-  },
-  {
     id: 'sales-pipeline',
     label: 'Sales Pipeline',
     items: [
@@ -118,6 +106,23 @@ export const menuGroups: MenuGroup[] = [
     label: 'Komunikasi',
     items: [
       { id: 'email-hub', name: 'Email Communication Hub', icon: Mail, component: EmailCommunicationHub },
+    ],
+  },
+  {
+    // Bab 17 (24 Sep 2026): menu terpisah dari 'Task Management' biasa --
+    // ini bukan modul baru, cuma tampilan mobile-optimized dari data yang
+    // sama (Task + Opportunity + ClientCommunication). Lihat
+    // FieldSalesMode.tsx.
+    //
+    // Dipindah ke bawah grup Komunikasi (permintaan user, 24 Sep 2026) --
+    // sebelumnya diletakkan di urutan paling atas (persis di bawah
+    // Dashboard) dengan alasan "sales lapangan yang buka app dari HP
+    // langsung sampai di sini tanpa scroll"; posisi itu tidak lagi
+    // dipakai.
+    id: 'mobile-sales-lapangan',
+    label: 'Mobile / Sales Lapangan',
+    items: [
+      { id: 'field-sales-mode', name: 'Field Sales Mode', icon: Smartphone, component: FieldSalesMode },
     ],
   },
   {
