@@ -68,8 +68,8 @@ export function KnowledgeBase() {
       {/* Premium Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-gray-200 pb-6">
         <div>
-          <h1 className="text-4xl font-black tracking-tighter uppercase bg-gradient-to-r from-[#013E37] via-[#028076] to-[#013E37] bg-clip-text text-transparent">
-            KNOWLEDGE BASE
+          <h1 className="text-2xl font-bold text-[#013E37]">
+            Knowledge Base
           </h1>
           <p className="text-gray-500 font-medium flex items-center gap-2 mt-2">
             <Book className="h-4 w-4 text-[#013E37]" />

@@ -162,7 +162,7 @@ export function ProposalHistory() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Riwayat Proposal</h1>
+          <h1 className="text-2xl font-bold text-[#013E37]">Riwayat Proposal</h1>
           <p className="text-gray-600 mt-1">Kelola semua proposal penjualan Anda</p>
         </div>
         <div className="flex gap-2">

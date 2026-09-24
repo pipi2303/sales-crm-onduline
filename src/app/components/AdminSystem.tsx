@@ -351,7 +351,7 @@ export function AdminSystem() {
       {/* Premium Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-2 border-b border-gray-100">
         <div>
-          <h1 className="text-4xl font-extrabold tracking-tight uppercase bg-gradient-to-r from-[#013E37] via-[#02847c] to-[#013E37] bg-clip-text text-transparent">
+          <h1 className="text-2xl font-bold text-[#013E37]">
             Admin Control Center
           </h1>
           <p className="text-sm font-medium text-gray-500 mt-2 uppercase tracking-[0.2em] flex items-center gap-2">

@@ -204,7 +204,7 @@ export function AdvancedAnalytics() {
       {/* ── Header ─────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-[#013E37] flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: BRAND }}>
               <BarChart3 className="h-5 w-5 text-white" />
             </div>

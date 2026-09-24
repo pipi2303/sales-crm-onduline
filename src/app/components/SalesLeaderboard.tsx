@@ -44,7 +44,7 @@ export function SalesLeaderboard() {
       <div className="mb-8 text-center">
         <div className="flex items-center justify-center gap-3 mb-4">
           <Trophy className="h-10 w-10 text-yellow-500" />
-          <h1 className="text-4xl font-bold text-[#013E37]" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <h1 className="text-2xl font-bold text-[#013E37]">
             Sales Leaderboard
           </h1>
           <Trophy className="h-10 w-10 text-yellow-500" />

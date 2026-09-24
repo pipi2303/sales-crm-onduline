@@ -287,7 +287,7 @@ export function EmailCommunicationHub() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight uppercase text-[#013E37]">
+        <h1 className="text-2xl font-bold text-[#013E37]">
           Email & Communication Hub
         </h1>
         <p className="text-sm text-muted-foreground mt-1">

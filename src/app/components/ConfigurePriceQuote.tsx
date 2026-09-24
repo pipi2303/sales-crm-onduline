@@ -279,7 +279,7 @@ export function ConfigurePriceQuote() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Configure, Propose & Quote</h1>
+          <h1 className="text-2xl font-bold text-[#013E37]">Configure, Propose & Quote</h1>
           <p className="text-gray-600 mt-1">Kelola konfigurasi produk, buat proposal, dan kirim quotation</p>
         </div>
         <Dialog open={isCreateQuoteOpen} onOpenChange={setIsCreateQuoteOpen}>

@@ -246,7 +246,7 @@ export function QuotationManagement() {
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-[#013E37] tracking-tight flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-[#013E37] flex items-center gap-3">
             <FileText className="h-8 w-8" />
             Quotation Management
           </h1>
