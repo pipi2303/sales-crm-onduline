@@ -2620,3 +2620,134 @@ Commit: `85aa3d9a`.
       melaporkan apa-apa) -- tidak wajib segera.
 - [ ] `npm test` bisa dijalankan lokal kapan saja (`npm run test:watch`
       untuk mode watch).
+
+## 28. Bab 16.5 -- Organisation Tree / Influence Map & Customer Intelligence -- 24 Sep 2026
+
+### Konteks
+
+Diminta saran & insight untuk dua fitur baru: (1) informasi intelijen
+untuk calon customer yang sedang dihunting (gabungan informasi eksternal
+dan internal), (2) Organisation Tree Customer (nama & jabatan) dengan
+influence line (Decision Maker, Approver, Influencer, Technical Advisor,
+Consultant), relationship (Positive/Neutral/Negative), jumlah pertemuan,
+dan kedekatan hubungan. Setelah saran/insight disampaikan, user minta
+lanjut implementasi PENUH keduanya ("lanjutkan untuk ke 2 nya").
+
+### Desain data (schema)
+
+- Model baru `ClientContact` -- multi-kontak per Client (beda dari
+  `nama_pic`/`jabatan_pic` tunggal yang TETAP ADA di Client sebagai
+  ringkasan cepat, bukan dihapus) dengan self-relation `reportsToId`
+  (struktur organisasi/siapa lapor ke siapa) yang SENGAJA dipisah dari
+  `influenceRole` (siapa berpengaruh dalam keputusan pembelian Onduline)
+  -- atasan struktural belum tentu decision maker pembelian.
+- 3 enum baru: `InfluenceRole` (5 nilai), `RelationshipStatus`
+  (positive/neutral/negative), `RelationshipCloseness`
+  (baru-kenal/kenal-baik/champion).
+- "Jumlah pertemuan" dihitung dari `OpportunityActivity.contactId` (kolom
+  baru, opsional) -- BUKAN kolom counter terpisah, supaya selalu sinkron
+  dengan histori aktivitas yang sudah ada, tidak mungkin desync.
+- Model baru `ClientIntelligence` (1:1 dengan Client) -- MVP manual
+  (profil bisnis, proyek berjalan, kompetitor eksisting, sumber
+  informasi, catatan, links referensi) -- SENGAJA tanpa integrasi
+  API/scraping pihak ketiga (biaya & risiko legal, dibahas di turn
+  saran/insight sebelumnya).
+- Migration ditulis manual (schema-engine tidak bisa dijalankan di
+  sandbox ini, lihat catatan verifikasi di bawah):
+  `prisma/migrations/20260924000000_add_client_contacts_and_intelligence/migration.sql`.
+
+### Backend (`api/handler.ts`)
+
+- `handleClientContacts` -- CRUD penuh: list per `?clientId=`, create,
+  get-single (+ `_count.activities` & daftar activities), update
+  (whitelist field, guard `reportsToId` tidak boleh sama dengan id
+  sendiri), delete.
+- `handleClientIntelligence` -- get by clientId (`data: null` kalau
+  belum pernah diisi, bukan 404) + upsert (PUT).
+- Terdaftar di switch-case: `case 'client-contacts'`, `case
+  'client-intelligence'`.
+- `handleClients` GET-single sekarang `include` juga `contacts` (+
+  `_count.activities`) dan `intelligence`.
+- Activity logging (bulk di PUT opportunity & single log di POST
+  opportunity) sekarang menerima `contactId` opsional.
+
+### Frontend
+
+- `src/types/clientContact.ts` -- tipe `ClientContact`/`ClientIntelligence`
+  + enum hyphenated-lowercase (konvensi sama dengan `Opportunity['stage']`
+  di `opportunitiesRepository.ts`), plus label maps untuk UI.
+- `src/services/clientContactsRepository.ts` &
+  `clientIntelligenceRepository.ts` -- adapter pattern sama dengan
+  `clientsRepository.ts` (FIELD_MAP camelCase<->snake_case, enum
+  OUT/IN, `reportsToId` string kosong dikonversi ke `null` sebelum
+  dikirim karena itu FK).
+- `src/app/components/ClientOrgTreePanel.tsx` -- card per kontak (nama,
+  jabatan, dot warna sesuai relationship status, badge influence role &
+  closeness, jumlah pertemuan, "lapor ke siapa"), form tambah/edit
+  inline, hapus dengan konfirmasi.
+- `src/app/components/ClientIntelligencePanel.tsx` -- ringkasan internal
+  (kategori, status kontrak, paket aktif, vendor sebelumnya -- dari data
+  Client yang sudah ada, tidak fetch ulang) + form eksternal manual,
+  tombol simpan (upsert), timestamp "terakhir diperbarui".
+- Dipasang sebagai 2 collapsible section baru di `ClientDetailDialog.tsx`
+  tepat di bawah "Data Pengambil Keputusan" yang sudah ada (section lama
+  TETAP ADA, tidak diganti).
+
+### PENTING -- keterbatasan verifikasi Prisma Client di sandbox ini (baru ditemukan)
+
+Baik cloud sandbox saya MAUPUN akses shell ke komputer Anda lewat bridge
+`device_bash` (jalan di VM Linux ARM64 terpisah, bukan macOS langsung)
+SAMA-SAMA tidak bisa menjalankan `npx prisma generate` -- gagal `403
+Forbidden` mengunduh binary schema-engine/query-engine dari
+`binaries.prisma.sh` (dikonfirmasi juga dengan flag `--no-engine`; CLI
+tetap butuh schema-engine buat baca schema-nya lebih dulu). Akibatnya
+`node_modules/.prisma/client` di kedua tempat itu cuma placeholder
+kosong (`export declare const PrismaClient: any`), BUKAN client asli
+hasil generate dari schema project ini.
+
+Dampaknya: `tsc` TIDAK bisa mendeteksi salah nama model/field Prisma di
+kode backend baru ini secara otomatis (karena tipenya `any`). Sebagai
+gantinya, tiap baris `prisma.clientContact.*` / `prisma.clientIntelligence.*`
+di `api/handler.ts` sudah dicocokkan manual, field-per-field, dengan
+`prisma/schema.prisma` -- semua cocok (clientId, nama, jabatan, email,
+telepon, whatsapp, influenceRole, relationshipStatus, closeness,
+reportsToId, notes, createdById; profilBisnis, proyekBerjalan,
+kompetitorEksisting, sumberInformasi, catatanTambahan, links,
+updatedById -- semua persis).
+
+**Ini BUKAN bug di project Anda** -- proses build Vercel (akses internet
+penuh) berhasil `prisma generate` di setiap deploy, itu kenapa app
+production tetap berjalan normal selama ini. Kalau mau extra yakin,
+jalankan `npx prisma generate && npx tsc --noEmit` langsung di Terminal
+Mac Anda (bukan lewat sesi Claude ini) -- itu memakai binary asli dan
+BISA menangkap typo nama field Prisma kalau ternyata ada yang terlewat.
+
+### Verifikasi
+
+- `tsc --noEmit -p tsconfig.json`: identik dengan baseline (104 error
+  pre-existing, dibandingkan lewat isolasi `git stash push -u --
+  <file-file fitur ini>` lalu tsc lagi, lalu `git stash pop`) -- nol
+  baris error baru yang menyebut file/model/resource fitur ini.
+- `npx vite build`: sukses (12.63s), `dist/` dihapus lagi setelah cek.
+- `npx vitest run`: 11/11 tetap lulus (ErrorBoundary, JSON.parse guards,
+  smoke test lain dari section 27 -- tidak ada test baru ditambahkan
+  untuk fitur ini di iterasi ini).
+- Review manual field-by-field Prisma calls vs schema (lihat catatan di
+  atas) sebagai pengganti type-check otomatis yang tidak bisa dipercaya
+  penuh di sandbox ini.
+
+### PENTING -- langkah manual user
+
+- [ ] `git pull` ambil commit-commit fitur ini.
+- [ ] **`npx prisma migrate deploy`** lalu **`npx prisma generate`** --
+      WAJIB dijalankan dari komputer Anda sendiri sebelum fitur ini
+      dipakai (sandbox ini tidak bisa menjangkau Neon/binaries.prisma.sh
+      sama sekali, lihat catatan di atas).
+- [ ] Setelah migrate + redeploy, buka salah satu Client detail lalu
+      expand "Organisation Tree & Influence Map" dan "Customer
+      Intelligence" -- tambah 1-2 kontak percobaan untuk pastikan
+      create/edit/delete berjalan sesuai harapan, dan coba isi +
+      simpan form Customer Intelligence.
+- [ ] (Opsional, disarankan) jalankan `npx prisma generate && npx tsc
+      --noEmit` di Terminal Mac Anda sendiri sekali sebagai extra-check
+      independen dari review manual di atas.
