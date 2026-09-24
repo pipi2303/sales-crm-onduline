@@ -256,6 +256,39 @@ model Client {
   npwp                  String?  @map("npwp")
   vendorSebelumnya      String?  @map("vendor_sebelumnya")
 
+  // Bab 34 fix (24 Sep 2026, review grup menu "Tim Penjualan"): ClientForm.tsx
+  // always collected these fields (sektor_client, alamat_pengiriman +
+  // same-as-billing toggle, website, discount + its approval status) but
+  // clientsRepository.ts's FIELD_MAP never forwarded them and the Client
+  // model had no columns for them -- everything a user typed into these
+  // fields silently vanished on save. alamat_penagihan (billing address)
+  // was NOT silently lost -- ClientForm already synced it into the
+  // pre-existing alamatLengkap column on submit, kept as-is above.
+  //
+  // Prisma Client here can't be regenerated in this sandbox (no network to
+  // binaries.prisma.sh -- see MEMORY.md), so api/handler.ts writes these
+  // columns via a raw-SQL follow-up statement rather than the typed
+  // `prisma.client.create/update` call used for every other field. Run
+  // `npx prisma generate` after migrating to get these onto the typed
+  // client for future work.
+  sektorClient          String?  @map("sektor_client")
+  alamatPengiriman      String?  @map("alamat_pengiriman")
+  alamatSamaDenganPenagihan Boolean @default(true) @map("alamat_sama_dengan_penagihan")
+  website               String?  @map("website")
+  // Diskon > 20% butuh persetujuan sebelum client boleh disimpan dengan
+  // angka itu (lihat handleSubmit di ClientForm.tsx). discountApprovalStatus
+  // ('', 'pending', 'approved', 'rejected') dan pasangan requested/decided
+  // di bawah ini adalah jejak audit alur approval-nya -- MENGGANTIKAN
+  // ClientForm.tsx's handleRequestApproval lama, yang cuma `setTimeout`
+  // 4 detik yang meng-approve dirinya sendiri di browser tanpa pernah ada
+  // approver sungguhan yang melihatnya.
+  discount                     Decimal?  @map("discount") @db.Decimal(5, 2)
+  discountStatus               String?   @map("discount_status")
+  discountApprovalStatus       String?   @map("discount_approval_status")
+  discountApprovalRequestedAt  DateTime? @map("discount_approval_requested_at")
+  discountApprovalDecidedById  String?   @map("discount_approval_decided_by_id")
+  discountApprovalDecidedAt    DateTime? @map("discount_approval_decided_at")
+
   // New with Fase 1: which hierarchy/flow this client belongs to (Bab 4/5).
   salesFlow     SalesFlow?
   distributorId String?      @map("distributor_id")
@@ -686,6 +719,60 @@ model ProductPhysicalAttrs {
 // once `prisma migrate dev` generates the base migration.
 // ---------------------------------------------------------------------
 
+// ---------------------------------------------------------------------
+// Bab 34 fix (24 Sep 2026, review grup menu "Tim Penjualan") -- the "Sales
+// Representative" screen (SalesRepresentative.tsx) has NEVER been backed
+// by this app's real backend: it imports employeesApi from the legacy
+// src/services/api.ts, a pure-frontend module pointed at a mock Supabase
+// project that has never existed as a reachable backend
+// (USE_LOCAL_STORAGE is hardcoded true there), so every HR record --
+// including NIK, payroll/tax, and NDA/access fields collected by
+// KaryawanForm.tsx -- only ever lived in one browser's localStorage. This
+// is its real backend home, replacing that path via employeesRepository.ts.
+//
+// Deliberately NOT reusing SalesRep above -- SalesRep is a lean
+// name/email/role record purely for linking CommissionRecord/
+// PerformanceTarget/Territory.assignedTo, unrelated in shape and purpose
+// to this full personnel record. Two people confirmed distinct concepts
+// (see MEMORY.md), not a duplicate.
+//
+// Prisma Client in this sandbox can't be regenerated (no network to
+// binaries.prisma.sh) -- api/handler.ts's handleEmployees reads/writes
+// this table with raw SQL rather than a typed `prisma.employee.*` call.
+// Run `npx prisma generate` after migrating to get this onto the typed
+// client for future work.
+model Employee {
+  id                 String   @id @default(uuid())
+  namaLengkap        String   @map("nama_lengkap")
+  nik                String?  @map("nik")
+  tempatLahir        String?  @map("tempat_lahir")
+  tanggalLahir       String?  @map("tanggal_lahir")
+  jenisKelamin       String?  @map("jenis_kelamin")
+  alamat             String?  @map("alamat")
+  nomorWa            String?  @map("nomor_wa")
+  emailPribadi       String?  @map("email_pribadi")
+  divisi             String?  @map("divisi")
+  jabatan            String?  @map("jabatan")
+  levelJabatan       String?  @map("level_jabatan")
+  statusKaryawan     String?  @map("status_karyawan")
+  tanggalBergabung   String?  @map("tanggal_bergabung")
+  namaAtasan         String?  @map("nama_atasan")
+  npwp               String?  @map("npwp")
+  nomorRekening      String?  @map("nomor_rekening")
+  namaBank           String?  @map("nama_bank")
+  bpjsKetenagakerjaan String? @map("bpjs_ketenagakerjaan")
+  bpjsKesehatan      String?  @map("bpjs_kesehatan")
+  emailKantor        String?  @map("email_kantor")
+  ndaSigned          Boolean  @default(false) @map("nda_signed")
+  tanggalNda         String?  @map("tanggal_nda")
+  levelAkses         String?  @map("level_akses")
+  asetPerusahaan     String?  @map("aset_perusahaan")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("employees")
+}
+
 model SalesRep {
   id        String   @id @default(uuid())
   name      String
@@ -764,6 +851,12 @@ model CommissionRecord {
   createdAt       DateTime         @default(now()) @map("created_at")
   updatedAt       DateTime         @updatedAt @map("updated_at")
 
+  // Bab 34 fix (24 Sep 2026, review grup menu "Tim Penjualan"): this was
+  // missing despite api/handler.ts's handleCommissions already catching
+  // P2002 on this exact pair and returning a friendly 409 for it -- the
+  // duplicate-payout protection the error message promised was never
+  // actually active because there was no constraint to violate.
+  @@unique([salesRepId, period])
   @@map("commission_records")
 }
 

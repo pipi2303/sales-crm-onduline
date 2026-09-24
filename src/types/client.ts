@@ -55,4 +55,22 @@ export interface Client {
   decided_by_id: string;
   decided_at: string;
   rejection_note: string;
+
+  // Bab 34 fix (24 Sep 2026, review grup menu "Tim Penjualan"): ClientForm.tsx
+  // has always collected these but they were silently dropped before the
+  // FIELD_MAP/schema fix below -- see prisma/schema.prisma's Client model
+  // for the full note.
+  sektor_client?: string;
+  alamat_pengiriman?: string;
+  alamat_sama_dengan_penagihan?: boolean;
+  website?: string;
+  discount?: number;
+  discount_status?: string;
+  // '' | 'pending' | 'approved' | 'rejected' -- set only via
+  // clientsRepository.requestDiscountApproval/decideDiscountApproval
+  // (real backend actions), never by a plain update() call.
+  discount_approval_status?: string;
+  discount_approval_requested_at?: string;
+  discount_approval_decided_by_id?: string;
+  discount_approval_decided_at?: string;
 }

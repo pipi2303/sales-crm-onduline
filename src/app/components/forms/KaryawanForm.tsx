@@ -14,7 +14,7 @@ import {
 } from '@/app/components/ui/select';
 import { Checkbox } from '@/app/components/ui/checkbox';
 import { Button } from '@/app/components/ui/button';
-import { employeesApi } from '@/services/api';
+import { employeesRepository } from '@/services/employeesRepository';
 
 interface KaryawanFormProps {
   karyawan: any;
@@ -97,9 +97,9 @@ export function KaryawanFormModal({ karyawan, onClose, onSuccess }: KaryawanForm
       
       let result;
       if (karyawan) {
-        result = await employeesApi.update(karyawan.id, formData);
+        result = await employeesRepository.update(karyawan.id, formData);
       } else {
-        result = await employeesApi.create({ ...formData, id: crypto.randomUUID() });
+        result = await employeesRepository.create(formData);
       }
       
       if (result.success) {

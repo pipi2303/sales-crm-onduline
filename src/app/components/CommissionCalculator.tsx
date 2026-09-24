@@ -19,6 +19,7 @@ import { computeAchievementPct } from '@/types/performanceTarget';
 import type { PerformanceTarget } from '@/types/performanceTarget';
 import type { SalesRep } from '@/types/salesRep';
 import type { CommissionRecord as CommissionRecordEntity, CommissionStatus } from '@/types/commission';
+import { ExportButton } from '@/app/components/ExportButton';
 
 // Data source: salesRepsRepository (identity) + performanceTargetsRepository
 // (target/actual per rep per period, shared with Territory Management and
@@ -60,13 +61,43 @@ interface Bonus {
   icon: React.ElementType;
 }
 
-// Fixed set of periods this screen offers — maps the dropdown value to the
-// ISO date performance_targets/commissions store, and to the display label.
-const PERIOD_OPTIONS = [
-  { value: 'feb-2024', iso: '2024-02-01', label: 'Feb 2024' },
-  { value: 'jan-2024', iso: '2024-01-01', label: 'Jan 2024' },
-  { value: 'dec-2023', iso: '2023-12-01', label: 'Dec 2023' },
-];
+// Maps the dropdown value to the ISO date performance_targets/commissions
+// store, and to the display label.
+//
+// Bab 34 fix (24 Sep 2026, review grup menu "Tim Penjualan"): this used to
+// be hardcoded to exactly Feb 2024/Jan 2024/Dec 2023 -- the 3 months the
+// original sample data happened to use -- so the period actually running
+// right now (and any month since) could never be selected here at all,
+// no matter how many real commission records existed for it. Now built
+// from the current date (MONTHS_BACK rolling months, most recent first)
+// with those 3 legacy sample months appended after, deduplicated, so old
+// demo data stays reachable too.
+const MONTHS_BACK = 12;
+const MONTH_LABELS_ID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+function buildPeriodOptions(): { value: string; iso: string; label: string }[] {
+  const now = new Date();
+  const rolling: { value: string; iso: string; label: string }[] = [];
+  for (let i = 0; i < MONTHS_BACK; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    rolling.push({
+      value: `${mm}-${yyyy}`,
+      iso: `${yyyy}-${mm}-01`,
+      label: `${MONTH_LABELS_ID[d.getMonth()]} ${yyyy}`,
+    });
+  }
+  const legacy = [
+    { value: 'feb-2024', iso: '2024-02-01', label: 'Feb 2024' },
+    { value: 'jan-2024', iso: '2024-01-01', label: 'Jan 2024' },
+    { value: 'dec-2023', iso: '2023-12-01', label: 'Dec 2023' },
+  ];
+  const seenIso = new Set(rolling.map((p) => p.iso));
+  return [...rolling, ...legacy.filter((p) => !seenIso.has(p.iso))];
+}
+
+const PERIOD_OPTIONS = buildPeriodOptions();
 
 const SEED_REPS: Array<Omit<SalesRep, 'id' | 'createdAt'>> = [
   { name: 'Budi Santoso', email: 'budi.santoso@gmail.com', role: 'Sales Executive' },
@@ -75,21 +106,28 @@ const SEED_REPS: Array<Omit<SalesRep, 'id' | 'createdAt'>> = [
   { name: 'Eko Prasetyo', email: 'eko.prasetyo@gmail.com', role: 'Sales Executive' },
 ];
 
-// Same 5 commission records this screen has always shipped with as sample
-// data — quota of Rp300jt/bulan is consistent across all of them (back-
-// derived from totalSales/achievementRate in the original hardcoded data).
+// Bab 34 fix (24 Sep 2026, review grup menu "Tim Penjualan"): these 5
+// baseCommission figures were hand-typed and never actually derived from
+// the progressive tier formula below (calculateSim) -- LIVE-VERIFIED by
+// feeding Budi Santoso's exact totalSales (350jt) into the Incentive
+// Simulator and getting Rp12,75jt back, not the Rp13,125jt this seed
+// claimed. Recomputed all 5 from `tiers` (0-100jt@2.5%, 100-250jt@3.5%,
+// 250-500jt@5.0%, 500jt+@7.0%) so the sample data and the simulator now
+// agree for identical input. totalCommission = recomputed base + the
+// same bonuses as before (bonuses are a separate business figure, not
+// derived from the tier table).
 const SEED_COMMISSIONS = [
-  { salesPersonName: 'Budi Santoso', periodIso: '2024-02-01', target: 300000000, totalSales: 350000000, baseCommission: 13125000, bonuses: 10000000, totalCommission: 23125000, status: 'pending' as CommissionStatus, deals: 3 },
-  { salesPersonName: 'Ani Wijaya', periodIso: '2024-02-01', target: 300000000, totalSales: 280000000, baseCommission: 10800000, bonuses: 7800000, totalCommission: 18600000, status: 'approved' as CommissionStatus, deals: 4 },
-  { salesPersonName: 'Dewi Kartika', periodIso: '2024-02-01', target: 300000000, totalSales: 520000000, baseCommission: 29400000, bonuses: 25000000, totalCommission: 54400000, status: 'approved' as CommissionStatus, deals: 5 },
-  { salesPersonName: 'Eko Prasetyo', periodIso: '2024-02-01', target: 300000000, totalSales: 185000000, baseCommission: 6437500, bonuses: 0, totalCommission: 6437500, status: 'pending' as CommissionStatus, deals: 2 },
-  { salesPersonName: 'Budi Santoso', periodIso: '2024-01-01', target: 300000000, totalSales: 420000000, baseCommission: 19600000, bonuses: 15000000, totalCommission: 34600000, status: 'paid' as CommissionStatus, deals: 6, paymentDate: '2024-02-05' },
+  { salesPersonName: 'Budi Santoso', periodIso: '2024-02-01', target: 300000000, totalSales: 350000000, baseCommission: 12750000, bonuses: 10000000, totalCommission: 22750000, status: 'pending' as CommissionStatus, deals: 3 },
+  { salesPersonName: 'Ani Wijaya', periodIso: '2024-02-01', target: 300000000, totalSales: 280000000, baseCommission: 9250000, bonuses: 7800000, totalCommission: 17050000, status: 'approved' as CommissionStatus, deals: 4 },
+  { salesPersonName: 'Dewi Kartika', periodIso: '2024-02-01', target: 300000000, totalSales: 520000000, baseCommission: 21650000, bonuses: 25000000, totalCommission: 46650000, status: 'approved' as CommissionStatus, deals: 5 },
+  { salesPersonName: 'Eko Prasetyo', periodIso: '2024-02-01', target: 300000000, totalSales: 185000000, baseCommission: 5475000, bonuses: 0, totalCommission: 5475000, status: 'pending' as CommissionStatus, deals: 2 },
+  { salesPersonName: 'Budi Santoso', periodIso: '2024-01-01', target: 300000000, totalSales: 420000000, baseCommission: 16250000, bonuses: 15000000, totalCommission: 31250000, status: 'paid' as CommissionStatus, deals: 6, paymentDate: '2024-02-05' },
 ];
 
 export function CommissionCalculator() {
   const [activeTab, setActiveTab] = useState('commissions');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedPeriod, setSelectedPeriod] = useState('feb-2024');
+  const [selectedPeriod, setSelectedPeriod] = useState(PERIOD_OPTIONS[0]?.value ?? 'feb-2024');
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<CommissionRecordView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -198,22 +236,44 @@ export function CommissionCalculator() {
     }
   };
 
+  // Bab 34 fix (24 Sep 2026): this used to filter `commissions` (every
+  // period, unscoped) instead of `currentPeriodCommissions` (the period
+  // the user has selected on screen) -- clicking "Approve All Pending"
+  // while viewing Feb 2024 could silently approve pending Jan 2024 or Dec
+  // 2023 records too. It also never checked each update's own
+  // result.success before declaring success, so a handful of failed
+  // updates (network blip, a 403, whatever) would still show "N komisi
+  // berhasil disetujui" for the full original count.
   const handleApproveAll = async () => {
-    const pending = commissions.filter(c => c.status === 'pending');
+    const pending = currentPeriodCommissions.filter(c => c.status === 'pending');
     if (pending.length === 0) {
-      toast.info('Tidak ada komisi dengan status pending');
+      toast.info('Tidak ada komisi dengan status pending pada periode ini');
       return;
     }
 
+    let succeeded = 0;
+    let failed = 0;
     for (const record of pending) {
-      await commissionsRepository.update(record.id, { status: 'approved' });
+      const result = await commissionsRepository.update(record.id, { status: 'approved' });
+      if (result.success) succeeded += 1;
+      else failed += 1;
     }
-    toast.success(`${pending.length} komisi berhasil disetujui`);
+    if (succeeded > 0) toast.success(`${succeeded} komisi berhasil disetujui`);
+    if (failed > 0) toast.error(`${failed} komisi gagal disetujui, coba lagi`);
     await loadData();
   };
 
+  // Bab 34 fix (24 Sep 2026): "Konfirmasi Pembayaran" used to only be
+  // disabled when the record was ALREADY paid, so a still-PENDING record
+  // (never approved by anyone) could be marked paid directly -- skipping
+  // the APPROVED step entirely, with zero backend validation either (see
+  // handleCommissions' PUT in api/handler.ts, also fixed this round).
   const handleConfirmPayment = async () => {
     if (!selectedRecord) return;
+    if (selectedRecord.status !== 'approved') {
+      toast.error('Komisi ini harus disetujui (approved) terlebih dahulu sebelum bisa dibayarkan');
+      return;
+    }
     const result = await commissionsRepository.update(selectedRecord.id, {
       status: 'paid',
       paymentDate: new Date().toISOString().slice(0, 10),
@@ -235,7 +295,21 @@ export function CommissionCalculator() {
     );
   }
 
-  const currentPeriodCommissions = commissions.filter(c => c.period.toLowerCase().includes(selectedPeriod.replace('-', ' ')));
+  // Bab 34 fix (24 Sep 2026): matched by fragile string-contains
+  // (`selectedPeriod.replace('-', ' ')` against the display label) which
+  // broke once PERIOD_OPTIONS' value format changed above -- matches by
+  // the option's own label now, the same label loadData() already stamps
+  // onto each record's `period` field.
+  const selectedPeriodOption = PERIOD_OPTIONS.find((p) => p.value === selectedPeriod);
+  const currentPeriodCommissions = commissions.filter(c => c.period === (selectedPeriodOption?.label ?? ''));
+
+  // Bab 34 fix (24 Sep 2026): searchQuery was set on every keystroke but
+  // never actually read by any filter -- LIVE-VERIFIED by typing a
+  // non-matching string into "Cari tenaga sales..." on production and
+  // seeing all records stay visible regardless.
+  const visibleCommissions = currentPeriodCommissions.filter((c) =>
+    searchQuery.trim() === '' || c.salesPerson.toLowerCase().includes(searchQuery.trim().toLowerCase())
+  );
   
   // Define chart data variables
   const commissionByPersonData = currentPeriodCommissions.map(c => ({
@@ -299,9 +373,12 @@ export function CommissionCalculator() {
           </p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" className="gap-2 border-gray-200">
-            <Download className="h-4 w-4" /> Export Payroll
-          </Button>
+          <ExportButton
+            data={currentPeriodCommissions}
+            filename={`Payroll_Komisi_${selectedPeriodOption?.value ?? selectedPeriod}`}
+            title={`Payroll Komisi - ${selectedPeriodOption?.label ?? selectedPeriod}`}
+            disabled={currentPeriodCommissions.length === 0}
+          />
           <Button 
             className="bg-[#013E37] hover:bg-[#025C52] text-white shadow-lg shadow-emerald-900/20 gap-2"
             onClick={handleApproveAll}
@@ -380,9 +457,9 @@ export function CommissionCalculator() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="feb-2024">Februari 2024</SelectItem>
-                <SelectItem value="jan-2024">Januari 2024</SelectItem>
-                <SelectItem value="dec-2023">Desember 2023</SelectItem>
+                {PERIOD_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -401,7 +478,7 @@ export function CommissionCalculator() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {currentPeriodCommissions.map((record) => (
+                  {visibleCommissions.map((record) => (
                     <tr key={record.id} className="hover:bg-gray-50/50 transition-colors group cursor-pointer" onClick={() => { setSelectedRecord(record); setShowDetailDialog(true); }}>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
@@ -691,9 +768,13 @@ export function CommissionCalculator() {
                 <Button
                   className="bg-white text-[#013E37] hover:bg-emerald-50 h-12 px-8 font-bold text-base rounded-xl"
                   onClick={handleConfirmPayment}
-                  disabled={selectedRecord.status === 'paid'}
+                  disabled={selectedRecord.status !== 'approved'}
                 >
-                  {selectedRecord.status === 'paid' ? 'Sudah Dibayar' : 'Konfirmasi Pembayaran'}
+                  {selectedRecord.status === 'paid'
+                    ? 'Sudah Dibayar'
+                    : selectedRecord.status === 'pending'
+                    ? 'Menunggu Approval'
+                    : 'Konfirmasi Pembayaran'}
                 </Button>
               </div>
             </div>

@@ -33,6 +33,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Role, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
+import { randomUUID } from 'node:crypto';
 import {
   hashPassword,
   verifyPassword,
@@ -575,6 +576,271 @@ function generateCustomerId(): string {
 // same approver set as Distributor/Store (Bab 9) and Territory.
 const CLIENT_APPROVER_ROLES: Role[] = ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADMIN'];
 
+// ---------------------------------------------------------------------
+// /api/employees, /api/employees/:id
+//
+// Bab 34 fix (24 Sep 2026, review grup menu "Tim Penjualan"): real backend
+// for the Sales Representative / HR personnel screen -- previously
+// src/services/api.ts's employeesApi, 100% localStorage (see the Employee
+// model's comment in prisma/schema.prisma for the full story). Written
+// with raw SQL, not a typed `prisma.employee.*` call, because the Employee
+// model was added after this sandbox's Prisma Client was last generated
+// and it can't be regenerated here (no network to binaries.prisma.sh).
+// ---------------------------------------------------------------------
+
+const EMPLOYEE_COLUMNS: [string, string][] = [
+  ['id', 'id'],
+  ['nama_lengkap', 'namaLengkap'],
+  ['nik', 'nik'],
+  ['tempat_lahir', 'tempatLahir'],
+  ['tanggal_lahir', 'tanggalLahir'],
+  ['jenis_kelamin', 'jenisKelamin'],
+  ['alamat', 'alamat'],
+  ['nomor_wa', 'nomorWa'],
+  ['email_pribadi', 'emailPribadi'],
+  ['divisi', 'divisi'],
+  ['jabatan', 'jabatan'],
+  ['level_jabatan', 'levelJabatan'],
+  ['status_karyawan', 'statusKaryawan'],
+  ['tanggal_bergabung', 'tanggalBergabung'],
+  ['nama_atasan', 'namaAtasan'],
+  ['npwp', 'npwp'],
+  ['nomor_rekening', 'nomorRekening'],
+  ['nama_bank', 'namaBank'],
+  ['bpjs_ketenagakerjaan', 'bpjsKetenagakerjaan'],
+  ['bpjs_kesehatan', 'bpjsKesehatan'],
+  ['email_kantor', 'emailKantor'],
+  ['nda_signed', 'ndaSigned'],
+  ['tanggal_nda', 'tanggalNda'],
+  ['level_akses', 'levelAkses'],
+  ['aset_perusahaan', 'asetPerusahaan'],
+  ['created_at', 'createdAt'],
+  ['updated_at', 'updatedAt'],
+];
+const EMPLOYEE_WRITABLE_COLUMNS = EMPLOYEE_COLUMNS.filter(([col]) => !['id', 'created_at', 'updated_at'].includes(col));
+const EMPLOYEE_SELECT_COLS = EMPLOYEE_COLUMNS.map(([c]) => `"${c}"`).join(', ');
+// HR/PII data (NIK, payroll, NDA/access) -- restricted to the same roles
+// that can delete a Client, not open to every authenticated user.
+const EMPLOYEE_MANAGE_ROLES: Role[] = ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADMIN'];
+
+function mapEmployeeRow(row: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [col, camel] of EMPLOYEE_COLUMNS) out[camel] = row[col];
+  return out;
+}
+
+async function handleEmployees(id: string | undefined, req: ApiRequest, res: ApiResponse) {
+  try {
+    const user = await getUserFromToken(extractBearerToken(req.headers.authorization));
+    requireAuth(user);
+
+    if (!id) {
+      if (req.method === 'GET') {
+        const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+          `SELECT ${EMPLOYEE_SELECT_COLS} FROM employees ORDER BY created_at DESC`,
+        );
+        res.status(200).json({ success: true, data: rows.map(mapEmployeeRow) });
+        return;
+      }
+      if (req.method === 'POST') {
+        requireRole(user, EMPLOYEE_MANAGE_ROLES);
+        const body = (req.body ?? {}) as Record<string, unknown>;
+        if (!body.namaLengkap) {
+          res.status(400).json({ success: false, error: 'namaLengkap wajib diisi' });
+          return;
+        }
+        const newId = randomUUID();
+        const now = new Date();
+        const cols: string[] = ['id', 'created_at', 'updated_at'];
+        const placeholders: string[] = ['$1', '$2', '$3'];
+        const values: unknown[] = [newId, now, now];
+        let i = 4;
+        for (const [col, camel] of EMPLOYEE_WRITABLE_COLUMNS) {
+          if (body[camel] !== undefined) {
+            cols.push(col);
+            placeholders.push(`$${i}`);
+            values.push(body[camel]);
+            i += 1;
+          }
+        }
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO employees (${cols.map((c) => `"${c}"`).join(', ')}) VALUES (${placeholders.join(', ')})`,
+          ...values,
+        );
+        await logAudit(user.id, 'employee.create', 'Employee', newId, undefined, { namaLengkap: body.namaLengkap as string });
+        const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+          `SELECT ${EMPLOYEE_SELECT_COLS} FROM employees WHERE id = $1`,
+          newId,
+        );
+        res.status(201).json({ success: true, data: mapEmployeeRow(rows[0]) });
+        return;
+      }
+      res.status(405).json({ success: false, error: 'Method not allowed' });
+      return;
+    }
+
+    // /api/employees/:id
+    if (req.method === 'GET') {
+      const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+        `SELECT ${EMPLOYEE_SELECT_COLS} FROM employees WHERE id = $1`,
+        id,
+      );
+      if (!rows[0]) {
+        res.status(404).json({ success: false, error: 'Employee not found' });
+        return;
+      }
+      res.status(200).json({ success: true, data: mapEmployeeRow(rows[0]) });
+      return;
+    }
+
+    if (req.method === 'PUT') {
+      requireRole(user, EMPLOYEE_MANAGE_ROLES);
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const sets: string[] = [];
+      const values: unknown[] = [];
+      let i = 1;
+      for (const [col, camel] of EMPLOYEE_WRITABLE_COLUMNS) {
+        if (body[camel] !== undefined) {
+          sets.push(`"${col}" = $${i}`);
+          values.push(body[camel]);
+          i += 1;
+        }
+      }
+      sets.push(`"updated_at" = $${i}`);
+      values.push(new Date());
+      i += 1;
+      values.push(id);
+      const affected = await prisma.$executeRawUnsafe(`UPDATE employees SET ${sets.join(', ')} WHERE id = $${i}`, ...values);
+      if (affected === 0) {
+        res.status(404).json({ success: false, error: 'Employee not found' });
+        return;
+      }
+      await logAudit(user.id, 'employee.update', 'Employee', id, undefined, undefined);
+      const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+        `SELECT ${EMPLOYEE_SELECT_COLS} FROM employees WHERE id = $1`,
+        id,
+      );
+      res.status(200).json({ success: true, data: mapEmployeeRow(rows[0]) });
+      return;
+    }
+
+    if (req.method === 'DELETE') {
+      requireRole(user, EMPLOYEE_MANAGE_ROLES);
+      const affected = await prisma.$executeRawUnsafe(`DELETE FROM employees WHERE id = $1`, id);
+      if (affected === 0) {
+        res.status(404).json({ success: false, error: 'Employee not found' });
+        return;
+      }
+      await logAudit(user.id, 'employee.delete', 'Employee', id, undefined, undefined);
+      res.status(200).json({ success: true });
+      return;
+    }
+
+    res.status(405).json({ success: false, error: 'Method not allowed' });
+  } catch (err) {
+    if (err instanceof UnauthorizedError || err instanceof ForbiddenError) {
+      res.status(err.status).json({ success: false, error: err.message });
+      return;
+    }
+    console.error('[api/employees] unexpected error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
+// Bab 34 fix (24 Sep 2026): Client columns added after the Prisma Client in
+// this sandbox was last generated (no network to binaries.prisma.sh to
+// regenerate it -- see MEMORY.md) -- read/written via raw SQL instead of
+// the typed `prisma.client.*` calls used for every pre-existing field.
+// `npx prisma generate` picks these up onto the typed client normally once
+// migrated; this raw-SQL layer can be deleted at that point.
+const CLIENT_EXTRA_COLUMNS: [string, string][] = [
+  ['sektor_client', 'sektorClient'],
+  ['alamat_pengiriman', 'alamatPengiriman'],
+  ['alamat_sama_dengan_penagihan', 'alamatSamaDenganPenagihan'],
+  ['website', 'website'],
+  ['discount', 'discount'],
+  ['discount_status', 'discountStatus'],
+  ['discount_approval_status', 'discountApprovalStatus'],
+  ['discount_approval_requested_at', 'discountApprovalRequestedAt'],
+  ['discount_approval_decided_by_id', 'discountApprovalDecidedById'],
+  ['discount_approval_decided_at', 'discountApprovalDecidedAt'],
+];
+
+function mapClientExtraRow(row: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [col, camel] of CLIENT_EXTRA_COLUMNS) {
+    const v = row[col];
+    // node-postgres returns DECIMAL as a string to avoid float rounding --
+    // `discount` is small (0-100ish) so a plain Number() round-trip is safe.
+    out[camel] = col === 'discount' && typeof v === 'string' ? Number(v) : v;
+  }
+  return out;
+}
+
+async function fetchClientExtra(clientId: string): Promise<Record<string, unknown>> {
+  const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+    `SELECT ${CLIENT_EXTRA_COLUMNS.map(([col]) => `"${col}"`).join(', ')} FROM clients WHERE id = $1`,
+    clientId,
+  );
+  return rows[0] ? mapClientExtraRow(rows[0]) : {};
+}
+
+async function fetchClientsExtraMap(clientIds: string[]): Promise<Map<string, Record<string, unknown>>> {
+  const map = new Map<string, Record<string, unknown>>();
+  if (clientIds.length === 0) return map;
+  const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
+    `SELECT id, ${CLIENT_EXTRA_COLUMNS.map(([col]) => `"${col}"`).join(', ')} FROM clients WHERE id = ANY($1)`,
+    clientIds,
+  );
+  for (const row of rows) map.set(row.id as string, mapClientExtraRow(row));
+  return map;
+}
+
+// Whitelisted, directly PUT/POST-able extra fields. discountApprovalStatus
+// and its requested/decided-by/at companions are deliberately EXCLUDED --
+// those may only change via the request-discount-approval /
+// decide-discount-approval actions below, so an ordinary profile-edit PUT
+// can never forge its own approval.
+async function applyClientExtraFields(clientId: string, body: Record<string, unknown>): Promise<void> {
+  const sets: string[] = [];
+  const values: unknown[] = [];
+  let i = 1;
+  const push = (col: string, val: unknown) => {
+    sets.push(`"${col}" = $${i}`);
+    values.push(val);
+    i += 1;
+  };
+  if (body.sektorClient !== undefined) push('sektor_client', body.sektorClient);
+  if (body.alamatPengiriman !== undefined) push('alamat_pengiriman', body.alamatPengiriman);
+  if (body.alamatSamaDenganPenagihan !== undefined) push('alamat_sama_dengan_penagihan', body.alamatSamaDenganPenagihan);
+  if (body.website !== undefined) push('website', body.website);
+  if (body.discount !== undefined) push('discount', body.discount);
+  if (body.discountStatus !== undefined) push('discount_status', body.discountStatus);
+  if (sets.length === 0) return;
+  values.push(clientId);
+  await prisma.$executeRawUnsafe(`UPDATE clients SET ${sets.join(', ')} WHERE id = $${i}`, ...values);
+}
+
+// Server-side mirror of ClientForm.tsx's own submit guard ("Diskon di atas
+// 20% memerlukan persetujuan atasan sebelum data dapat disimpan.") -- that
+// check was previously ONLY client-side, so a direct API call could always
+// save any discount with no approval at all.
+async function validateClientDiscount(
+  body: Record<string, unknown>,
+  currentApprovalStatus: string | null | undefined,
+): Promise<string | null> {
+  if (body.discount === undefined) return null;
+  const discount = Number(body.discount);
+  if (!Number.isFinite(discount) || discount < 0 || discount > 100) {
+    return 'discount harus berupa angka 0-100';
+  }
+  const approvalStatus = (body.discountApprovalStatus as string | undefined) ?? currentApprovalStatus;
+  if (discount > 20 && approvalStatus !== 'approved') {
+    return 'Diskon di atas 20% memerlukan persetujuan atasan sebelum data dapat disimpan';
+  }
+  return null;
+}
+
 async function handleClients(id: string | undefined, req: ApiRequest, res: ApiResponse) {
   try {
     const user = await getUserFromToken(extractBearerToken(req.headers.authorization));
@@ -585,7 +851,11 @@ async function handleClients(id: string | undefined, req: ApiRequest, res: ApiRe
 
       if (req.method === 'GET') {
         const clients = await prisma.client.findMany({ orderBy: { createdAt: 'desc' } });
-        res.status(200).json({ success: true, data: clients });
+        const extraMap = await fetchClientsExtraMap(clients.map((c) => c.id));
+        res.status(200).json({
+          success: true,
+          data: clients.map((c) => ({ ...c, ...(extraMap.get(c.id) ?? {}) })),
+        });
         return;
       }
 
@@ -593,6 +863,11 @@ async function handleClients(id: string | undefined, req: ApiRequest, res: ApiRe
         const body = (req.body ?? {}) as Record<string, unknown>;
         if (!body.namaEntitas || !body.kategoriClient) {
           res.status(400).json({ success: false, error: 'namaEntitas dan kategoriClient wajib diisi' });
+          return;
+        }
+        const discountError = await validateClientDiscount(body, null);
+        if (discountError) {
+          res.status(400).json({ success: false, error: discountError });
           return;
         }
         const client = await prisma.client.create({
@@ -628,7 +903,9 @@ async function handleClients(id: string | undefined, req: ApiRequest, res: ApiRe
             submittedAt: new Date(),
           },
         });
-        res.status(201).json({ success: true, data: client });
+        await applyClientExtraFields(client.id, body);
+        const extra = await fetchClientExtra(client.id);
+        res.status(201).json({ success: true, data: { ...client, ...extra } });
         return;
       }
 
@@ -655,13 +932,70 @@ async function handleClients(id: string | undefined, req: ApiRequest, res: ApiRe
         res.status(404).json({ success: false, error: 'Client not found' });
         return;
       }
-      res.status(200).json({ success: true, data: client });
+      const extra = await fetchClientExtra(client.id);
+      res.status(200).json({ success: true, data: { ...client, ...extra } });
       return;
     }
 
     if (req.method === 'PUT') {
       requireAuth(user);
       const body = (req.body ?? {}) as Record<string, unknown>;
+
+      // Bab 34 fix (24 Sep 2026): real (server-tracked) discount approval,
+      // replacing ClientForm.tsx's old handleRequestApproval which was a
+      // pure-frontend `setTimeout` that "approved" a >20% discount 4
+      // seconds after requesting it -- no approver, human or otherwise,
+      // was ever actually involved. request-discount-approval just records
+      // the request (any authenticated user); decide-discount-approval
+      // requires CLIENT_APPROVER_ROLES, same set that decides the client's
+      // own status.
+      const action = body.action as 'request-discount-approval' | 'decide-discount-approval' | undefined;
+      if (action === 'request-discount-approval') {
+        const current = await prisma.client.findUnique({ where: { id } });
+        if (!current) {
+          res.status(404).json({ success: false, error: 'Client not found' });
+          return;
+        }
+        await prisma.$executeRawUnsafe(
+          `UPDATE clients SET discount_approval_status = $1, discount_status = $2, discount_approval_requested_at = $3, discount_approval_decided_by_id = NULL, discount_approval_decided_at = NULL WHERE id = $4`,
+          'pending',
+          'Menunggu Persetujuan',
+          new Date(),
+          id,
+        );
+        await logAudit(user.id, 'client.discount_approval.request', 'Client', id, undefined, {
+          discount: (body.discount as number | undefined) ?? null,
+        });
+        const extra = await fetchClientExtra(id);
+        res.status(200).json({ success: true, data: { ...current, ...extra } });
+        return;
+      }
+      if (action === 'decide-discount-approval') {
+        requireRole(user, CLIENT_APPROVER_ROLES);
+        const decision = body.decision as 'approved' | 'rejected' | undefined;
+        if (decision !== 'approved' && decision !== 'rejected') {
+          res.status(400).json({ success: false, error: 'decision harus approved atau rejected' });
+          return;
+        }
+        const current = await prisma.client.findUnique({ where: { id } });
+        if (!current) {
+          res.status(404).json({ success: false, error: 'Client not found' });
+          return;
+        }
+        await prisma.$executeRawUnsafe(
+          `UPDATE clients SET discount_approval_status = $1, discount_status = $2, discount_approval_decided_by_id = $3, discount_approval_decided_at = $4 WHERE id = $5`,
+          decision,
+          decision === 'approved' ? 'Approved by Director' : 'Ditolak',
+          user!.id,
+          new Date(),
+          id,
+        );
+        await logAudit(user.id, `client.discount_approval.${decision}`, 'Client', id, undefined, {});
+        const extra = await fetchClientExtra(id);
+        res.status(200).json({ success: true, data: { ...current, ...extra } });
+        return;
+      }
+
       const editableFields = [
         'namaEntitas', 'kategoriClient', 'owner', 'alamatLengkap', 'koordinatGps',
         'nomorTelepon', 'emailResmi', 'namaPic', 'jabatanPic',
@@ -671,18 +1005,40 @@ async function handleClients(id: string | undefined, req: ApiRequest, res: ApiRe
         'salesFlow', 'distributorId', 'storeId',
       ] as const;
 
-      // A status change away from PENDING is an approval decision, not a
-      // profile edit -- gate it separately, same split as Distributor/Store.
+      // Bab 34 fix (24 Sep 2026, review grup menu "Tim Penjualan"): a
+      // status change is ALWAYS an approval decision, not a profile edit --
+      // it used to only require CLIENT_APPROVER_ROLES when the client's
+      // CURRENT status was still PENDING (`isDeciding = ... && current.status
+      // === 'PENDING'`), but `data.status = nextStatus` below was applied
+      // UNCONDITIONALLY whenever nextStatus was present. Once a client had
+      // already been approved (or rejected) once, isDeciding went false and
+      // ANY authenticated user (requireAuth only, no role check at all) could
+      // flip its status again -- with no audit log either, since that was
+      // also gated on isDeciding. Distributor/Store don't have this bug:
+      // their whole PUT is already requireRole()'d up front, unlike
+      // Client's. Fix: any actual status change requires the approver role
+      // and gets audited, regardless of the client's current status.
       const nextStatus = body.status as 'PENDING' | 'APPROVED' | 'REJECTED' | undefined;
-      let isDeciding = false;
+      let isStatusChange = false;
+      let previousStatus: string | undefined;
       if (nextStatus !== undefined) {
         const current = await prisma.client.findUnique({ where: { id } });
         if (!current) {
           res.status(404).json({ success: false, error: 'Client not found' });
           return;
         }
-        isDeciding = nextStatus !== current.status && current.status === 'PENDING';
-        if (isDeciding) requireRole(user, CLIENT_APPROVER_ROLES);
+        previousStatus = current.status;
+        isStatusChange = nextStatus !== current.status;
+        if (isStatusChange) requireRole(user, CLIENT_APPROVER_ROLES);
+      }
+
+      if (body.discount !== undefined) {
+        const existingExtra = await fetchClientExtra(id);
+        const discountError = await validateClientDiscount(body, existingExtra.discountApprovalStatus as string | undefined);
+        if (discountError) {
+          res.status(400).json({ success: false, error: discountError });
+          return;
+        }
       }
 
       const data: Record<string, unknown> = {};
@@ -690,24 +1046,26 @@ async function handleClients(id: string | undefined, req: ApiRequest, res: ApiRe
         if (body[field] !== undefined) data[field] = body[field];
       }
       if (nextStatus !== undefined) data.status = nextStatus;
-      if (isDeciding) {
+      if (isStatusChange) {
         data.decidedById = user!.id;
         data.decidedAt = new Date();
       }
       if (body.rejectionNote !== undefined) data.rejectionNote = body.rejectionNote as string;
 
       const client = await prisma.client.update({ where: { id }, data });
-      if (isDeciding) {
+      if (isStatusChange) {
         await logAudit(
           user.id,
-          nextStatus === 'APPROVED' ? 'client.approve' : 'client.reject',
+          nextStatus === 'APPROVED' ? 'client.approve' : nextStatus === 'REJECTED' ? 'client.reject' : 'client.status_change',
           'Client',
           id,
-          undefined,
+          { status: previousStatus },
           { status: nextStatus, rejectionNote: (body.rejectionNote as string) ?? null },
         );
       }
-      res.status(200).json({ success: true, data: client });
+      await applyClientExtraFields(id, body);
+      const extra = await fetchClientExtra(id);
+      res.status(200).json({ success: true, data: { ...client, ...extra } });
       return;
     }
 
@@ -1284,7 +1642,25 @@ async function handleCommissions(id: string | undefined, req: ApiRequest, res: A
       requireAuth(user);
 
       if (req.method === 'GET') {
-        const records = await prisma.commissionRecord.findMany({ orderBy: { period: 'desc' } });
+        // Bab 34 fix (24 Sep 2026, review grup menu "Tim Penjualan"): this
+        // used to return every sales rep's commission records to any
+        // authenticated user -- no role or ownership filter at all, so a
+        // Sales Executive could see everyone else's payout figures.
+        // Managers/admins still see everything; a rep-level user sees only
+        // the record(s) tied to the SalesRep whose email matches their own
+        // (SalesRep has no direct userId FK -- email is the same
+        // correlation key already used to link a User to a Distributor/
+        // Store salesRepId elsewhere in this codebase).
+        const MANAGE_ALL_ROLES: Role[] = ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADMIN'];
+        let records;
+        if (MANAGE_ALL_ROLES.includes(user.role)) {
+          records = await prisma.commissionRecord.findMany({ orderBy: { period: 'desc' } });
+        } else {
+          const ownRep = await prisma.salesRep.findUnique({ where: { email: user.email } });
+          records = ownRep
+            ? await prisma.commissionRecord.findMany({ where: { salesRepId: ownRep.id }, orderBy: { period: 'desc' } })
+            : [];
+        }
         res.status(200).json({ success: true, data: records });
         return;
       }
@@ -1330,6 +1706,32 @@ async function handleCommissions(id: string | undefined, req: ApiRequest, res: A
     if (req.method === 'PUT') {
       requireRole(user, ['SUPER_ADMIN', 'SALES_MANAGER']);
       const body = (req.body ?? {}) as Record<string, unknown>;
+
+      // Bab 34 fix (24 Sep 2026, review grup menu "Tim Penjualan"): there
+      // used to be ZERO status-transition validation here -- the frontend
+      // (CommissionCalculator.tsx's "Konfirmasi Pembayaran") was the only
+      // thing stopping a PENDING record from jumping straight to PAID,
+      // and a direct API call bypassed that entirely. Only forward
+      // transitions are allowed (PENDING -> APPROVED -> PAID); sending the
+      // same status back (e.g. re-saving other fields) is a no-op, not an
+      // error.
+      if (body.status !== undefined) {
+        const nextStatus = (body.status as string).toUpperCase() as 'PENDING' | 'APPROVED' | 'PAID';
+        const current = await prisma.commissionRecord.findUnique({ where: { id } });
+        if (!current) {
+          res.status(404).json({ success: false, error: 'Commission record not found' });
+          return;
+        }
+        const ORDER: Record<string, number> = { PENDING: 0, APPROVED: 1, PAID: 2 };
+        if (nextStatus !== current.status && ORDER[nextStatus] !== ORDER[current.status] + 1) {
+          res.status(400).json({
+            success: false,
+            error: `Tidak bisa mengubah status dari ${current.status} langsung ke ${nextStatus} -- harus berurutan PENDING -> APPROVED -> PAID`,
+          });
+          return;
+        }
+      }
+
       const record = await prisma.commissionRecord.update({
         where: { id },
         data: {
@@ -3261,6 +3663,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return;
     case 'sales-reps':
       await handleSalesReps(sub, req, res);
+      return;
+    case 'employees':
+      await handleEmployees(sub, req, res);
       return;
     case 'performance-targets':
       await handlePerformanceTargets(sub, req, res);

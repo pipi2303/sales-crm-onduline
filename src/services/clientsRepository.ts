@@ -83,6 +83,18 @@ const FIELD_MAP: Record<keyof Client, string> = {
   decided_by_id: 'decidedById',
   decided_at: 'decidedAt',
   rejection_note: 'rejectionNote',
+
+  // Bab 34 fix (24 Sep 2026) -- see prisma/schema.prisma's Client model note.
+  sektor_client: 'sektorClient',
+  alamat_pengiriman: 'alamatPengiriman',
+  alamat_sama_dengan_penagihan: 'alamatSamaDenganPenagihan',
+  website: 'website',
+  discount: 'discount',
+  discount_status: 'discountStatus',
+  discount_approval_status: 'discountApprovalStatus',
+  discount_approval_requested_at: 'discountApprovalRequestedAt',
+  discount_approval_decided_by_id: 'discountApprovalDecidedById',
+  discount_approval_decided_at: 'discountApprovalDecidedAt',
 };
 
 // ApprovalStatus is SCREAMING_SNAKE_CASE server-side, lower-case client-side
@@ -156,5 +168,28 @@ export const clientsRepository = {
 
   async remove(id: string): Promise<Result<void>> {
     return apiFetch<void>(`/api/clients/${id}`, { method: 'DELETE' });
+  },
+
+  // Bab 34 fix (24 Sep 2026): replaces ClientForm.tsx's old fake
+  // `setTimeout`-based auto-approval -- these hit real, role-gated backend
+  // actions (api/handler.ts's handleClients PUT action=
+  // request-discount-approval/decide-discount-approval) instead of just
+  // flipping local component state.
+  async requestDiscountApproval(id: string, discount: number): Promise<Result<Client>> {
+    const res = await apiFetch<any>(`/api/clients/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ action: 'request-discount-approval', discount }),
+    });
+    if (!res.success || !res.data) return res as Result<Client>;
+    return { success: true, data: fromApiClient(res.data) };
+  },
+
+  async decideDiscountApproval(id: string, decision: 'approved' | 'rejected'): Promise<Result<Client>> {
+    const res = await apiFetch<any>(`/api/clients/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ action: 'decide-discount-approval', decision }),
+    });
+    if (!res.success || !res.data) return res as Result<Client>;
+    return { success: true, data: fromApiClient(res.data) };
   },
 };

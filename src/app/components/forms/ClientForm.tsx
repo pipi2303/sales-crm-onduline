@@ -31,8 +31,12 @@ interface ClientFormProps {
   onSuccess: () => void;
 }
 
+// Same role labels/pattern as SalesTeam.tsx's CLIENT_APPROVER_ROLES.
+const CLIENT_APPROVER_ROLES = new Set(['Super Admin', 'Sales Manager', 'Master Data Admin']);
+
 export function ClientFormModal({ client, onClose, onSuccess }: ClientFormProps) {
   const { user } = useAuth();
+  const isClientApprover = !!user?.role && CLIENT_APPROVER_ROLES.has(user.role);
   const [loading, setLoading] = React.useState(false);
   
   // State for collapsible sections - default: only dasar is open
@@ -198,24 +202,67 @@ export function ClientFormModal({ client, onClose, onSuccess }: ClientFormProps)
     }));
   };
 
-  const handleRequestApproval = () => {
+  // Bab 34 fix (24 Sep 2026, review grup menu "Tim Penjualan"): this used
+  // to be a pure-frontend `setTimeout` that "approved" itself 4 seconds
+  // after being requested -- no Manager or Director ever actually saw or
+  // decided anything, so every >20% discount was effectively unapproved
+  // in substance while claiming otherwise in the UI. Now hits the real,
+  // role-gated backend (clientsRepository.requestDiscountApproval /
+  // decideDiscountApproval -- see api/handler.ts's handleClients PUT).
+  const [decidingDiscount, setDecidingDiscount] = React.useState(false);
+
+  const handleRequestApproval = async () => {
     if (formData.discount <= 20) {
       toast.info('Diskon di bawah 20% tidak memerlukan persetujuan khusus.');
       return;
     }
-    
-    setFormData(prev => ({ ...prev, discount_approval_status: 'pending' }));
-    toast.info(`Permintaan persetujuan diskon ${formData.discount}% telah dikirim ke Manager & Director via Email.`);
-    
-    // Simulate approval after 4 seconds
-    setTimeout(() => {
-      setFormData(prev => ({ 
-        ...prev, 
-        discount_approval_status: 'approved',
-        discount_status: 'Approved by Director'
-      }));
-      toast.success(`Diskon ${formData.discount}% telah DISETUJUI oleh Director!`);
-    }, 4000);
+    if (!client?.id) {
+      toast.info('Simpan data client terlebih dahulu (diskon di bawah/sama 20%), lalu buka kembali untuk mengajukan approval diskon ini.');
+      return;
+    }
+
+    setDecidingDiscount(true);
+    try {
+      const result = await clientsRepository.requestDiscountApproval(client.id, formData.discount);
+      if (result.success && result.data) {
+        setFormData(prev => ({
+          ...prev,
+          discount_approval_status: result.data!.discount_approval_status || 'pending',
+          discount_status: result.data!.discount_status || 'Menunggu Persetujuan',
+        }));
+        toast.info(`Permintaan persetujuan diskon ${formData.discount}% telah dikirim. Menunggu keputusan Manager/Director.`);
+      } else {
+        toast.error(result.error || 'Gagal mengirim permintaan approval');
+      }
+    } catch (error) {
+      console.error('Error requesting discount approval:', error);
+      toast.error('Terjadi kesalahan saat mengirim permintaan approval');
+    } finally {
+      setDecidingDiscount(false);
+    }
+  };
+
+  const handleDecideDiscountApproval = async (decision: 'approved' | 'rejected') => {
+    if (!client?.id) return;
+    setDecidingDiscount(true);
+    try {
+      const result = await clientsRepository.decideDiscountApproval(client.id, decision);
+      if (result.success && result.data) {
+        setFormData(prev => ({
+          ...prev,
+          discount_approval_status: result.data!.discount_approval_status || decision,
+          discount_status: result.data!.discount_status || '',
+        }));
+        toast.success(decision === 'approved' ? `Diskon ${formData.discount}% telah disetujui.` : 'Permintaan diskon ditolak.');
+      } else {
+        toast.error(result.error || 'Gagal memproses keputusan');
+      }
+    } catch (error) {
+      console.error('Error deciding discount approval:', error);
+      toast.error('Terjadi kesalahan saat memproses keputusan');
+    } finally {
+      setDecidingDiscount(false);
+    }
   };
 
   return (
@@ -931,25 +978,54 @@ export function ClientFormModal({ client, onClose, onSuccess }: ClientFormProps)
                         <Percent className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                       </div>
                       
-                      {formData.discount > 20 && formData.discount_approval_status !== 'approved' && (
+                      {formData.discount > 20 && formData.discount_approval_status !== 'approved' && formData.discount_approval_status !== 'pending' && (
                         <Button
                           type="button"
                           onClick={handleRequestApproval}
-                          disabled={formData.discount_approval_status === 'pending'}
+                          disabled={decidingDiscount}
                           className="flex-1 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white font-black h-12 text-sm shadow-lg shadow-orange-200 border-none"
                         >
-                          {formData.discount_approval_status === 'pending' ? (
-                            <>
-                              <Clock className="w-4 h-4 mr-2 animate-spin" />
-                              MENUNGGU PERSETUJUAN...
-                            </>
-                          ) : (
-                            <>
-                              <Send className="w-4 h-4 mr-2" />
-                              MINTA APPROVAL MANAGER
-                            </>
-                          )}
+                          <Send className="w-4 h-4 mr-2" />
+                          MINTA APPROVAL MANAGER
                         </Button>
+                      )}
+
+                      {/* Bab 34 fix: for a Manager/Director/Master Data Admin
+                          viewing a pending request, show real Approve/Reject
+                          actions instead of the old fake auto-approve timer. */}
+                      {formData.discount_approval_status === 'pending' && isClientApprover && (
+                        <div className="flex-1 flex gap-2">
+                          <Button
+                            type="button"
+                            onClick={() => handleDecideDiscountApproval('approved')}
+                            disabled={decidingDiscount}
+                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black h-12 text-sm"
+                          >
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            SETUJUI
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => handleDecideDiscountApproval('rejected')}
+                            disabled={decidingDiscount}
+                            className="flex-1 border-red-300 text-red-700 hover:bg-red-50 font-black h-12 text-sm"
+                          >
+                            TOLAK
+                          </Button>
+                        </div>
+                      )}
+                      {formData.discount_approval_status === 'pending' && !isClientApprover && (
+                        <div className="flex-1 flex items-center justify-center gap-2 text-amber-700 font-black text-sm h-12 px-3 bg-amber-50 rounded-xl border-2 border-amber-200 shadow-sm">
+                          <Clock className="w-4 h-4" />
+                          MENUNGGU PERSETUJUAN MANAGER/DIRECTOR
+                        </div>
+                      )}
+
+                      {formData.discount_approval_status === 'rejected' && (
+                        <div className="flex-1 flex items-center justify-center gap-2 text-red-700 font-black text-sm h-12 px-3 bg-red-50 rounded-xl border-2 border-red-200 shadow-sm">
+                          Permintaan diskon ditolak. Ubah nilai diskon lalu ajukan ulang.
+                        </div>
                       )}
 
                       {formData.discount_approval_status === 'approved' && (

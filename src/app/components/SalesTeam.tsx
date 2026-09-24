@@ -23,7 +23,7 @@ import { AIInsightsDashboard } from '@/app/components/ai/AIInsightsDashboard';
 import { ExportButton } from '@/app/components/ExportButton';
 import { employeesApi, communicationsApi } from '@/services/api';
 import { clientsRepository } from '@/services/clientsRepository';
-import { populateCRMToLocalStorage } from '@/utils/initializeAllData';
+import { clientsDummyData } from '@/utils/populateCRMData';
 
 const API_URL = 'https://mock-project-id.supabase.co/functions/v1/make-server-67367fc1'; // Disabled - using localStorage
 
@@ -223,6 +223,43 @@ export function SalesTeam() {
     }
   };
 
+  // Bab 34 fix (24 Sep 2026, review grup menu "Tim Penjualan"): this button
+  // used to call populateCRMToLocalStorage(), which wrote dummy
+  // employees/clients/partners/contracts ONLY into localStorage keys
+  // (sales_monitoring_employees/clients/partners/contracts) -- completely
+  // disconnected from clientsRepository.getAll(), the real /api/clients
+  // call this Client tab actually fetches from. Clicking "Load Dummy Data"
+  // looked like it worked (a success toast, numbers in the message) but
+  // the Client list on screen never changed, because it was reading from
+  // the server the whole time while the fake data went into a localStorage
+  // key nothing else reads. Now calls the real API, same pattern as
+  // TerritoryManagement.tsx's handleLoadDummyData (Bab 33).
+  const [loadingDummyClients, setLoadingDummyClients] = useState(false);
+  const handleLoadDummyClients = async () => {
+    setLoadingDummyClients(true);
+    let created = 0;
+    try {
+      for (const seed of clientsDummyData) {
+        const { id: _localId, ...payload } = seed as any;
+        const result = await clientsRepository.create(payload);
+        if (result.success) {
+          created += 1;
+        } else {
+          toast.error(result.error || `Gagal membuat client contoh "${seed.nama_entitas}"`);
+        }
+      }
+      if (created > 0) {
+        toast.success(`${created} client contoh berhasil dimuat`);
+      }
+    } catch (error: any) {
+      console.error('Error loading dummy client data:', error);
+      toast.error(`Gagal memuat data contoh: ${error.message}`);
+    } finally {
+      setLoadingDummyClients(false);
+      fetchClients();
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -233,25 +270,18 @@ export function SalesTeam() {
         </div>
         
         <div className="flex gap-2">
-          <Button
-            onClick={() => {
-              const result = populateCRMToLocalStorage();
-              if (result.success) {
-                toast.success(`✅ ${result.message}\n📊 ${result.data.employees} Sales Rep, ${result.data.clients} Clients, ${result.data.partners} Partners`);
-                // Refresh current tab (Distributor & Toko mengelola fetch-nya sendiri)
-                if (activeTab === 'karyawan') fetchKaryawan();
-                else if (activeTab === 'client') fetchClients();
-              } else {
-                toast.error(`❌ ${result.message}`);
-              }
-            }}
-            variant="outline"
-            size="sm"
-            className="gap-2 border-[#013E37] text-[#013E37] hover:bg-[#013E37] hover:text-white"
-          >
-            <Database className="h-4 w-4" />
-            Load Dummy Data
-          </Button>
+          {activeTab === 'client' && (
+            <Button
+              onClick={handleLoadDummyClients}
+              variant="outline"
+              size="sm"
+              disabled={loadingDummyClients}
+              className="gap-2 border-[#013E37] text-[#013E37] hover:bg-[#013E37] hover:text-white"
+            >
+              <Database className="h-4 w-4" />
+              {loadingDummyClients ? 'Memuat...' : 'Load Dummy Data'}
+            </Button>
+          )}
           <Button
             onClick={() => {
               if (activeTab === 'karyawan') fetchKaryawan();

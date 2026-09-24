@@ -87,7 +87,7 @@ import {
 } from 'recharts';
 import { CHART_PRIMARY, CHART_COLORS, CHART_GRID, CHART_MUTED_TEXT, AREA_GRADIENT_STOPS, CHART_TOOLTIP_STYLE } from '@/styles/chartTheme';
 import { toast } from 'sonner';
-import { employeesApi } from '@/services/api';
+import { employeesRepository } from '@/services/employeesRepository';
 import { KPITargetData, AIInsight, AIRecommendation, AIPrediction, AIAlert, Manager } from '@/types/kpi-enhanced';
 import { getKPITargets, updateKPITarget, saveKPITargets } from '@/utils/kpiPersistence';
 import { KPI_MANAGERS } from '@/data/kpi-managers';
@@ -198,7 +198,7 @@ export function KPIAIEnhanced() {
     setLoading(true);
     try {
       const [employeesResult] = await Promise.all([
-        employeesApi.getAll(),
+        employeesRepository.getAll(),
       ]);
 
       if (employeesResult.success && employeesResult.data) {

@@ -44,7 +44,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Opportunity, ProductItem } from '@/types/opportunity';
-import { partnersApi, employeesApi } from '@/services/api';
+import { partnersApi } from '@/services/api';
+import { employeesRepository } from '@/services/employeesRepository';
 import { clientsRepository } from '@/services/clientsRepository';
 
 interface OpportunityFormNewProps {
@@ -253,7 +254,7 @@ export function OpportunityFormNew({ opportunity, products, onSave, onCancel }: 
       const [clientsResult, partnersResult, employeesResult] = await Promise.all([
         clientsRepository.getAll(),
         partnersApi.getAll(),
-        employeesApi.getAll(),
+        employeesRepository.getAll(),
       ]);
 
       if (clientsResult.success && clientsResult.data) {

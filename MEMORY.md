@@ -3816,3 +3816,131 @@ Laporan disampaikan ke user via chat. Tidak ada kode yang diubah pada
 Bab ini -- murni investigasi + smoke test, menunggu arahan user apakah
 mau lanjut "perbaiki semuanya" seperti pola Bab 30->31 dan 32->33
 sebelumnya.
+
+## 35. Perbaikan menyeluruh: temuan Bab 34 (grup menu "Tim Penjualan")
+
+Menindaklanjuti permintaan user "lanjut perbaiki semuanya sesuai rekomendasi"
+setelah laporan Bab 34. Semua temuan terkonfirmasi diperbaiki, mengikuti pola
+yang sama seperti Bab 32->33 (Produk & Wilayah).
+
+### CRM (Client/Distributor/Toko)
+1. **Bug otorisasi di `handleClients` PUT** -- status client hanya
+   di-requireRole() saat `isDeciding` (current.status === 'PENDING'), tapi
+   `data.status = nextStatus` jalan tanpa syarat. Sekali client sudah
+   pernah di-approve/reject, siapa pun bisa ubah statusnya lagi tanpa role
+   apa pun dan tanpa audit log. Diperbaiki: setiap perubahan status kini
+   SELALU requireRole(CLIENT_APPROVER_ROLES) + audit log, apa pun status
+   saat ini. (Distributor/Store TIDAK punya bug yang sama -- PUT mereka
+   sudah di-requireRole() dari awal endpoint, beda dari Client.)
+2. **Field ClientForm yang di-drop diam-diam** -- sektor_client,
+   alamat_pengiriman + toggle sama-dengan-penagihan, website, dan
+   seluruh field diskon tidak pernah ada di clientsRepository's FIELD_MAP
+   maupun kolom Client. Ditambahkan 10 kolom baru ke Client
+   (migration `20260924040000_add_client_discount_and_missing_fields`),
+   FIELD_MAP + tipe Client diperbarui. Prisma Client di sandbox ini tidak
+   bisa di-regenerate (tidak ada akses ke binaries.prisma.sh) -- kolom baru
+   dibaca/ditulis lewat raw SQL ($queryRawUnsafe/$executeRawUnsafe) di
+   api/handler.ts, bukan lewat `prisma.client.*` yang typed.
+3. **Approval diskon palsu** -- `handleRequestApproval` di ClientForm.tsx
+   dulu cuma `setTimeout` 4 detik yang "menyetujui" dirinya sendiri, tidak
+   pernah ada approver sungguhan. Diganti alur nyata: PUT dengan
+   action=request-discount-approval (siapa saja) dan
+   action=decide-discount-approval (requireRole CLIENT_APPROVER_ROLES),
+   dengan validasi server-side (>20% wajib approved) yang sebelumnya cuma
+   ada di frontend. UI ClientForm sekarang menampilkan tombol
+   Setujui/Tolak sungguhan untuk user dengan role approver.
+4. **"Load Dummy Data" disconnect** -- tombol di SalesTeam.tsx memanggil
+   `populateCRMToLocalStorage()` yang cuma menulis ke localStorage, tidak
+   pernah terhubung ke `clientsRepository.getAll()` yang benar-benar
+   dipakai tab Client. Diganti `handleLoadDummyClients` yang memanggil
+   `clientsRepository.create()` sungguhan untuk tiap data contoh (pola
+   sama seperti `handleLoadDummyData` Territory di Bab 33).
+5. **Distributor/Toko pending tanpa GPS tidak pernah masuk antrean
+   approval** -- `toPoints()` filter `gpsLat/gpsLng !== null` sebelum
+   membentuk `allPoints`, jadi pending tanpa koordinat GPS tidak pernah
+   muncul di kartu "Antrean Approval" maupun hitungan `summary.pendingCount`
+   -- approver tidak punya jalan sama sekali untuk memprosesnya. Ditambah
+   `noGpsPending` (dibangun langsung dari props distributors/stores, bukan
+   dari allPoints), dirender sebagai baris tambahan di kartu approval
+   dengan badge "Tanpa koordinat GPS" + tombol Setujui/Tolak yang sama.
+   (Edit/Delete UI untuk Distributor/Toko yang sudah ada -- gap struktural
+   terpisah -- SENGAJA ditunda, bukan prioritas utama yang dilaporkan ke
+   user.)
+
+### Sales Representative
+6. **100% localStorage, tidak pernah terhubung ke backend sungguhan** --
+   `employeesApi` (src/services/api.ts) hardcode `USE_LOCAL_STORAGE = true`
+   menunjuk ke mock project Supabase yang memang tidak pernah bisa
+   dijangkau; tidak ada route `/employees` di api/handler.ts sama sekali.
+   Dibangun home backend sungguhan: model Prisma `Employee` (25 field HR
+   Karyawan, migration `20260924050000_add_employee_table`, sengaja
+   TERPISAH dari `SalesRep` yang cuma name/email/role untuk keperluan
+   commission/territory), `handleEmployees` (raw SQL, alasan sama seperti
+   poin 2), dan `employeesRepository.ts` (pola adapter yang sama seperti
+   repository lain). Semua pemakai `employeesApi` dipindah ke
+   `employeesRepository`: SalesRepresentative.tsx, KaryawanForm.tsx,
+   OpportunityFormNew.tsx, KPIAIEnhanced.tsx.
+7. **`handleDeleteKaryawan` tidak pernah terhubung ke UI** -- sudah
+   didefinisikan tapi tidak ada tombol yang memanggilnya. Ditambahkan
+   tombol hapus (ikon Trash2) di tiap kartu karyawan.
+8. **"Load Dummy Data" di halaman ini juga sama disconnect-nya** seperti
+   poin 4 -- diperbaiki dengan pola yang sama (seed sungguhan lewat
+   `employeesRepository.create()`).
+
+### Commission Calculator
+9. **Kotak pencarian no-op** -- `searchQuery` di-set tapi tidak pernah
+   dibaca filter mana pun. LIVE-VERIFIED sebelumnya (Bab 34) dengan
+   mengetik string tidak cocok dan semua record tetap tampil. Ditambahkan
+   `visibleCommissions` yang benar-benar memfilter berdasarkan nama sales.
+10. **"Approve All Pending" tidak di-scope ke periode + tidak cek
+    result.success individual** -- memfilter `commissions` (semua
+    periode) bukan `currentPeriodCommissions` (periode yang sedang dilihat
+    user), berisiko meng-approve komisi periode lain sekaligus; juga
+    langsung toast sukses tanpa mengecek tiap update berhasil atau tidak.
+    Diperbaiki keduanya.
+11. **"Konfirmasi Pembayaran" bisa lompat PENDING -> PAID langsung** --
+    tombol cuma disabled saat sudah `paid`, jadi record yang belum pernah
+    di-approve siapa pun bisa langsung dibayar. Diperbaiki: disabled
+    kecuali status `approved`, plus validasi status-transition (PENDING ->
+    APPROVED -> PAID, tidak boleh lompat atau mundur) ditambahkan ke
+    `handleCommissions` PUT di backend -- sebelumnya nol validasi transisi
+    status sama sekali di sana.
+12. **`SEED_COMMISSIONS` tidak cocok dengan rumus tier progresif
+    (`calculateSim`)** -- LIVE-VERIFIED sebelumnya: totalSales asli Budi
+    Santoso (Rp350jt) dimasukkan ke Incentive Simulator menghasilkan
+    Rp12,75jt, bukan Rp13,125jt yang tercatat. Kelima `baseCommission`
+    dihitung ulang dari rumus tier yang sama persis (0-100jt@2.5%,
+    100-250jt@3.5%, 250-500jt@5.0%, 500jt+@7.0%) -- lihat komentar di
+    kode untuk perhitungan masing-masing.
+13. **Tidak ada `@@unique([salesRepId, period])`** walau
+    `handleCommissions` sudah menyiapkan pesan 409 untuk P2002 persis
+    pasangan itu -- proteksi anti-duplikat payout tidak pernah aktif.
+    Ditambahkan (migration `20260924060000_add_commission_unique_constraint`).
+14. **`PERIOD_OPTIONS` hardcode 3 bulan (Des 2023/Jan 2024/Feb 2024)** --
+    periode berjalan (termasuk sekarang, Sep 2026) tidak pernah bisa
+    dipilih. Diganti `buildPeriodOptions()`: 12 bulan rolling dari
+    tanggal sekarang + 3 bulan legacy data contoh (dedup), dropdown+filter
+    disesuaikan (filter lama berbasis string-contains yang rapuh diganti
+    match-by-label yang eksak).
+15. **GET `/api/commissions` tidak difilter per role/owner** -- siapa pun
+    yang login bisa melihat data komisi semua sales rep lain. Diperbaiki:
+    role manajerial (SUPER_ADMIN/SALES_MANAGER/MASTER_DATA_ADMIN) tetap
+    lihat semua; role lain hanya lihat komisi SalesRep yang emailnya cocok
+    dengan email user login.
+16. **Tombol "Export Payroll" tanpa `onClick`** -- diganti komponen
+    `ExportButton` yang sudah dipakai di layar lain (Excel/PDF/CSV),
+    di-scope ke periode yang sedang dilihat.
+
+### Verifikasi
+`npx tsc --noEmit`: 89 error sebelum dan sesudah, nol signature baru
+(dibandingkan lewat teknik baseline-diff file+kode-error, bukan cuma
+hitungan total). `npx vite build`: sukses. `npx vitest run`: 11/11 tetap
+lulus. Migration SQL ditulis sebagai file (tidak bisa diterapkan/
+diverifikasi live di sandbox ini -- user perlu jalankan
+`npx prisma migrate deploy && npx prisma generate` sendiri, setelah itu
+raw-SQL di handleClients/handleEmployees bisa opsional diganti ke
+`prisma.*` yang typed kalau mau).
+
+### Status
+Semua 12 temuan diperbaiki dan di-commit. `git push` masih perlu dilakukan
+user sendiri (tidak ada kredensial git di sandbox ini).

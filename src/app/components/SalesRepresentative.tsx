@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Users, RefreshCw, Database } from 'lucide-react';
+import { Search, Plus, Users, RefreshCw, Database, Trash2 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { useConfirm } from '@/app/components/ui/confirm-dialog';
 import { Card, CardContent } from '@/app/components/ui/card';
@@ -9,8 +9,14 @@ import { KaryawanFormModal } from '@/app/components/forms/KaryawanForm';
 import { EmployeeDetailDialog } from '@/app/components/EmployeeDetailDialog';
 import type { Karyawan } from '@/types/karyawan';
 import { ExportButton } from '@/app/components/ExportButton';
-import { employeesApi } from '@/services/api';
-import { populateCRMToLocalStorage } from '@/utils/initializeAllData';
+// Bab 34 fix (24 Sep 2026, review grup menu "Tim Penjualan"): employeesApi
+// (src/services/api.ts) was pure-frontend localStorage pointed at a mock
+// Supabase project that was never actually reachable -- this screen never
+// made a single real network call. employeesRepository hits the real
+// backend (prisma/schema.prisma's Employee model, api/handler.ts's
+// handleEmployees) instead. See that model's comment for the full story.
+import { employeesRepository } from '@/services/employeesRepository';
+import { salesRepresentativeDummyData } from '@/utils/populateCRMData';
 
 export function SalesRepresentative() {
   const confirm = useConfirm();
@@ -57,13 +63,10 @@ export function SalesRepresentative() {
   const fetchKaryawan = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Fetching karyawan from API...');
-      
-      const result = await employeesApi.getAll();
+      const result = await employeesRepository.getAll();
       
       if (result.success) {
         setKaryawan(result.data || []);
-        console.log(`✅ Loaded ${result.data?.length || 0} karyawan`);
       } else {
         console.error('❌ API Error:', result.error);
         toast.error(result.error || 'Failed to load karyawan');
@@ -76,11 +79,14 @@ export function SalesRepresentative() {
     }
   };
 
+  // Bab 34 fix: handleDeleteKaryawan already existed but was never wired
+  // to any UI button (dead code) -- now called from the trash icon on
+  // each card below.
   const handleDeleteKaryawan = async (id: string) => {
     if (!(await confirm('Apakah Anda yakin ingin menghapus data karyawan ini?', { variant: 'destructive', confirmText: 'Hapus' }))) return;
     
     try {
-      const result = await employeesApi.delete(id);
+      const result = await employeesRepository.remove(id);
       
       if (result.success) {
         toast.success('Karyawan berhasil dihapus');
@@ -90,6 +96,35 @@ export function SalesRepresentative() {
       }
     } catch (error) {
       toast.error('Error deleting karyawan');
+    }
+  };
+
+  // Bab 34 fix: used to call populateCRMToLocalStorage(), which wrote
+  // dummy employees only into a localStorage key -- disconnected from
+  // employeesRepository.getAll() (now the real /api/employees this screen
+  // actually reads). Same real-seed pattern as SalesTeam.tsx's client
+  // dummy-data fix / TerritoryManagement.tsx's Bab 33 fix.
+  const [loadingDummy, setLoadingDummy] = useState(false);
+  const handleLoadDummyData = async () => {
+    setLoadingDummy(true);
+    let created = 0;
+    try {
+      for (const seed of salesRepresentativeDummyData) {
+        const { id: _localId, ...payload } = seed as any;
+        const result = await employeesRepository.create(payload);
+        if (result.success) {
+          created += 1;
+        } else {
+          toast.error(result.error || `Gagal membuat karyawan contoh "${seed.nama_lengkap}"`);
+        }
+      }
+      if (created > 0) toast.success(`${created} data karyawan contoh berhasil dimuat`);
+    } catch (error: any) {
+      console.error('Error loading dummy employee data:', error);
+      toast.error(`Gagal memuat data contoh: ${error.message}`);
+    } finally {
+      setLoadingDummy(false);
+      fetchKaryawan();
     }
   };
 
@@ -104,21 +139,14 @@ export function SalesRepresentative() {
         
         <div className="flex gap-2">
           <Button
-            onClick={() => {
-              const result = populateCRMToLocalStorage();
-              if (result.success) {
-                toast.success(`✅ ${result.message}\n📊 ${result.data.employees} Sales Rep loaded`);
-                fetchKaryawan();
-              } else {
-                toast.error(`❌ ${result.message}`);
-              }
-            }}
+            onClick={handleLoadDummyData}
             variant="outline"
             size="sm"
+            disabled={loadingDummy}
             className="gap-2 border-[#013E37] text-[#013E37] hover:bg-[#013E37] hover:text-white"
           >
             <Database className="h-4 w-4" />
-            Load Dummy Data
+            {loadingDummy ? 'Memuat...' : 'Load Dummy Data'}
           </Button>
           <Button
             onClick={fetchKaryawan}
@@ -278,6 +306,17 @@ export function SalesRepresentative() {
                       </div>
                     </div>
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-gray-400 hover:text-red-600 hover:bg-red-50"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteKaryawan(k.id);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </CardContent>
             </Card>

@@ -42,7 +42,7 @@ const generateContractNumber = (index: number) => {
 };
 
 // ===== SALES REPRESENTATIVE DUMMY DATA =====
-const salesRepresentativeDummyData = [
+export const salesRepresentativeDummyData = [
   {
     id: generateId(),
     nama_lengkap: 'Budi Santoso',
@@ -189,7 +189,7 @@ const salesRepresentativeDummyData = [
 // object -- the Client model/type still has them (Fase 1 item 5, unifying
 // the data model, hasn't happened yet) -- but set to '-' since they don't
 // apply to a building-materials customer.
-const clientsDummyData = [
+export const clientsDummyData = [
   {
     id: generateId(),
     id_customer: generateCustomerId(1),

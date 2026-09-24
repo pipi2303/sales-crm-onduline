@@ -479,6 +479,33 @@ export function DistributorStoreMap({ fixedTypeFilter }: DistributorStoreMapProp
       .map((p) => ({ point: p, nearby: findNearbyPoints(p, allPoints) }));
   }, [allPoints, effectiveTypeFilter]);
 
+  // Bab 34 fix (24 Sep 2026, review grup menu "Tim Penjualan"): distributor/
+  // toko pending TANPA koordinat GPS sebelumnya tidak pernah masuk
+  // `allPoints` sama sekali (lihat filter gpsLat/gpsLng di toPoints()) --
+  // jadi tidak pernah muncul di kartu Antrean Approval maupun di hitungan
+  // summary.pendingCount, dan approver tidak punya jalan lain untuk
+  // memprosesnya. Dibangun langsung dari props distributors/stores
+  // (bukan dari allPoints yang memang GPS-only untuk kebutuhan peta) --
+  // handleApprove/openReject hanya butuh kind+id(+name), tidak butuh lat/lng.
+  const noGpsPending = useMemo(() => {
+    const items: { kind: PointKind; id: string; code: string; name: string; submittedAt: Date | null }[] = [];
+    if (effectiveTypeFilter !== 'store') {
+      for (const d of distributors) {
+        if (d.status === 'pending' && (d.gpsLat === null || d.gpsLng === null)) {
+          items.push({ kind: 'distributor', id: d.id, code: d.code, name: d.name, submittedAt: d.submittedAt });
+        }
+      }
+    }
+    if (effectiveTypeFilter !== 'distributor') {
+      for (const s of stores) {
+        if (s.status === 'pending' && (s.gpsLat === null || s.gpsLng === null)) {
+          items.push({ kind: 'store', id: s.id, code: s.code, name: s.name, submittedAt: s.submittedAt });
+        }
+      }
+    }
+    return items;
+  }, [distributors, stores, effectiveTypeFilter]);
+
   const mapCenter = useMemo((): [number, number] => {
     if (allPoints.length === 0) return DEFAULT_CENTER;
     const sum = allPoints.reduce(
@@ -492,7 +519,9 @@ export function DistributorStoreMap({ fixedTypeFilter }: DistributorStoreMapProp
     const totalDistributor = distributors.length;
     const totalStore = stores.length;
     const scopedPoints = effectiveTypeFilter === 'all' ? allPoints : allPoints.filter((p) => p.kind === effectiveTypeFilter);
-    const pendingCount = scopedPoints.filter((p) => p.status === 'pending').length;
+    // + noGpsPending: lihat catatan Bab 34 di atas -- pending tanpa GPS
+    // tidak pernah ada di allPoints/scopedPoints sama sekali.
+    const pendingCount = scopedPoints.filter((p) => p.status === 'pending').length + noGpsPending.length;
     const approvedCount = scopedPoints.filter((p) => p.status === 'approved').length;
 
     // Fase 2: dihitung dari toko yang approved saja (sesuai dengan yang
@@ -516,7 +545,7 @@ export function DistributorStoreMap({ fixedTypeFilter }: DistributorStoreMapProp
     }
 
     return { totalDistributor, totalStore, pendingCount, approvedCount, neverVisited, overdue, noPhotoRecent };
-  }, [distributors, stores, allPoints, storeVisits, effectiveTypeFilter]);
+  }, [distributors, stores, allPoints, storeVisits, effectiveTypeFilter, noGpsPending]);
 
   // Bab 12 follow-up (insight #1/#6): Client.distributorId/storeId ->
   // dipakai untuk menghubungkan Opportunity (lewat clientId) ke titik
@@ -966,12 +995,11 @@ export function DistributorStoreMap({ fixedTypeFilter }: DistributorStoreMapProp
           <CardHeader>
             <CardTitle className="text-base">Antrean Approval ({summary.pendingCount})</CardTitle>
             <CardDescription>
-              {fixedTypeFilter === 'distributor' ? 'Distributor' : fixedTypeFilter === 'store' ? 'Toko' : 'Distributor & Toko'} yang menunggu persetujuan Anda. (Hanya menampilkan pengajuan yang sudah
-              punya koordinat GPS -- lihat catatan di kode.)
+              {fixedTypeFilter === 'distributor' ? 'Distributor' : fixedTypeFilter === 'store' ? 'Toko' : 'Distributor & Toko'} yang menunggu persetujuan Anda.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {pendingWithNearby.length === 0 ? (
+            {pendingWithNearby.length === 0 && noGpsPending.length === 0 ? (
               <p className="text-sm text-muted-foreground">Tidak ada antrean approval saat ini.</p>
             ) : (
               <div className="space-y-2">
@@ -1027,6 +1055,54 @@ export function DistributorStoreMap({ fixedTypeFilter }: DistributorStoreMapProp
                       </div>
                     </div>
                   ))}
+                {noGpsPending.map((p) => (
+                  <div
+                    key={`nogps-${p.kind}-${p.id}`}
+                    className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 p-3 rounded-lg border border-slate-200 bg-slate-50"
+                  >
+                    <div className="flex items-center gap-2">
+                      {p.kind === 'distributor' ? (
+                        <Truck className="w-4 h-4 text-[#013E37]" />
+                      ) : (
+                        <StoreIcon className="w-4 h-4 text-[#013E37]" />
+                      )}
+                      <div>
+                        <p className="text-sm font-medium">
+                          {p.name} <span className="text-xs text-muted-foreground">({p.code})</span>
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {p.kind === 'distributor' ? 'Distributor' : 'Toko'}
+                          {p.submittedAt ? ` · Diajukan ${formatDate(p.submittedAt)}` : ''}
+                        </p>
+                        <p className="text-xs text-slate-500 font-medium mt-1 flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" />
+                          Tanpa koordinat GPS -- tidak tampil di peta, cek lokasi secara manual sebelum memutuskan.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700"
+                        disabled={decidingId === p.id}
+                        onClick={() => handleApprove(p.kind, p.id)}
+                      >
+                        <CheckCircle2 className="w-4 h-4 mr-1" />
+                        Setujui
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-red-300 text-red-700 hover:bg-red-50"
+                        disabled={decidingId === p.id}
+                        onClick={() => openReject(p.kind, p.id, p.name)}
+                      >
+                        <XCircle className="w-4 h-4 mr-1" />
+                        Tolak
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>
