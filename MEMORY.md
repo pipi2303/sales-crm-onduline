@@ -4375,3 +4375,61 @@ lulus.
 
 ### Status
 Dikomit (`e43cf775`). `git push` masih perlu dilakukan user sendiri.
+
+## 43. Hapus label teks "Refresh" di semua tombol, ikon dipertahankan -- 24 Sep 2026
+
+Menindaklanjuti permintaan user: "hapus button text 'refresh', icon
+jangan di hapus di semua aplikasi".
+
+### Audit
+Grep menyeluruh `src/app` untuk teks tombol "Refresh" menemukan 9
+tombol nyata di 9 file (di luar 2 false-positive: label toggle
+"Auto-Refresh" & deskripsinya di `NotificationSettings.tsx`, dan
+tombol refresh di `AppNotifications.tsx` yang sudah icon-only dari
+awal dengan `Tooltip` -- bukan teks visible di tombolnya, jadi tidak
+perlu disentuh):
+
+- 7 tombol SUDAH punya ikon `RefreshCw` + teks "Refresh":
+  OpportunityManagement, LeadManagement, Home, SalesTeam,
+  SalesRepresentative, ProposalHistory, ProductCatalog.
+- 2 tombol TERNYATA tidak punya ikon sama sekali, cuma teks "Refresh"
+  polos: `ai/AISmartRecommendations.tsx`, `ai/AIInsightsDashboard.tsx`.
+
+### Perubahan
+7 tombol yang sudah punya ikon: teks "Refresh" dihapus, ikon
+dipertahankan apa adanya, ditambah `aria-label="Refresh"` di elemen
+`<Button>` supaya tombol icon-only tetap accessible untuk screen
+reader (mengikuti pola yang sudah ada di `Sidebar.tsx`'s toggle
+button).
+
+2 tombol tanpa ikon: karena instruksi user mengasumsikan tombol sudah
+punya ikon ("icon jangan di hapus"), sementara di sini ikonnya memang
+tidak ada -- menghapus teks tanpa menambah apa pun akan menyisakan
+tombol kosong/tidak terlihat sama sekali, bukan hasil yang masuk akal.
+Ditambahkan ikon `RefreshCw` (import baru dari `lucide-react` di kedua
+file) menggantikan teks, konsisten dengan pola 7 tombol lain, plus
+`aria-label="Refresh"` juga. Keputusan ini sedikit melampaui instruksi
+literal (menambah, bukan cuma menghapus) tapi paling konsisten dengan
+maksud user (tombol icon-only, bukan tombol kosong).
+
+### Catatan proses
+Percobaan patch pertama (single Python script untuk semua 9 file)
+punya bug: untuk 2 file AI, edit import (`RefreshCw` baru) dan edit
+tombol dihitung terpisah ke variabel `edits[path]` yang sama, tapi
+edit tombol keliru baca ulang file dari DISK (bukan dari hasil edit
+import yang sudah dihitung di memori) -- akibatnya edit import hilang
+tertimpa. Ketahuan langsung dari baseline-diff tsc (`Cannot find name
+'RefreshCw'` di 2 file itu, 133 error bukan 131). Diperbaiki dengan
+patch susulan yang menambahkan importnya secara langsung, lalu
+verifikasi ulang -> kembali ke 131. Pelajaran: kalau satu file
+menerima lebih dari satu edit dalam satu script, edit kedua harus
+lanjut dari `edits[path]` yang sudah ada di memori, bukan `open(path)`
+baca ulang dari disk yang belum ter-flush.
+
+### Verifikasi
+`npx tsc --noEmit`: 131 error sebelum & sesudah (setelah fix di atas),
+identik persis. `npx vite build`: sukses. `npx vitest run`: 11/11
+tetap lulus.
+
+### Status
+Dikomit (`d3844453`). `git push` masih perlu dilakukan user sendiri.
