@@ -8,7 +8,7 @@
 // and what roles do they have" from scratch at that point.
 //
 // Run with: npx prisma db seed  (needs DATABASE_URL set)
-import { PrismaClient, Role, OpportunityStage, OpportunityStatus } from '@prisma/client';
+import { PrismaClient, Role, OpportunityStage, OpportunityStatus, ContractStatus, QuotationStatus } from '@prisma/client';
 import { hashPassword } from '../lib/auth.js';
 import { distributorSeeds, storeSeeds } from './seedData/distributorsAndStores.js';
 import { productCategorySeeds, productFamilySeeds, productInstanceSeeds } from './seedData/productCatalog.js';
@@ -572,6 +572,272 @@ async function seedVisitTasks() {
   console.log(`Seeded ${created} visit tasks (${skipped} already existed, dilewati) -- Fase B kepatuhan visit`);
 }
 
+
+// ---------------------------------------------------------------------
+// Bab 30 lanjutan (24 Sep 2026, hasil deep review + smoke test grup menu
+// Sales Pipeline) -- data dummy TERHUBUNG untuk Contract, Quotation, dan
+// Discount Approval. Sebelum ini: 11 Opportunity Closed-Won sungguhan
+// senilai total Rp 904.7M tanpa SATU PUN Contract yang menaut ke sana,
+// dan NOL Discount Approval request sungguhan di production DB (lihat
+// MEMORY.md bab 30). Ketiga fungsi di bawah SENGAJA query Opportunity/
+// Client yang sudah ada di database (bukan bikin Client/Opportunity
+// palsu baru) supaya data dummy ini benar-benar "nyambung" dengan data
+// nyata yang sudah ada -- sesuai permintaan user.
+//
+// Semua idempotent lewat unique key (Contract.opportunityId,
+// Quotation.quoteNumber, DiscountApprovalRequest.requestNumber) supaya
+// aman dijalankan berkali-kali (npm run db:seed).
+
+async function seedContracts() {
+  // Opportunity Closed-Won yang belum punya Contract sama sekali --
+  // persis gap yang ditemukan smoke test Bab 30 (11 deal, Rp 904.7M, 0
+  // contract). Diambil maksimal 8 supaya data demo tidak berlebihan.
+  const wonOpportunities = await prisma.opportunity.findMany({
+    where: { status: OpportunityStatus.WON, contract: null },
+    include: { client: true, products: true },
+    orderBy: { actualCloseDate: 'desc' },
+    take: 8,
+  });
+
+  if (wonOpportunities.length === 0) {
+    console.log('seedContracts: tidak ada Opportunity Closed-Won tanpa Contract -- dilewati (jalankan seedOpportunities() dulu, atau semua sudah ter-seed)');
+    return;
+  }
+
+  let created = 0;
+  for (const [index, opp] of wonOpportunities.entries()) {
+    const startDate = opp.actualCloseDate ?? opp.closeDate;
+    // Variasi status supaya UI Contract.tsx (yang menghitung status
+    // efektif dari endDate, lihat getEffectiveContractStatus) benar-benar
+    // menampilkan campuran ACTIVE/EXPIRED/TERMINATED, bukan cuma ACTIVE.
+    const variant = index % 4;
+    const endDate = new Date(startDate);
+    if (variant === 1) {
+      // Sudah lewat -- akan tampil EXPIRED secara efektif di UI meski
+      // status tersimpan tetap ACTIVE (mencerminkan kontrak lama yg belum
+      // diperbarui adminnya, kasus nyata yang umum).
+      endDate.setMonth(endDate.getMonth() + 3);
+    } else {
+      endDate.setFullYear(endDate.getFullYear() + 1);
+    }
+    const status: ContractStatus = variant === 3 ? ContractStatus.TERMINATED : ContractStatus.ACTIVE;
+
+    const productLabel = opp.products.length > 0
+      ? opp.products.map((p) => p.productName).slice(0, 2).join(' + ') + (opp.products.length > 2 ? ', dll' : '')
+      : 'Layanan Onduline';
+
+    await prisma.contract.upsert({
+      where: { opportunityId: opp.id },
+      update: {},
+      create: {
+        contractNumber: `CTR-${startDate.getFullYear()}-SEED-${String(index + 1).padStart(3, '0')}`,
+        clientId: opp.clientId,
+        clientName: opp.clientName,
+        company: opp.client?.namaEntitas ?? opp.clientName,
+        opportunityId: opp.id,
+        product: productLabel,
+        value: opp.totalValue,
+        startDate,
+        endDate,
+        status,
+        signedBy: opp.client?.namaPic || 'Direktur Utama',
+        salesPerson: opp.ownerName,
+      },
+    });
+    created += 1;
+  }
+  console.log(`Seeded ${created} contracts, ditautkan ke Opportunity Closed-Won sungguhan (Bab 30 data dummy terhubung)`);
+}
+
+async function seedQuotations() {
+  // Campuran opportunity yang masih berjalan (untuk quotation draft/sent)
+  // dan yang sudah Closed-Won (untuk quotation approved, mencerminkan
+  // quotation yang berujung deal) -- semua Opportunity sungguhan, bukan
+  // client/opportunity palsu baru.
+  const [openOpportunities, wonOpportunities, lostOpportunities] = await Promise.all([
+    prisma.opportunity.findMany({
+      where: { status: OpportunityStatus.OPEN },
+      include: { client: true, products: true },
+      orderBy: { createdAt: 'desc' },
+      take: 4,
+    }),
+    prisma.opportunity.findMany({
+      where: { status: OpportunityStatus.WON },
+      include: { client: true, products: true },
+      orderBy: { actualCloseDate: 'desc' },
+      take: 2,
+    }),
+    prisma.opportunity.findMany({
+      where: { status: OpportunityStatus.LOST },
+      include: { client: true, products: true },
+      orderBy: { createdAt: 'desc' },
+      take: 2,
+    }),
+  ]);
+
+  const candidates: { opp: (typeof openOpportunities)[number]; status: QuotationStatus; discount: number }[] = [
+    ...openOpportunities.map((opp, i) => ({ opp, status: i % 2 === 0 ? QuotationStatus.SENT : QuotationStatus.DRAFT, discount: i % 2 === 0 ? 5 : 0 })),
+    ...wonOpportunities.map((opp) => ({ opp, status: QuotationStatus.APPROVED, discount: 10 })),
+    ...lostOpportunities.map((opp) => ({ opp, status: QuotationStatus.REJECTED, discount: 0 })),
+  ];
+
+  if (candidates.length === 0) {
+    console.log('seedQuotations: tidak ada Opportunity yang bisa dipakai -- dilewati (jalankan seedOpportunities() dulu)');
+    return;
+  }
+
+  // Fallback kalau sebuah opportunity kebetulan tidak punya line item
+  // produk sama sekali (lihat seedOpportunities -- seharusnya selalu ada,
+  // tapi dijaga supaya seed ini tidak crash pada data yang tidak terduga).
+  const fallbackProducts = candidates.every((c) => c.opp.products.length > 0)
+    ? []
+    : await prisma.product.findMany({ take: 2 });
+
+  let created = 0;
+  for (const [index, { opp, status, discount }] of candidates.entries()) {
+    const quoteNumber = `QTN-${new Date().getFullYear()}-SEED-${String(index + 1).padStart(3, '0')}`;
+    const existing = await prisma.quotation.findUnique({ where: { quoteNumber } });
+    if (existing) continue;
+
+    const lineSource = opp.products.length > 0
+      ? opp.products.map((p) => ({ productId: p.productId, productName: p.productName, quantity: p.quantity, unitPrice: Number(p.unitPrice) }))
+      : fallbackProducts.map((p) => ({ productId: p.id, productName: p.name, quantity: 1, unitPrice: Number(p.price) }));
+
+    // Sama seperti computeQuotationTotals() di api/handler.ts -- dihitung
+    // manual di sini karena seed script tidak lewat API, supaya subtotal/
+    // totalAmount tetap konsisten dengan rumus yang sama (termasuk
+    // additional discount, bug yang justru diperbaiki Bab 30 lanjutan ini).
+    const subtotal = lineSource.reduce((sum, l) => sum + l.quantity * l.unitPrice, 0);
+    const totalAmount = subtotal - (subtotal * discount) / 100;
+
+    await prisma.quotation.create({
+      data: {
+        quoteNumber,
+        clientId: opp.clientId,
+        clientName: opp.clientName,
+        clientCompany: opp.client?.namaEntitas ?? opp.clientName,
+        clientEmail: opp.client?.emailResmi ?? opp.email,
+        opportunityId: opp.id,
+        subtotal,
+        additionalDiscountPercent: discount,
+        totalAmount,
+        status,
+        validUntil: new Date(new Date(opp.createdDate ?? opp.closeDate).getTime() + 30 * 24 * 60 * 60 * 1000),
+        notes: status === QuotationStatus.REJECTED ? 'Client memilih vendor lain.' : null,
+        items: {
+          create: lineSource.map((l) => ({
+            productId: l.productId,
+            productName: l.productName,
+            quantity: l.quantity,
+            unitPrice: l.unitPrice,
+            discountPercent: 0,
+            lineTotal: l.quantity * l.unitPrice,
+          })),
+        },
+      },
+    });
+    created += 1;
+  }
+  console.log(`Seeded ${created} quotations, ditautkan ke Opportunity/Client sungguhan (Bab 30 data dummy terhubung)`);
+}
+
+async function seedDiscountApprovals() {
+  // Bab 30: production DB punya NOL discount approval request sungguhan
+  // meski fiturnya (setelah fix enum casing) sudah berfungsi penuh --
+  // data dummy ini menaut ke Client sungguhan dan sengaja memvariasikan
+  // discountPercent supaya keempat level approval (lihat
+  // discountLevelForPercent di api/handler.ts: <=10% level 1 self-approve,
+  // <=20% level 2, <=30% level 3, >30% level 4) semua terwakili, plus satu
+  // kasus REJECTED -- exercising seluruh state yang UI-nya sudah dibangun
+  // untuk ditampilkan tapi belum pernah ada datanya.
+  const clients = await prisma.client.findMany({ take: 5, orderBy: { createdAt: 'asc' } });
+  if (clients.length === 0) {
+    console.log('seedDiscountApprovals: tidak ada Client -- dilewati (jalankan seedClients() dulu)');
+    return;
+  }
+  const sales = await prisma.user.findUnique({ where: { email: 'sales@salesmonitor.com' } });
+  const manager = await prisma.user.findUnique({ where: { email: 'manager@salesmonitor.com' } });
+  const admin = await prisma.user.findUnique({ where: { email: 'admin@salesmonitor.com' } });
+  if (!sales || !manager || !admin) {
+    console.log('seedDiscountApprovals: demo users belum ter-seed -- dilewati');
+    return;
+  }
+
+  type Scenario = {
+    discountPercent: number;
+    finalStatus: 'APPROVED' | 'PENDING' | 'REJECTED';
+    label: string;
+  };
+  // Satu skenario per level (1-4) + satu REJECTED tambahan di level 2,
+  // dipasangkan berurutan dengan clients[0..4] yang sudah ada.
+  const scenarios: Scenario[] = [
+    { discountPercent: 8, finalStatus: 'APPROVED', label: 'Level 1 (self-approve, <=10%)' },
+    { discountPercent: 15, finalStatus: 'PENDING', label: 'Level 2 (menunggu Sales Manager)' },
+    { discountPercent: 25, finalStatus: 'PENDING', label: 'Level 3 (menunggu Super Admin)' },
+    { discountPercent: 35, finalStatus: 'APPROVED', label: 'Level 4 (disetujui penuh berjenjang)' },
+    { discountPercent: 18, finalStatus: 'REJECTED', label: 'Level 2 (ditolak Sales Manager)' },
+  ];
+
+  let created = 0;
+  for (const [index, scenario] of scenarios.entries()) {
+    const client = clients[index % clients.length];
+    const requestNumber = `DR-SEED-${String(index + 1).padStart(3, '0')}`;
+    const existing = await prisma.discountApprovalRequest.findUnique({ where: { requestNumber } });
+    if (existing) continue;
+
+    const originalPrice = 50_000_000 + index * 25_000_000;
+    const discountAmount = originalPrice * (scenario.discountPercent / 100);
+    const finalPrice = originalPrice - discountAmount;
+    const originalMargin = 30;
+    const proposedMargin = originalMargin - scenario.discountPercent * 0.6;
+
+    const level = scenario.discountPercent <= 10 ? 1 : scenario.discountPercent <= 20 ? 2 : scenario.discountPercent <= 30 ? 3 : 4;
+    const levelLabels = ['Sales Executive', 'Sales Manager', 'Sales Director', 'C-Level'];
+
+    const steps: { level: number; approverName: string; approverRole: string; action: 'APPROVED' | 'REJECTED' | 'PENDING'; decidedAt?: Date; comment?: string }[] = [
+      { level: 1, approverName: sales.name, approverRole: levelLabels[0], action: 'APPROVED', decidedAt: new Date(), comment: 'Self-approval sesuai kewenangan (diskon <= 10%)' },
+    ];
+    for (let lvl = 2; lvl <= level; lvl += 1) {
+      const approver = lvl === 2 ? manager : admin;
+      const isLastStep = lvl === level;
+      if (!isLastStep) {
+        steps.push({ level: lvl, approverName: approver.name, approverRole: levelLabels[lvl - 1], action: 'APPROVED', decidedAt: new Date(), comment: 'Disetujui, lanjut ke level berikutnya' });
+      } else if (scenario.finalStatus === 'PENDING') {
+        steps.push({ level: lvl, approverName: '', approverRole: levelLabels[lvl - 1], action: 'PENDING' });
+      } else if (scenario.finalStatus === 'REJECTED') {
+        steps.push({ level: lvl, approverName: approver.name, approverRole: levelLabels[lvl - 1], action: 'REJECTED', decidedAt: new Date(), comment: 'Margin terlalu tipis untuk disetujui saat ini' });
+      } else {
+        steps.push({ level: lvl, approverName: approver.name, approverRole: levelLabels[lvl - 1], action: 'APPROVED', decidedAt: new Date(), comment: 'Disetujui' });
+      }
+    }
+
+    await prisma.discountApprovalRequest.create({
+      data: {
+        requestNumber,
+        clientName: client.namaEntitas,
+        productName: 'Atap Onduline Bitumen Corrugated Sheet',
+        originalPrice,
+        discountPercent: scenario.discountPercent,
+        discountAmount,
+        finalPrice,
+        requestedById: sales.id,
+        requestedByName: sales.name,
+        reason: `Permintaan diskon ${scenario.discountPercent}% untuk memenangkan deal -- ${scenario.label}`,
+        status: scenario.finalStatus,
+        currentApprover: scenario.finalStatus === 'PENDING' ? levelLabels[level - 1] : '-',
+        approvalLevel: level,
+        urgency: index % 2 === 0 ? 'high' : 'medium',
+        originalMargin,
+        proposedMargin,
+        region: 'Jabodetabek',
+        steps: { create: steps },
+      },
+    });
+    created += 1;
+  }
+  console.log(`Seeded ${created} discount approval requests, ditautkan ke Client sungguhan, mencakup semua level (Bab 30 data dummy terhubung)`);
+}
+
 async function main() {
   for (const u of demoUsers) {
     const passwordHash = await hashPassword(u.password);
@@ -590,6 +856,9 @@ async function main() {
   await seedOpportunities();
   await seedClientContactsAndIntelligence();
   await seedVisitTasks();
+  await seedContracts();
+  await seedQuotations();
+  await seedDiscountApprovals();
 }
 
 main()
