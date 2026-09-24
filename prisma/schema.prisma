@@ -101,6 +101,7 @@ model User {
   storesAssigned        Store[]         @relation("StoreSalesRep")
   clientContactsCreated ClientContact[] @relation("ClientContactCreatedBy")
   clientIntelUpdated    ClientIntelligence[] @relation("ClientIntelligenceUpdatedBy")
+  clientCommunicationsCreated ClientCommunication[] @relation("ClientCommunicationCreatedBy")
 
   @@map("users")
 }
@@ -287,8 +288,14 @@ model Client {
   // atas TETAP ADA (bukan dihapus) sebagai ringkasan cepat satu kontak
   // utama untuk tampilan list -- tidak semua Client akan langsung diisi
   // org tree lengkap, jadi kolom lama ini tetap jadi fallback yang valid.
-  contacts     ClientContact[]
-  intelligence ClientIntelligence?
+  contacts       ClientContact[]
+  intelligence   ClientIntelligence?
+  // Bab 16.5 lanjutan (24 Sep 2026): log komunikasi/interaksi nyata,
+  // menggantikan tab "Komunikasi" yang sebelumnya cuma state lokal
+  // frontend (useState, tidak pernah tersimpan). SENGAJA model terpisah
+  // dari OpportunityActivity (bukan reuse) -- lihat catatan lengkap di
+  // model ClientCommunication di bawah.
+  communications ClientCommunication[]
 
   @@map("clients")
   @@index([status])
@@ -923,7 +930,8 @@ model ClientContact {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  activities OpportunityActivity[]
+  activities     OpportunityActivity[]
+  communications ClientCommunication[]
 
   @@map("client_contacts")
   @@index([clientId])
@@ -967,4 +975,70 @@ model ClientIntelligence {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("client_intelligence")
+}
+
+// ---------------------------------------------------------------------
+// Bab 16.5 lanjutan (24 Sep 2026) -- Komunikasi/interaksi client jadi
+// data sungguhan.
+//
+// Sebelum ini, tab "Komunikasi" di ClientDetailDialog cuma `useState`
+// lokal di frontend (5 item contoh hardcoded, hilang setiap refresh,
+// tidak pernah benar-benar tersimpan) -- ditemukan saat menutup gap
+// "jumlah pertemuan selalu 0" untuk fitur Organisation Tree.
+//
+// KENAPA MODEL TERPISAH dari OpportunityActivity (bukan reuse):
+// OpportunityActivity.opportunityId WAJIB diisi (tidak nullable) --
+// activity di sana selalu menempel ke satu Opportunity tertentu, dipakai
+// "Catat Pertemuan" di ClientOrgTreePanel yang memang tentang tahap
+// deal. Komunikasi client SENGAJA harus tetap bisa dicatat tanpa
+// Opportunity sama sekali (keputusan eksplisit user, 24 Sep 2026) --
+// misalnya follow-up rutin ke client existing yang belum ada Opportunity
+// aktif. Memaksa satu model untuk keduanya berarti salah satu kehilangan
+// fleksibilitasnya, jadi dipisah: ClientCommunication milik Client
+// langsung, contactId opsional (tidak wajib pilih kontak spesifik).
+//
+// "Jumlah pertemuan" pada ClientContact sekarang dihitung dari GABUNGAN
+// OpportunityActivity.contactId + ClientCommunication.contactId (lihat
+// handleClientContacts di api/handler.ts) -- supaya insight itu
+// mencerminkan semua interaksi tercatat, bukan cuma yang kebetulan
+// menempel ke Opportunity.
+enum CommunicationType {
+  TELEPON  @map("Telepon")
+  EMAIL    @map("Email")
+  MEETING  @map("Meeting")
+  WHATSAPP @map("WhatsApp")
+  VISIT    @map("Visit")
+}
+
+model ClientCommunication {
+  id       String @id @default(uuid())
+  clientId String @map("client_id")
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  type        CommunicationType
+  title       String
+  description String
+  // Tag bebas tambahan (mis. "Hot Lead", "Follow-up") -- TIDAK termasuk
+  // label tipe komunikasi (itu sudah di kolom `type`); frontend
+  // menggabungkan lagi keduanya saat render supaya tampilan badge sama
+  // seperti sebelumnya (categories = [type, ...tagsBebas]).
+  categories Json?
+
+  // Opsional -- kalau komunikasi ini melibatkan salah satu kontak di org
+  // tree (lihat catatan di atas kenapa ini terpisah dari
+  // OpportunityActivity.contactId).
+  contactId String?        @map("contact_id")
+  contact   ClientContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  createdById String? @map("created_by_id")
+  createdBy   User?   @relation("ClientCommunicationCreatedBy", fields: [createdById], references: [id])
+
+  // Kapan komunikasi ini TERJADI (diisi user lewat form, bisa tanggal apa
+  // saja) -- beda dari createdAt (kapan record-nya dibuat di sistem).
+  occurredAt DateTime @map("occurred_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("client_communications")
+  @@index([clientId])
+  @@index([contactId])
 }
