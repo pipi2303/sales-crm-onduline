@@ -4077,3 +4077,64 @@ sini (keterbatasan jaringan sandbox di atas) -- user perlu buka Lead
 Management di production dan klik "Load Dummy Data" sendiri untuk
 mengisi database sungguhan, lalu `git push` (masih perlu dilakukan user
 sendiri, tidak ada kredensial git di sandbox ini).
+
+## 38. Verifikasi no-gap: ClientContact/ClientIntelligence + Lead->Opportunity -- 24 Sep 2026
+
+Menindaklanjuti permintaan user "lanjutkan (#1-7, #21 -- schema
+ClientContact/ClientIntelligence, fitur konversi Lead->Opportunity)
+semuanya no-gap". Task #1-7 & #21 di task list sesi ini sudah lama
+pending/in_progress tapi TERNYATA sudah selesai dibangun di Bab 16.5 dan
+Bab 30 lanjutan (task list-nya saja yang tidak pernah diupdate ke
+completed) -- putaran ini adalah verifikasi deep-review penuh, bukan
+membangun dari nol.
+
+### Yang diverifikasi lengkap dan sudah benar
+- Schema (`prisma/schema.prisma`): `ClientContact` (org tree via
+  self-relation `reportsToId`, influence role, relationship
+  status/closeness) + `ClientIntelligence` (1:1 dengan Client, profil
+  bisnis/proyek berjalan/kompetitor/sumber info/link referensi).
+- Backend (`api/handler.ts`): `handleClientContacts` (GET/POST list per
+  clientId, GET/PUT/DELETE per id) + `handleClientIntelligence`
+  (GET/PUT upsert per clientId) -- auth check ada, FK ke
+  OpportunityActivity/ClientCommunication pakai `onDelete: SetNull`
+  jadi hapus kontak tidak pernah gagal karena FK constraint.
+- Repository (`clientContactsRepository.ts`/`clientIntelligenceRepository.ts`):
+  mapping enum & field snake_case<->camelCase lengkap dan konsisten.
+- UI: `ClientOrgTreePanel.tsx` (pohon hierarki sungguhan dari
+  `reports_to_id`, bukan cuma grid kartu -- sudah di-upgrade sebelumnya
+  dari follow-up "peningkatan natural"; ada banner peringatan "belum ada
+  Decision Maker" & "ada hubungan Negative") dan
+  `ClientIntelligencePanel.tsx` (gabungan info internal dari data
+  Client yang sudah ada + form manual info eksternal + link referensi),
+  keduanya terpasang sungguhan sebagai collapsible section di
+  `ClientDetailDialog.tsx` (`expandedSections.orgTree` /
+  `.customerIntelligence`), reachable tanpa gating role apa pun.
+- Lead -> Opportunity conversion (`leadsRepository.convertToOpportunity`
+  + `handleLeads` POST `/api/leads/:id`): guard konversi ganda ada di
+  DUA sisi (client: `lead.status === 'won'`; server: `lead.status ===
+  'WON'`), Opportunity baru terhubung `leadId`, field diturunkan lengkap
+  dari Lead (name/contactPerson/email/phone/totalValue/source/notes),
+  `closeDate` default +30 hari kalau tidak diisi. Tidak ada gap.
+
+### Satu gap nyata ditemukan dan diperbaiki
+`PUT /api/client-contacts/:id` cuma menolak "lapor ke diri sendiri"
+LANGSUNG (`body.reportsToId === id`), bukan siklus lebih panjang
+(A->B->A, atau A->B->C->A). `ClientOrgTreePanel.tsx`'s `ContactNode`
+sudah punya pengaman `ancestorIds` di sisi render supaya siklus begini
+tidak bikin infinite loop/crash -- tapi efek sampingnya: kontak yang ada
+di dalam siklus (reportsToId-nya valid, tapi rantainya melingkar balik,
+tidak pernah "sampai" ke root) hilang TOTAL dari tampilan pohon tanpa
+pesan error apa pun ke user, silent data-loss di UI. Diperbaiki: PUT
+sekarang menelusuri rantai `reportsToId` dari calon atasan baru ke atas
+(dibatasi 200 langkah supaya data lama yang sudah bermasalah tidak bikin
+loop tak berujung di endpoint ini juga), menolak dengan pesan error jelas
+kalau perubahan itu akan membentuk siklus.
+
+### Verifikasi
+`npx tsc --noEmit`: 131 error sebelum & sesudah (baseline-diff), nol
+error baru. `npx vite build`: sukses. `npx vitest run`: 11/11 tetap
+lulus.
+
+### Status
+Dikomit (`c8ef7c49`). Task #1-7 & #21 di task list sesi ini ditandai
+selesai. `git push` masih perlu dilakukan user sendiri.
