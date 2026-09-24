@@ -6,7 +6,7 @@ import { lazy } from 'react';
 import {
   Home as HomeIcon, Users, Package, FileText, BarChart3, Settings,
   Target, TrendingUp, Percent, CheckSquare, Book, Clipboard, UserPlus,
-  MapPin, Mail, Plug, DollarSign,
+  MapPin, Mail, Plug, DollarSign, Smartphone,
 } from 'lucide-react';
 import { Home } from '@/app/components/Home';
 import type { MenuGroup } from '@/types/menu';
@@ -27,6 +27,7 @@ const KPIAIEnhanced = lazy(() => import('@/app/components/KPIAIEnhanced').then(m
 const DiscountApprovalSystem = lazy(() => import('@/app/components/DiscountApprovalSystem').then(m => ({ default: m.DiscountApprovalSystem })));
 const QuotationManagement = lazy(() => import('@/app/components/QuotationManagement').then(m => ({ default: m.QuotationManagement })));
 const TaskManagement = lazy(() => import('@/app/components/TaskManagement').then(m => ({ default: m.TaskManagement })));
+const FieldSalesMode = lazy(() => import('@/app/components/FieldSalesMode').then(m => ({ default: m.FieldSalesMode })));
 const KnowledgeBase = lazy(() => import('@/app/components/KnowledgeBase').then(m => ({ default: m.KnowledgeBase })));
 const ConfigurePriceQuote = lazy(() => import('@/app/components/ConfigurePriceQuote').then(m => ({ default: m.ConfigurePriceQuote })));
 const LeadManagement = lazy(() => import('@/app/components/LeadManagement').then(m => ({ default: m.LeadManagement })));
@@ -45,6 +46,18 @@ export const menuGroups: MenuGroup[] = [
     label: 'Dashboard',
     items: [
       { id: 'home', name: 'Home', icon: HomeIcon, component: Home },
+    ],
+  },
+  {
+    // Bab 17 (24 Sep 2026): menu terpisah dari 'Task Management' biasa --
+    // ini bukan modul baru, cuma tampilan mobile-optimized dari data yang
+    // sama (Task + Opportunity + ClientCommunication), diletakkan di
+    // urutan paling atas supaya sales lapangan yang buka app dari HP
+    // langsung sampai di sini tanpa scroll. Lihat FieldSalesMode.tsx.
+    id: 'mobile-sales-lapangan',
+    label: 'Mobile / Sales Lapangan',
+    items: [
+      { id: 'field-sales-mode', name: 'Field Sales Mode', icon: Smartphone, component: FieldSalesMode },
     ],
   },
   {
