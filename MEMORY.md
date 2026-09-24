@@ -4492,3 +4492,87 @@ KPIAIEnhanced, QuotationManagement, SettingsPanel).
 
 ### Status
 Dikomit (`fe5c6262`). `git push` masih perlu dilakukan user sendiri.
+
+## 45. Data dummy relevan untuk Quotation Management -- 24 Sep 2026
+
+Menindaklanjuti permintaan user: "tambahkan data dummy di menu
+Quotation Management, data dummy yang relevan".
+
+### Kondisi sebelum
+Quotation Management tidak punya mekanisme dummy data sama sekali --
+bukan salah satu dari 5 yang digabung di Bab 39. KPI cards
+(total/approvedValue/pendingApproval/conversionRate), status
+distribution chart, dan pipeline-nya selalu kosong/nol sampai user
+bikin quotation manual satu-satu lewat dialog "New Quotation".
+
+### Perubahan
+Ditambahkan sebagai LANGKAH KE-7 di `src/utils/loadAllDummyData.ts`
+(bukan tombol/mekanisme terpisah baru -- tetap konsisten dengan
+konsolidasi "satu tombol Load Dummy Data di Home" dari Bab 39), 7
+quotation contoh:
+
+- **clientId** di-resolve ke Client record sungguhan lewat
+  `clientByCompany` (Map `nama_entitas -> id`), dibangun dari client
+  yang sama yang dibuat di langkah 1 (Client) di fungsi ini sendiri --
+  bukan teks bebas lepas. Step 1 dimodifikasi untuk membangun map ini
+  plus fallback `clientsRepository.getAll()` kalau creation gagal
+  semua (mis. permission), pola yang sama seperti Territory/SalesRep.
+- **clientName vs clientCompany**: field mapping asli
+  `QuotationManagement.tsx` sendiri adalah `contactPerson ->
+  clientName`, `company -> clientCompany` (lihat
+  `handleGenerateQuotation`) -- jadi `clientName` diisi nama KONTAK/PIC
+  (mis. "Bapak Hendra Wijaya"), `clientCompany` nama perusahaan (mis.
+  "Toko Bangunan Makmur Jaya"), BUKAN tertukar.
+- **items[]** merujuk SKU ASLI dari katalog produk Onduline yang sudah
+  di-seed lewat `prisma/seed.ts`/`prisma/seedData/productCatalog.ts`
+  (mis. `ONDC-BRN`, `BITL-3MM`, `ONDG-EXT`, `OSPH-550`) -- di-fetch
+  READ-ONLY lewat `productsRepository.getAll()` lalu di-index ke
+  `Map<sku, {id,name,price}>`. Product TIDAK dibuat di langkah ini
+  (sudah ada dari seed backend, dikonfirmasi lewat grep bahwa
+  `ProductCatalog.tsx` tidak punya mekanisme dummy/empty-state sama
+  sekali -- produk selalu berasal dari katalog real). productId &
+  unitPrice yang terpakai jadi benar-benar produk & harga yang ada di
+  Product Catalog live, bukan angka karangan.
+- **Relevansi produk per client** (bukan asal comot): toko bahan
+  bangunan -> stok reguler ONDULINE CLASSIC + NOK STANDAR/VERGE
+  STANDARD; kontraktor proyek (PT Kontraktor Bangun Persada) ->
+  BITULINE + ONDUGREEN volume besar (300 roll / 150 m2), matching
+  `paket_aktif` client itu di `clientsDummyData` ("Onduline Bitumen +
+  Ondugreen Roof System"); gudang pertanian (PT Agro Lestari
+  Nusantara) -> ONDULINE CLASSIC volume besar (800 m2) + ONDUCOAT 739
+  waterproofing; resort premium (Resort & Villa Ciwidey) -> ONDUVILLA
+  CLEAR TILE + ONDUSOLAR PRO HC 550Wp (atap+solar premium).
+- **Status di-spread realistis** mengikuti `status_kontrak` client
+  masing-masing di `clientsDummyData`: Makmur Jaya (Active Client) ->
+  approved; Sumber Rejeki (Proposal Sent) -> sent (+ 1 quotation
+  tambahan berstatus expired dari perusahaan yang sama, penawaran awal
+  sebelum revisi harga); Bangun Persada (Active Client, proyek besar)
+  -> approved dengan additionalDiscountPercent 5%; Agro Lestari (Demo
+  Scheduled) -> draft; Rumah Idaman Bersama (Initial Contact/Cold) ->
+  rejected; Villa Ciwidey (Negotiation) -> sent. Total sebaran: 2
+  approved, 2 sent, 1 draft, 1 rejected, 1 expired -- supaya KPI card,
+  status distribution chart, dan pipeline di halaman itu langsung
+  terisi bermakna dan bervariasi, bukan satu status berulang.
+- **validUntil** pakai helper baru `daysFromNow(n)` (relatif terhadap
+  saat tombol ditekan, bukan hardcode absolut) supaya tetap masuk akal
+  kapan pun fitur ini dipakai -- kecuali quotation berstatus "expired"
+  yang sengaja hardcode tanggal lampau tetap (`2026-08-01`, sama
+  seperti konvensi `SEED_COMMISSIONS`'s `periodIso` yang sudah
+  hardcode absolut sejak awal).
+
+`Home.tsx`'s `handleLoadDummyData` toast summary ditambah 1 baris:
+`result.quotations > 0 && \`${result.quotations} quotation\``.
+
+### Verifikasi
+`npx tsc --noEmit`: 131 error sebelum & sesudah, identik (1 baris yang
+tadinya terlihat "baru" ternyata cuma pergeseran nomor baris dari error
+pre-existing yang sama persis di `Home.tsx`, dikonfirmasi lewat
+`comm -13`/`comm -23`). `npx vite build`: sukses. `npx vitest run`:
+11/11 tetap lulus.
+
+### Status
+Dikomit (`76953158`). `git push` masih perlu dilakukan user sendiri.
+Seperti 6 kategori lain di `loadAllDummyData()`, langkah quotation ini
+juga TIDAK idempotent (klik dua kali akan menggandakan ketujuh
+quotation contoh ini juga) -- konsisten dengan catatan non-idempotency
+yang sudah didokumentasikan sejak Bab 39, bukan regresi baru.
