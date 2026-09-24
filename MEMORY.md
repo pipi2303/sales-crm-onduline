@@ -2926,3 +2926,152 @@ dengan pemahaman yang sudah lama dicatat di section 26). `vitest run`
 - [ ] Coba tab "Komunikasi" di detail Client: tambah komunikasi baru
       (sekarang beneran tersimpan, termasuk pilih kontak terkait dari
       org tree kalau ada), refresh halaman, pastikan tidak hilang.
+
+## 29. Bab 17 -- Menu "Field Sales Mode" untuk sales lapangan (mobile) -- 24 Sep 2026
+
+### Konteks
+
+User minta: "buatkan menu baru di sidebar untuk Mobile Apps utk Sales
+Lapangan". Ditanya dulu scope-nya (AskUserQuestion) karena "Mobile
+Apps" bisa berarti macam-macam (app native terpisah? dokumen
+perencanaan? atau cuma mode tampilan di app yang sama?). User pilih
+opsi yang direkomendasikan: **menu baru di sidebar app web ini juga**,
+dioptimasi buat dipakai dari HP -- BUKAN app native terpisah, BUKAN
+dokumen perencanaan. Login & data sama persis dengan CRM utama, cuma
+alur/tampilannya disederhanakan untuk mobile.
+
+### Kenapa bukan app native / PWA terpisah
+
+Tidak ada infrastruktur build mobile (React Native/Capacitor/dst) di
+repo ini, dan itu sendiri adalah proyek besar terpisah (app store
+listing, code signing, dst). Pendekatan "satu menu sidebar, satu
+komponen React, dioptimasi CSS-nya buat layar kecil" memberi 90% dari
+value (bisa dibuka dari browser HP tanpa install apa-apa, data selalu
+real-time sama dengan CRM desktop, tidak ada app terpisah untuk
+di-maintain) dengan effort jauh lebih kecil dan nol resiko ke fitur
+yang sudah ada.
+
+### Yang digabung jadi satu halaman
+
+`FieldSalesMode.tsx` (baru) menggabungkan 3 hal yang user minta,
+semuanya reuse infrastruktur yang SUDAH ADA (tidak ada perubahan
+schema/backend sama sekali di Bab 17 ini):
+
+1. **Daftar tugas kunjungan hari ini** -- `tasksRepository.getAll()`,
+   difilter `assignedTo === user.name` (nama, bukan userId -- Task
+   tidak punya kolom userId, field ini free text yang isinya nama,
+   sama seperti filter "tugas per anggota tim" di TaskManagement.tsx)
+   dan `status !== 'completed'`, dipisah jadi "Hari Ini & Terlambat"
+   (default terbuka) vs "Mendatang" (collapsed).
+2. **Check-in GPS + foto** -- alur `performCheckIn` (resize foto,
+   `navigator.geolocation.getCurrentPosition`, penanganan izin lokasi
+   ditolak) **sengaja diduplikasi** dari `TaskManagement.tsx`, bukan
+   diekstrak ke hook bersama. Alasan: `TaskManagement.tsx` sudah
+   stabil & dipakai luas (termasuk FR-03/FR-07/Bab 8 gap 2 yang sudah
+   lama jalan) -- refactor ekstraksi akan menyentuh file itu dan
+   menambah resiko regresi untuk keuntungan yang kecil (duplikasi ~80
+   baris logic murni, tidak ada state/UI yang di-share).
+3. **Info client ringkas + quick-add komunikasi** -- ini bagian paling
+   tidak trivial. `Task` **tidak punya relasi langsung ke `Client`** di
+   schema (`Task.storeId` -> `Store`, beda entitas dari `Client`).
+   Satu-satunya jalan yang reliable: field bebas `Task.relatedTo`
+   (placeholder-nya sendiri contohnya `"OPP-001"`) dicocokkan
+   case-insensitive ke `Opportunity.id` -> dari situ dapat
+   `clientId`/`clientName`/`contactPerson`/`phone`/`email` langsung
+   (semua sudah ter-expose di `Opportunity` sejak Bab 12). Kalau
+   `relatedTo` kosong atau tidak match Opportunity manapun (mis. isinya
+   `"CONTRACT-003"`), tugas tetap muncul apa adanya, cuma tanpa kartu
+   info client & tanpa tombol "Catat Komunikasi" (butuh `clientId`
+   valid). Quick-add komunikasi reuse `AddCommunicationDialog` +
+   `clientCommunicationsRepository` dari Bab 16.5 lanjutan apa adanya.
+
+### Registrasi menu
+
+Group baru `"Mobile / Sales Lapangan"` ditaruh di `menuConfig.ts`
+**paling atas** (persis di bawah "Dashboard", di atas "Sales
+Pipeline") supaya sales lapangan yang buka app dari HP langsung sampai
+di sini tanpa perlu scroll cari-cari menu. Cuma 1 item: "Field Sales
+Mode" (icon `Smartphone`), lazy-loaded seperti komponen besar lainnya.
+Tidak dibatasi role (`roles` tidak di-set) -- siapa saja yang login
+bisa akses, konsisten dengan Task Management yang juga tidak
+dibatasi role.
+
+### Verifikasi
+
+- `tsc --noEmit`: dibandingkan before/after via `git stash push -u --
+  <2 file berubah>` -- **108 error, PERSIS SAMA** sebelum & sesudah
+  (semua pre-existing, termasuk yang sudah dicatat di section-section
+  sebelumnya -- OpportunityFormNew, ProposalBuilder, RevenueDetailDialog,
+  dst). 0 error baru dari `FieldSalesMode.tsx` maupun `menuConfig.ts`.
+- `vite build`: sukses, `FieldSalesMode` ke-split jadi chunk lazy
+  tersendiri (~11KB gzip 4KB) seperti komponen besar lain di
+  menuConfig.ts.
+- `vitest run`: 11/11 tetap lulus (tidak ada test baru ditambahkan --
+  komponen ini murni UI/orkestrasi atas repository yang sudah ada &
+  sudah diuji jalur backend-nya lewat fitur asalnya masing-masing).
+
+Catatan proses: `tsc --noEmit` di sandbox ini kadang butuh >180 detik
+(pernah 22 detik, pernah 167 detik, run lain sempat timeout di 180
+detik) -- sepertinya tergantung state cache TypeScript incremental,
+BUKAN tanda ada masalah. Kalau kena timeout, tinggal ulang saja
+sinkron (bukan background/nohup -- lihat catatan di bawah).
+
+### Catatan teknis -- background process TIDAK bertahan lintas panggilan device_bash
+
+Sempat dicoba `nohup ... &` + polling di panggilan `device_bash`
+terpisah supaya `tsc` yang lambat tidak kena timeout 180 detik. Hasil:
+proses background MATI tanpa jejak begitu panggilan `device_bash`
+berikutnya dimulai (file output kosong, `ps aux` bersih, tidak ada
+marker "DONE") -- meskipun `nohup` dan disown biasanya bikin proses
+bertahan sebagai orphan di Linux biasa. Kesimpulan: sandbox
+`device_bash` di sesi ini membersihkan/mengisolasi proses child antar
+panggilan tool yang terpisah, jadi pola "jalankan di background, cek
+lagi nanti" **tidak bisa dipakai** di sini -- command panjang harus
+dijalankan sinkron dalam satu panggilan (dan diulang kalau kena
+timeout), bukan di-background-kan.
+
+### Insight untuk user
+
+1. **Kenapa "mode di app yang sama" lebih baik daripada app terpisah,
+   untuk kasus ini**: data selalu 1:1 dengan CRM desktop (tidak ada
+   sinkronisasi terpisah untuk dijaga), tidak ada proses
+   install/update app store, dan sales lapangan yang browser-nya sudah
+   login otomatis langsung bisa pakai. Trade-off: pengalaman "seperti
+   app native" (notifikasi push, kerja offline penuh, ikon di home
+   screen) tidak didapat dengan pendekatan ini -- kalau itu jadi
+   kebutuhan nyata nanti (bukan cuma "kelihatan lebih app-like"), PWA
+   (manifest + service worker) adalah langkah berikutnya yang masih
+   built di atas komponen yang sama, bukan mulai dari nol.
+2. **Gap yang sengaja dibiarkan terbuka**: kalau `Task.relatedTo`
+   kosong atau isinya bukan ID Opportunity (mis. nomor kontrak, atau
+   memang tidak diisi sama sekali saat bikin tugas), sales lapangan
+   TIDAK akan lihat info client ringkas atau tombol quick-add
+   komunikasi untuk tugas itu -- cuma judul & deskripsi tugas apa
+   adanya. Ini bukan bug, tapi keterbatasan struktural: `relatedTo`
+   memang free-text sejak awal (bukan dropdown pilih Opportunity), jadi
+   akurasinya tergantung disiplin pengisian saat bikin tugas. Kalau
+   field ini jadi krusial untuk Field Sales Mode, langkah natural
+   berikutnya adalah mengubah "Related To" di form Task Management dari
+   `<Input>` teks bebas jadi `<Select>` pilih Opportunity yang sudah
+   ada -- itu perubahan terpisah (menyentuh `TaskManagement.tsx`,
+   bukan file yang disentuh Bab 17 ini) dan belum dikerjakan di sini.
+3. **Kenapa tidak fetch data `Client` penuh (alamat lengkap, dst)**:
+   `Opportunity` sudah bawa `clientName`/`contactPerson`/`phone`/`email`
+   langsung tanpa query tambahan -- cukup untuk "info ringkas" yang
+   diminta (bukan detail lengkap). Menambah fetch `Client` penuh per
+   tugas berarti N+1 request tambahan untuk field yang belum tentu
+   dipakai (mis. alamat lengkap) -- sengaja tidak dikerjakan supaya
+   halaman tetap ringan di koneksi HP yang mungkin lambat di lapangan.
+4. **GPS check-in TETAP butuh izin lokasi browser tiap sesi** (perilaku
+   `navigator.geolocation` standar, sama seperti di Task Management) --
+   kalau ditolak, foto tetap tersimpan tapi `locationValidated: false`.
+   Sales lapangan perlu di-briefing untuk klik "Allow" saat browser
+   HP-nya minta izin lokasi pertama kali.
+
+### PENTING -- tidak ada langkah manual user untuk fitur ini
+
+Beda dengan fitur-fitur sebelumnya (ClientCommunication, dst), Bab 17
+ini **tidak butuh** `prisma migrate deploy` atau `prisma generate`
+ulang -- tidak ada perubahan schema/model Prisma sama sekali, murni
+komponen frontend baru + 1 entri menu. Cukup `git pull` lalu buka menu
+"Field Sales Mode" di sidebar.
