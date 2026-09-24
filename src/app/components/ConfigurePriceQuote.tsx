@@ -15,6 +15,8 @@ import { toast } from 'sonner';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import type { Product } from '@/types/product';
 import { productsRepository } from '@/services/productsRepository';
+import { quotationsRepository, type Quotation } from '@/services/quotationsRepository';
+import { exportToPDF } from '@/utils/exportUtils';
 
 type ConfigurationItem = {
   productId: string;
@@ -28,7 +30,11 @@ type Quote = {
   quoteNumber: string;
   clientName: string;
   clientEmail: string;
-  status: 'draft' | 'sent' | 'approved' | 'rejected';
+  // Bab 30 lanjutan (24 Sep 2026): dulu cuma 4 status lokal dengan dummy
+  // seed -- sekarang backend sungguhan (prisma/schema.prisma's
+  // QuotationStatus) punya 6, expired/cancelled ditambahkan di sini
+  // supaya tidak ada data yang diam-diam disamarkan jadi status lain.
+  status: 'draft' | 'sent' | 'approved' | 'rejected' | 'expired' | 'cancelled';
   items: ConfigurationItem[];
   totalAmount: number;
   discount: number;
@@ -37,51 +43,38 @@ type Quote = {
   notes: string;
 };
 
-const dummyQuotes: Quote[] = [
-  {
-    id: 'q1',
-    quoteNumber: 'QT-2026-001',
-    clientName: 'PT Maju Jaya',
-    clientEmail: 'info@majujaya.com',
-    status: 'approved',
-    items: [],
-    totalAmount: 75000000,
-    discount: 5,
-    validUntil: '2026-03-15',
-    createdDate: '2026-02-15',
-    notes: 'Enterprise package with premium support'
-  },
-  {
-    id: 'q2',
-    quoteNumber: 'QT-2026-002',
-    clientName: 'CV Digital Nusantara',
-    clientEmail: 'contact@digitalnusantara.id',
-    status: 'sent',
-    items: [],
-    totalAmount: 45000000,
-    discount: 10,
-    validUntil: '2026-03-01',
-    createdDate: '2026-02-20',
-    notes: 'Standard package for SME'
-  },
-  {
-    id: 'q3',
-    quoteNumber: 'QT-2026-003',
-    clientName: 'PT Teknologi Maju',
-    clientEmail: 'admin@teknologimaju.co.id',
-    status: 'draft',
-    items: [],
-    totalAmount: 120000000,
-    discount: 0,
-    validUntil: '2026-03-30',
-    createdDate: '2026-02-25',
-    notes: 'Custom enterprise solution'
-  }
-];
+// Bab 30 lanjutan: dulu dummyQuotes (3 quote palsu) jadi initial state dan
+// "Generate Quote" cuma setQuotes(...) lokal -- hilang setiap refresh, dan
+// "Additional Discount (%)" yang diisi di form TIDAK PERNAH mengurangi
+// totalAmount yang ditampilkan/disimpan (bug data konkret, lihat
+// handleCreateQuote/calculateTotal di bawah). Sekarang backend sungguhan
+// (quotationsRepository -> /api/quotations) yang menghitung ulang
+// subtotal/totalAmount dari items + additionalDiscountPercent, jadi bug
+// itu tidak mungkin terulang di sisi server.
+function fromApiQuote(q: Quotation): Quote {
+  return {
+    id: q.id,
+    quoteNumber: q.quoteNumber,
+    clientName: q.clientName,
+    clientEmail: q.clientEmail ?? '',
+    status: q.status,
+    items: q.items.map((it) => ({
+      productId: it.productId ?? '',
+      quantity: it.quantity,
+      customization: '',
+      discount: it.discountPercent,
+    })),
+    totalAmount: q.totalAmount,
+    discount: q.additionalDiscountPercent,
+    validUntil: q.validUntil ? q.validUntil.toISOString().split('T')[0] : '',
+    createdDate: q.createdAt.toISOString().split('T')[0],
+    notes: q.notes ?? '',
+  };
+}
 
 export function ConfigurePriceQuote() {
   const [activeTab, setActiveTab] = useState('configure');
-  const [quotes, setQuotes] = useState<Quote[]>(dummyQuotes);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProducts, setSelectedProducts] = useState<ConfigurationItem[]>([]);
   const [isCreateQuoteOpen, setIsCreateQuoteOpen] = useState(false);
@@ -94,6 +87,7 @@ export function ConfigurePriceQuote() {
 
   useEffect(() => {
     fetchProducts();
+    fetchQuotes();
   }, []);
 
   const fetchProducts = async () => {
@@ -102,6 +96,15 @@ export function ConfigurePriceQuote() {
       setProducts(result.data);
     } else {
       toast.error(result.error || 'Failed to load products');
+    }
+  };
+
+  const fetchQuotes = async () => {
+    const result = await quotationsRepository.getAll();
+    if (result.success && result.data) {
+      setQuotes(result.data.map(fromApiQuote));
+    } else {
+      toast.error(result.error || 'Failed to load quotes');
     }
   };
 
@@ -154,61 +157,92 @@ export function ConfigurePriceQuote() {
     }, 0);
   };
 
-  const handleCreateQuote = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleCreateQuote = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    
-    const newQuote: Quote = {
-      id: `q${quotes.length + 1}`,
-      quoteNumber: `QT-2026-${String(quotes.length + 1).padStart(3, '0')}`,
+
+    const additionalDiscountPercent = parseInt(formData.get('discount') as string) || 0;
+    const result = await quotationsRepository.create({
       clientName: formData.get('clientName') as string,
       clientEmail: formData.get('clientEmail') as string,
+      additionalDiscountPercent,
       status: 'draft',
-      items: selectedProducts,
-      totalAmount: calculateTotal(),
-      discount: parseInt(formData.get('discount') as string) || 0,
       validUntil: formData.get('validUntil') as string,
-      createdDate: new Date().toISOString().split('T')[0],
-      notes: formData.get('notes') as string
-    };
+      notes: formData.get('notes') as string,
+      // Bab 30 lanjutan: server recomputes subtotal/totalAmount from these
+      // items + additionalDiscountPercent -- this is what actually applies
+      // the "Additional Discount (%)" the old client-only calculateTotal()
+      // silently ignored.
+      items: selectedProducts.map((item) => {
+        const product = products.find((p) => p.id === item.productId);
+        return {
+          productId: item.productId,
+          productName: product?.name ?? '',
+          quantity: item.quantity,
+          unitPrice: product?.price ?? 0,
+          discountPercent: item.discount,
+        };
+      }),
+    });
 
-    setQuotes([newQuote, ...quotes]);
-    setIsCreateQuoteOpen(false);
-    setSelectedProducts([]);
-    toast.success('Quote created successfully!');
+    if (result.success && result.data) {
+      setQuotes([fromApiQuote(result.data), ...quotes]);
+      setIsCreateQuoteOpen(false);
+      setSelectedProducts([]);
+      toast.success('Quote created successfully!');
+    } else {
+      toast.error(result.error || 'Gagal membuat quote');
+    }
   };
 
-  const handleSendQuote = (quoteId: string) => {
-    setQuotes(quotes.map(quote =>
-      quote.id === quoteId ? { ...quote, status: 'sent' } : quote
-    ));
-    toast.success('Quote sent to client!');
+  const handleSendQuote = async (quoteId: string) => {
+    const result = await quotationsRepository.update(quoteId, { status: 'sent' });
+    if (result.success && result.data) {
+      setQuotes(quotes.map((quote) => (quote.id === quoteId ? fromApiQuote(result.data!) : quote)));
+      toast.success('Quote sent to client!');
+    } else {
+      toast.error(result.error || 'Gagal mengirim quote');
+    }
   };
 
-  const handleApproveQuote = (quoteId: string) => {
-    setQuotes(quotes.map(quote =>
-      quote.id === quoteId ? { ...quote, status: 'approved' } : quote
-    ));
-    toast.success('Quote approved!');
+  const handleApproveQuote = async (quoteId: string) => {
+    const result = await quotationsRepository.update(quoteId, { status: 'approved' });
+    if (result.success && result.data) {
+      setQuotes(quotes.map((quote) => (quote.id === quoteId ? fromApiQuote(result.data!) : quote)));
+      toast.success('Quote approved!');
+    } else {
+      toast.error(result.error || 'Gagal menyetujui quote');
+    }
   };
 
-  const handleRejectQuote = (quoteId: string) => {
-    setQuotes(quotes.map(quote =>
-      quote.id === quoteId ? { ...quote, status: 'rejected' } : quote
-    ));
-    toast.success('Quote rejected!');
+  const handleRejectQuote = async (quoteId: string) => {
+    const result = await quotationsRepository.update(quoteId, { status: 'rejected' });
+    if (result.success && result.data) {
+      setQuotes(quotes.map((quote) => (quote.id === quoteId ? fromApiQuote(result.data!) : quote)));
+      toast.success('Quote rejected!');
+    } else {
+      toast.error(result.error || 'Gagal menolak quote');
+    }
   };
 
-  const handleDuplicateQuote = (quote: Quote) => {
-    const newQuote: Quote = {
-      ...quote,
-      id: `q${quotes.length + 1}`,
-      quoteNumber: `QT-2026-${String(quotes.length + 1).padStart(3, '0')}`,
-      status: 'draft',
-      createdDate: new Date().toISOString().split('T')[0]
-    };
-    setQuotes([newQuote, ...quotes]);
-    toast.success('Quote duplicated successfully!');
+  const handleDuplicateQuote = async (quote: Quote) => {
+    // Bab 30 lanjutan: perlu record lengkap (dengan items) untuk
+    // diduplikasi dengan benar -- state lokal `quote` di sini cukup untuk
+    // itu (fromApiQuote sudah membawa items), tapi ambil ulang dari server
+    // supaya duplikasi selalu berdasarkan data terbaru, bukan snapshot
+    // yang mungkin sudah basi di state lokal.
+    const current = await quotationsRepository.getById(quote.id);
+    if (!current.success || !current.data) {
+      toast.error(current.error || 'Gagal mengambil data quote');
+      return;
+    }
+    const result = await quotationsRepository.duplicate(current.data);
+    if (result.success && result.data) {
+      setQuotes([fromApiQuote(result.data), ...quotes]);
+      toast.success('Quote duplicated successfully!');
+    } else {
+      toast.error(result.error || 'Gagal menduplikasi quote');
+    }
   };
 
   const getStatusBadge = (status: Quote['status']) => {
@@ -216,7 +250,9 @@ export function ConfigurePriceQuote() {
       draft: { variant: 'secondary' as const, icon: Clock, label: 'Draft' },
       sent: { variant: 'default' as const, icon: FileText, label: 'Sent' },
       approved: { variant: 'default' as const, icon: CheckCircle, label: 'Approved' },
-      rejected: { variant: 'destructive' as const, icon: XCircle, label: 'Rejected' }
+      rejected: { variant: 'destructive' as const, icon: XCircle, label: 'Rejected' },
+      expired: { variant: 'destructive' as const, icon: Clock, label: 'Expired' },
+      cancelled: { variant: 'destructive' as const, icon: XCircle, label: 'Cancelled' }
     };
 
     const config = statusConfig[status];
@@ -727,7 +763,28 @@ export function ConfigurePriceQuote() {
                 <Button variant="outline" onClick={() => setIsViewQuoteOpen(false)}>
                   Close
                 </Button>
-                <Button className="bg-[#013E37] hover:bg-[#013d38]">
+                <Button
+                  className="bg-[#013E37] hover:bg-[#013d38]"
+                  onClick={() => {
+                    // Bab 30 lanjutan: tombol ini dulu tidak punya onClick
+                    // sama sekali. exportToPDF sudah dipakai di menu lain
+                    // (mis. KPI/AdvancedAnalytics) lewat jsPDF + autoTable.
+                    if (!selectedQuote) return;
+                    exportToPDF(
+                      selectedQuote.items.map((item) => {
+                        const product = products.find((p) => p.id === item.productId);
+                        return {
+                          product: product?.name ?? item.productId,
+                          quantity: item.quantity,
+                          discount: `${item.discount}%`,
+                        };
+                      }),
+                      `${selectedQuote.quoteNumber}.pdf`,
+                      `Quote ${selectedQuote.quoteNumber} - ${selectedQuote.clientName}`,
+                      ['product', 'quantity', 'discount'],
+                    );
+                  }}
+                >
                   <Download className="h-4 w-4 mr-2" />
                   Download PDF
                 </Button>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Search, Plus, FileText, Download, Send, Eye, Edit, Copy, 
   CheckCircle, Clock, XCircle, DollarSign, Calendar, User, 
@@ -18,6 +18,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/app
 import { Separator } from '@/app/components/ui/separator';
 import { toast } from 'sonner';
 import { formatCurrency, formatDate } from '@/utils/formatters';
+import { exportToCSV, exportToPDF } from '@/utils/exportUtils';
+import { quotationsRepository, type Quotation, type QuotationStatus } from '@/services/quotationsRepository';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -26,45 +28,12 @@ import {
 } from 'recharts';
 import { CHART_PRIMARY, CHART_GRID, AREA_GRADIENT_STOPS, CHART_TOOLTIP_STYLE, CHART_STATUS } from '@/styles/chartTheme';
 
-// Mock Data
-const QUOTATIONS = [
-  {
-    id: 'Q-2026-001',
-    quoteNumber: 'QTN/2026/02/001',
-    clientName: 'Ahmad Subarjo',
-    clientCompany: 'Toko Bangunan Sinar Jaya',
-    clientEmail: 'ahmad.s@sinarjayabangunan.co.id',
-    totalAmount: 125000000,
-    status: 'approved',
-    createdDate: new Date('2026-02-10'),
-    validUntil: new Date('2026-03-10'),
-    items: 12
-  },
-  {
-    id: 'Q-2026-002',
-    quoteNumber: 'QTN/2026/02/002',
-    clientName: 'Sarah Wilson',
-    clientCompany: 'CV Karya Konstruksi Mandiri',
-    clientEmail: 'sarah@karyakonstruksi.co.id',
-    totalAmount: 45750000,
-    status: 'pending',
-    createdDate: new Date('2026-02-15'),
-    validUntil: new Date('2026-03-15'),
-    items: 5
-  },
-  {
-    id: 'Q-2026-003',
-    quoteNumber: 'QTN/2026/02/003',
-    clientName: 'Budi Santoso',
-    clientCompany: 'Distributor Atap Nusantara',
-    clientEmail: 'budi@atap-nusantara.co.id',
-    totalAmount: 18900000,
-    status: 'expired',
-    createdDate: new Date('2026-01-05'),
-    validUntil: new Date('2026-02-05'),
-    items: 3
-  }
-];
+// Bab 30 lanjutan (24 Sep 2026, hasil deep review + smoke test grup menu
+// Sales Pipeline): dulu QUOTATIONS di sini adalah array module-level yang
+// di-hardcode (bukan useState, selalu tepat 3 baris ini) -- sama sekali
+// tidak sadar akan ConfigurePriceQuote.tsx (fitur "quotation" lain yang
+// terpisah). Sekarang backend sungguhan (quotationsRepository, dipakai
+// bersama oleh CPQ dan menu ini) -- lihat fetchQuotations() di bawah.
 
 const ANALYTICS_DATA = [
   { month: 'Sep', value: 450000000 },
@@ -75,24 +44,202 @@ const ANALYTICS_DATA = [
   { month: 'Feb', value: 1325575000 },
 ];
 
+const PRICING_STRATEGY_DISCOUNT: Record<string, number> = {
+  standard: 0,
+  priority: 10,
+  government: 0,
+};
+
 export function QuotationManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showNewQuoteDialog, setShowNewQuoteDialog] = useState(false);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
-  const [selectedQuote, setSelectedQuote] = useState<any>(null);
+  const [selectedQuote, setSelectedQuote] = useState<Quotation | null>(null);
+  const [quotations, setQuotations] = useState<Quotation[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Bab 30 lanjutan: dialog "New Quotation" dulu tidak punya state/onChange
+  // sama sekali (semua Input tidak terkontrol, tanpa `name`) -- "Generate
+  // Quotation" tidak pernah mengumpulkan apa pun. Dipakai juga untuk edit
+  // (editingQuoteId != null) supaya row "Edit" / "Edit Content" tidak perlu
+  // form terpisah.
+  const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
+  const [quoteForm, setQuoteForm] = useState({
+    contactPerson: '',
+    company: '',
+    clientEmail: '',
+    pricingStrategy: 'standard',
+    validUntil: '',
+    estimatedAmount: '',
+  });
+
+  useEffect(() => {
+    fetchQuotations();
+  }, []);
+
+  const fetchQuotations = async () => {
+    try {
+      setLoading(true);
+      const result = await quotationsRepository.getAll();
+      if (result.success && result.data) {
+        setQuotations(result.data);
+      } else {
+        toast.error(result.error || 'Gagal memuat data quotation');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetQuoteForm = () => {
+    setEditingQuoteId(null);
+    setQuoteForm({ contactPerson: '', company: '', clientEmail: '', pricingStrategy: 'standard', validUntil: '', estimatedAmount: '' });
+  };
+
+  const openEditQuote = (quote: Quotation) => {
+    setEditingQuoteId(quote.id);
+    setQuoteForm({
+      contactPerson: quote.clientName,
+      company: quote.clientCompany ?? '',
+      clientEmail: quote.clientEmail ?? '',
+      pricingStrategy: 'standard',
+      validUntil: quote.validUntil ? quote.validUntil.toISOString().split('T')[0] : '',
+      estimatedAmount: String(quote.subtotal || quote.totalAmount || ''),
+    });
+    setShowNewQuoteDialog(true);
+  };
+
+  const handleGenerateQuotation = async () => {
+    if (!quoteForm.contactPerson.trim() || !quoteForm.company.trim()) {
+      toast.error('Contact Person dan Nama Perusahaan wajib diisi');
+      return;
+    }
+    const additionalDiscountPercent = PRICING_STRATEGY_DISCOUNT[quoteForm.pricingStrategy] ?? 0;
+    const amount = Number(quoteForm.estimatedAmount) || 0;
+    const payload = {
+      clientName: quoteForm.contactPerson,
+      clientCompany: quoteForm.company,
+      clientEmail: quoteForm.clientEmail || undefined,
+      additionalDiscountPercent,
+      validUntil: quoteForm.validUntil || null,
+      // Belum ada UI pemilihan produk per baris di dialog ini (beda dengan
+      // menu CPQ yang punya product picker sendiri) -- "Estimasi Total"
+      // dikirim sebagai satu line item generik supaya totalAmount yang
+      // dihitung server tetap benar-benar mencerminkan angka yang
+      // dimasukkan user, bukan Rp 0 yang menyesatkan.
+      items: amount > 0 ? [{ productName: 'Estimasi Awal (detail menyusul)', quantity: 1, unitPrice: amount, discountPercent: 0 }] : [],
+    };
+
+    const result = editingQuoteId
+      ? await quotationsRepository.update(editingQuoteId, payload)
+      : await quotationsRepository.create(payload);
+
+    if (result.success && result.data) {
+      setQuotations((prev) =>
+        editingQuoteId ? prev.map((q) => (q.id === result.data!.id ? result.data! : q)) : [result.data!, ...prev],
+      );
+      toast.success(editingQuoteId ? 'Quotation berhasil diupdate!' : 'Quotation berhasil dibuat!');
+      setShowNewQuoteDialog(false);
+      resetQuoteForm();
+    } else {
+      toast.error(result.error || 'Gagal menyimpan quotation');
+    }
+  };
+
+  const updateQuoteStatus = async (id: string, status: QuotationStatus, successMessage: string) => {
+    const result = await quotationsRepository.update(id, { status });
+    if (result.success && result.data) {
+      setQuotations((prev) => prev.map((q) => (q.id === id ? result.data! : q)));
+      setSelectedQuote((prev) => (prev && prev.id === id ? result.data! : prev));
+      toast.success(successMessage);
+    } else {
+      toast.error(result.error || 'Gagal mengubah status quotation');
+    }
+  };
+
+  const handleDuplicateQuote = async (quote: Quotation) => {
+    const result = await quotationsRepository.duplicate(quote);
+    if (result.success && result.data) {
+      setQuotations((prev) => [result.data!, ...prev]);
+      toast.success('Quotation berhasil diduplikasi!');
+    } else {
+      toast.error(result.error || 'Gagal menduplikasi quotation');
+    }
+  };
+
+  const handleDownloadPdf = (quote: Quotation) => {
+    exportToPDF(
+      quote.items.map((it) => ({
+        product: it.productName,
+        quantity: it.quantity,
+        unitPrice: formatCurrency(it.unitPrice),
+        lineTotal: formatCurrency(it.lineTotal),
+      })),
+      `${quote.quoteNumber}.pdf`,
+      `Quotation ${quote.quoteNumber} - ${quote.clientName}`,
+      ['product', 'quantity', 'unitPrice', 'lineTotal'],
+    );
+  };
+
+  const handleExportReport = () => {
+    exportToCSV(
+      quotations.map((q) => ({
+        quoteNumber: q.quoteNumber,
+        clientName: q.clientName,
+        clientCompany: q.clientCompany ?? '',
+        totalAmount: q.totalAmount,
+        status: q.status,
+        createdAt: q.createdAt.toISOString().split('T')[0],
+        validUntil: q.validUntil ? q.validUntil.toISOString().split('T')[0] : '',
+      })),
+      'quotation_report.csv',
+    );
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'approved':
         return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-200 font-bold px-3 py-1">APPROVED</Badge>;
-      case 'pending':
-        return <Badge className="bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-200 font-bold px-3 py-1">PENDING</Badge>;
+      case 'sent':
+        return <Badge className="bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-200 font-bold px-3 py-1">SENT</Badge>;
+      case 'rejected':
+        return <Badge className="bg-rose-100 text-rose-700 border-rose-200 hover:bg-rose-200 font-bold px-3 py-1">REJECTED</Badge>;
       case 'expired':
         return <Badge className="bg-rose-100 text-rose-700 border-rose-200 hover:bg-rose-200 font-bold px-3 py-1">EXPIRED</Badge>;
+      case 'cancelled':
+        return <Badge className="bg-gray-200 text-gray-600 font-bold px-3 py-1 uppercase tracking-tight">CANCELLED</Badge>;
       default:
         return <Badge className="bg-gray-100 text-gray-700 font-bold px-3 py-1 uppercase tracking-tight">Draft</Badge>;
     }
   };
+
+  const filteredQuotations = quotations.filter((q) => {
+    const term = searchTerm.toLowerCase();
+    return (
+      q.quoteNumber.toLowerCase().includes(term) ||
+      q.clientName.toLowerCase().includes(term) ||
+      (q.clientCompany ?? '').toLowerCase().includes(term)
+    );
+  });
+
+  // Bab 30 lanjutan: KPI card di bawah dulu angka statis ('156', 'Rp 2.4B',
+  // '24', '68%') yang tidak diturunkan dari QUOTATIONS sama sekali.
+  const kpiStats = {
+    total: quotations.length,
+    approvedValue: quotations.filter((q) => q.status === 'approved').reduce((sum, q) => sum + q.totalAmount, 0),
+    pendingApproval: quotations.filter((q) => q.status === 'sent').length,
+    conversionRate: quotations.length > 0
+      ? Math.round((quotations.filter((q) => q.status === 'approved').length / quotations.length) * 100)
+      : 0,
+  };
+
+  const statusDistribution = (['approved', 'sent', 'expired', 'draft', 'rejected', 'cancelled'] as const)
+    .map((status) => ({
+      name: status.charAt(0).toUpperCase() + status.slice(1),
+      value: quotations.filter((q) => q.status === status).length,
+      color: status === 'approved' ? CHART_STATUS.good : status === 'expired' || status === 'rejected' ? CHART_STATUS.critical : status === 'sent' ? CHART_STATUS.warning : 'var(--muted-foreground)',
+    }))
+    .filter((entry) => entry.value > 0);
 
   return (
     <div className="p-8 bg-gray-50/50 min-h-screen space-y-8">
@@ -106,12 +253,12 @@ export function QuotationManagement() {
           <p className="text-gray-500 mt-1 font-medium italic">Premium Enterprise Sales Solution</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" className="border-gray-200 font-bold h-11 px-6 shadow-sm">
+          <Button variant="outline" className="border-gray-200 font-bold h-11 px-6 shadow-sm" onClick={handleExportReport}>
             <Download className="mr-2 h-4 w-4" /> Export Report
           </Button>
           <Button 
             className="bg-[#013E37] hover:bg-[#02665c] text-white font-bold h-11 px-8 shadow-lg shadow-emerald-900/10"
-            onClick={() => setShowNewQuoteDialog(true)}
+            onClick={() => { resetQuoteForm(); setShowNewQuoteDialog(true); }}
           >
             <Plus className="mr-2 h-5 w-5" /> New Quotation
           </Button>
@@ -155,10 +302,10 @@ export function QuotationManagement() {
           {/* Quick Stats Dashboard */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {[
-              { label: 'Total Quotations', value: '156', icon: FileText, color: 'text-blue-600', bg: 'bg-blue-50' },
-              { label: 'Approved Value', value: 'Rp 2.4B', icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-              { label: 'Pending Approval', value: '24', icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
-              { label: 'Conversion Rate', value: '68%', icon: Percent, color: 'text-[#013E37]', bg: 'bg-[#EEF7F5]' },
+              { label: 'Total Quotations', value: String(kpiStats.total), icon: FileText, color: 'text-blue-600', bg: 'bg-blue-50' },
+              { label: 'Approved Value', value: formatCurrency(kpiStats.approvedValue), icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+              { label: 'Pending Approval', value: String(kpiStats.pendingApproval), icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
+              { label: 'Conversion Rate', value: `${kpiStats.conversionRate}%`, icon: Percent, color: 'text-[#013E37]', bg: 'bg-[#EEF7F5]' },
             ].map((stat, i) => (
               <Card key={i} className="border-none shadow-sm bg-white overflow-hidden group hover:shadow-md transition-all">
                 <CardContent className="p-6">
@@ -209,12 +356,18 @@ export function QuotationManagement() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {QUOTATIONS.map((quote) => (
+                  {loading && (
+                    <tr><td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-400 font-bold">Memuat data...</td></tr>
+                  )}
+                  {!loading && filteredQuotations.length === 0 && (
+                    <tr><td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-400 font-bold">Belum ada quotation.</td></tr>
+                  )}
+                  {filteredQuotations.map((quote) => (
                     <tr key={quote.id} className="group hover:bg-gray-50/80 transition-colors">
                       <td className="px-6 py-5">
                         <div className="flex flex-col">
                           <span className="text-sm font-black text-gray-900 group-hover:text-[#013E37] transition-colors">{quote.quoteNumber}</span>
-                          <span className="text-[10px] font-bold text-gray-400 mt-1 uppercase">CREATED: {formatDate(quote.createdDate)}</span>
+                          <span className="text-[10px] font-bold text-gray-400 mt-1 uppercase">CREATED: {formatDate(quote.createdAt)}</span>
                         </div>
                       </td>
                       <td className="px-6 py-5">
@@ -230,7 +383,7 @@ export function QuotationManagement() {
                       </td>
                       <td className="px-6 py-5 text-right font-black text-gray-900">
                         {formatCurrency(quote.totalAmount)}
-                        <span className="block text-[10px] font-bold text-gray-400 uppercase mt-0.5">{quote.items} ITEMS</span>
+                        <span className="block text-[10px] font-bold text-gray-400 uppercase mt-0.5">{quote.items.length} ITEMS</span>
                       </td>
                       <td className="px-6 py-5 text-center">
                         {getStatusBadge(quote.status)}
@@ -238,7 +391,7 @@ export function QuotationManagement() {
                       <td className="px-6 py-5">
                         <div className="flex items-center gap-2 text-sm font-bold text-gray-600">
                           <Calendar className="h-4 w-4 opacity-50" />
-                          {formatDate(quote.validUntil)}
+                          {quote.validUntil ? formatDate(quote.validUntil) : '-'}
                         </div>
                       </td>
                       <td className="px-6 py-5 text-right">
@@ -249,10 +402,10 @@ export function QuotationManagement() {
                           }}>
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-9 w-9 text-blue-600 hover:bg-blue-50">
+                          <Button variant="ghost" size="icon" className="h-9 w-9 text-blue-600 hover:bg-blue-50" onClick={() => openEditQuote(quote)} title="Edit">
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-9 w-9 text-[#013E37] hover:bg-[#EEF7F5]">
+                          <Button variant="ghost" size="icon" className="h-9 w-9 text-[#013E37] hover:bg-[#EEF7F5]" onClick={() => updateQuoteStatus(quote.id, 'sent', 'Quotation dikirim ke client!')} title="Send">
                             <Send className="h-4 w-4" />
                           </Button>
                         </div>
@@ -306,19 +459,14 @@ export function QuotationManagement() {
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={[
-                          { name: 'Approved', value: 45, color: CHART_STATUS.good },
-                          { name: 'Pending', value: 30, color: CHART_STATUS.warning },
-                          { name: 'Expired', value: 15, color: CHART_STATUS.critical },
-                          { name: 'Draft', value: 10, color: 'var(--muted-foreground)' },
-                        ]}
+                        data={statusDistribution}
                         innerRadius={60}
                         outerRadius={80}
                         paddingAngle={5}
                         dataKey="value"
                       >
-                        {[0, 1, 2, 3].map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={[CHART_STATUS.good, CHART_STATUS.warning, CHART_STATUS.critical, 'var(--muted-foreground)'][index]} />
+                        {statusDistribution.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
                       <Tooltip />
@@ -387,10 +535,10 @@ export function QuotationManagement() {
       </Tabs>
 
       {/* New Quotation Dialog */}
-      <Dialog open={showNewQuoteDialog} onOpenChange={setShowNewQuoteDialog}>
+      <Dialog open={showNewQuoteDialog} onOpenChange={(open) => { setShowNewQuoteDialog(open); if (!open) resetQuoteForm(); }}>
         <DialogContent className="max-w-4xl p-0 overflow-hidden border-none shadow-2xl rounded-2xl">
           <VisuallyHidden>
-            <DialogTitle>Create New Quotation</DialogTitle>
+            <DialogTitle>{editingQuoteId ? 'Edit Quotation' : 'Create New Quotation'}</DialogTitle>
             <DialogDescription>Form to generate a new professional sales quotation</DialogDescription>
           </VisuallyHidden>
 
@@ -398,9 +546,9 @@ export function QuotationManagement() {
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32 blur-3xl" />
             <div className="relative z-10 flex items-center justify-between">
               <div>
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] bg-white/20 px-3 py-1 rounded-full">New Submission</span>
-                <h2 className="text-2xl font-black mt-4 uppercase tracking-tighter">Draft Quotation</h2>
-                <p className="text-white/70 text-sm mt-1">Lengkapi detail untuk membuat penawaran harga baru.</p>
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] bg-white/20 px-3 py-1 rounded-full">{editingQuoteId ? 'Edit' : 'New Submission'}</span>
+                <h2 className="text-2xl font-black mt-4 uppercase tracking-tighter">{editingQuoteId ? 'Edit Quotation' : 'Draft Quotation'}</h2>
+                <p className="text-white/70 text-sm mt-1">Lengkapi detail untuk {editingQuoteId ? 'mengubah' : 'membuat'} penawaran harga.</p>
               </div>
               <div className="p-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20">
                 <FileText className="h-10 w-10" />
@@ -411,25 +559,51 @@ export function QuotationManagement() {
           <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8 bg-white max-h-[60vh] overflow-y-auto">
              <div className="space-y-6">
                <div className="space-y-2">
-                 <Label className="text-[10px] font-black uppercase tracking-widest text-gray-500">Client Info</Label>
-                 <Input placeholder="Search Existing Client..." className="h-12" />
+                 <Label className="text-[10px] font-black uppercase tracking-widest text-gray-500">Client Email</Label>
+                 <Input
+                   placeholder="client@company.com"
+                   className="h-12"
+                   value={quoteForm.clientEmail}
+                   onChange={(e) => setQuoteForm((prev) => ({ ...prev, clientEmail: e.target.value }))}
+                 />
                </div>
                <div className="grid grid-cols-2 gap-4">
                  <div className="space-y-2">
-                   <Label className="text-[10px] font-black uppercase tracking-widest text-gray-500">Contact Person</Label>
-                   <Input placeholder="Name" className="h-12" />
+                   <Label className="text-[10px] font-black uppercase tracking-widest text-gray-500">Contact Person *</Label>
+                   <Input
+                     placeholder="Name"
+                     className="h-12"
+                     value={quoteForm.contactPerson}
+                     onChange={(e) => setQuoteForm((prev) => ({ ...prev, contactPerson: e.target.value }))}
+                   />
                  </div>
                  <div className="space-y-2">
-                   <Label className="text-[10px] font-black uppercase tracking-widest text-gray-500">Nama Perusahaan/Client</Label>
-                   <Input placeholder="Company Name" className="h-12" />
+                   <Label className="text-[10px] font-black uppercase tracking-widest text-gray-500">Nama Perusahaan/Client *</Label>
+                   <Input
+                     placeholder="Company Name"
+                     className="h-12"
+                     value={quoteForm.company}
+                     onChange={(e) => setQuoteForm((prev) => ({ ...prev, company: e.target.value }))}
+                   />
                  </div>
+               </div>
+               <div className="space-y-2">
+                 <Label className="text-[10px] font-black uppercase tracking-widest text-gray-500">Estimasi Total (Rp)</Label>
+                 <Input
+                   type="number"
+                   min="0"
+                   placeholder="0"
+                   className="h-12"
+                   value={quoteForm.estimatedAmount}
+                   onChange={(e) => setQuoteForm((prev) => ({ ...prev, estimatedAmount: e.target.value }))}
+                 />
                </div>
              </div>
              
              <div className="space-y-6">
                <div className="space-y-2">
                  <Label className="text-[10px] font-black uppercase tracking-widest text-gray-500">Pricing Strategy</Label>
-                 <Select>
+                 <Select value={quoteForm.pricingStrategy} onValueChange={(value) => setQuoteForm((prev) => ({ ...prev, pricingStrategy: value }))}>
                     <SelectTrigger className="h-12">
                       <SelectValue placeholder="Select Pricing Tier" />
                     </SelectTrigger>
@@ -442,15 +616,20 @@ export function QuotationManagement() {
                </div>
                <div className="space-y-2">
                  <Label className="text-[10px] font-black uppercase tracking-widest text-gray-500">Valid Until</Label>
-                 <Input type="date" className="h-12" />
+                 <Input
+                   type="date"
+                   className="h-12"
+                   value={quoteForm.validUntil}
+                   onChange={(e) => setQuoteForm((prev) => ({ ...prev, validUntil: e.target.value }))}
+                 />
                </div>
              </div>
           </div>
 
           <div className="p-6 bg-gray-50 border-t flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setShowNewQuoteDialog(false)} className="h-12 px-8 font-bold">Cancel</Button>
-            <Button className="bg-[#013E37] hover:bg-[#02665c] text-white h-12 px-10 font-bold shadow-lg shadow-emerald-900/20">
-              Generate Quotation
+            <Button variant="outline" onClick={() => { setShowNewQuoteDialog(false); resetQuoteForm(); }} className="h-12 px-8 font-bold">Cancel</Button>
+            <Button className="bg-[#013E37] hover:bg-[#02665c] text-white h-12 px-10 font-bold shadow-lg shadow-emerald-900/20" onClick={handleGenerateQuotation}>
+              {editingQuoteId ? 'Update Quotation' : 'Generate Quotation'}
             </Button>
           </div>
         </DialogContent>
@@ -489,8 +668,8 @@ export function QuotationManagement() {
                         </div>
                         <div className="text-right">
                           <p className="text-[10px] font-black text-gray-400 uppercase mb-2">Details:</p>
-                          <p className="text-xs text-gray-500">Date: <span className="font-bold text-gray-900">{formatDate(selectedQuote.createdDate)}</span></p>
-                          <p className="text-xs text-gray-500">Valid: <span className="font-bold text-gray-900">{formatDate(selectedQuote.validUntil)}</span></p>
+                          <p className="text-xs text-gray-500">Date: <span className="font-bold text-gray-900">{formatDate(selectedQuote.createdAt)}</span></p>
+                          <p className="text-xs text-gray-500">Valid: <span className="font-bold text-gray-900">{selectedQuote.validUntil ? formatDate(selectedQuote.validUntil) : '-'}</span></p>
                         </div>
                       </div>
 
@@ -500,20 +679,31 @@ export function QuotationManagement() {
                       </div>
 
                       <div className="space-y-4 mb-12">
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="font-bold text-gray-900">Enterprise Healthcare Suite (Module A+B)</span>
-                          <span className="font-bold">{formatCurrency(selectedQuote.totalAmount)}</span>
-                        </div>
-                        <p className="text-xs text-gray-500 leading-relaxed italic">
-                          Full system integration for {selectedQuote.clientCompany} with unlimited user license and 24/7 priority support.
-                        </p>
+                        {selectedQuote.items.length === 0 && (
+                          <p className="text-xs text-gray-400 italic">Belum ada item produk pada quotation ini.</p>
+                        )}
+                        {selectedQuote.items.map((item) => (
+                          <div key={item.id} className="flex justify-between items-center text-sm">
+                            <span className="font-bold text-gray-900">{item.productName} × {item.quantity}</span>
+                            <span className="font-bold">{formatCurrency(item.lineTotal)}</span>
+                          </div>
+                        ))}
+                        {selectedQuote.notes && (
+                          <p className="text-xs text-gray-500 leading-relaxed italic">{selectedQuote.notes}</p>
+                        )}
                       </div>
 
                       <div className="border-t-2 border-gray-100 pt-8 flex flex-col items-end">
                         <div className="flex justify-between w-48 mb-2">
                           <span className="text-xs font-bold text-gray-400 uppercase">Subtotal</span>
-                          <span className="text-sm font-bold text-gray-900">{formatCurrency(selectedQuote.totalAmount)}</span>
+                          <span className="text-sm font-bold text-gray-900">{formatCurrency(selectedQuote.subtotal)}</span>
                         </div>
+                        {selectedQuote.additionalDiscountPercent > 0 && (
+                          <div className="flex justify-between w-48 mb-2">
+                            <span className="text-xs font-bold text-gray-400 uppercase">Additional Disc.</span>
+                            <span className="text-sm font-bold text-emerald-600">-{selectedQuote.additionalDiscountPercent}%</span>
+                          </div>
+                        )}
                         <div className="flex justify-between w-48 pt-4 border-t-2 border-gray-900">
                           <span className="text-xs font-black text-gray-900 uppercase">Grand Total</span>
                           <span className="text-lg font-black text-[#013E37]">{formatCurrency(selectedQuote.totalAmount)}</span>
@@ -533,23 +723,38 @@ export function QuotationManagement() {
 
                    <div className="space-y-4">
                      <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Main Actions</Label>
-                     <Button className="w-full bg-[#013E37] text-white font-bold h-12 gap-2 shadow-lg shadow-emerald-900/10">
+                     <Button
+                       className="w-full bg-[#013E37] text-white font-bold h-12 gap-2 shadow-lg shadow-emerald-900/10"
+                       onClick={() => updateQuoteStatus(selectedQuote.id, 'sent', 'Quotation dikirim ke client!')}
+                     >
                        <Send className="h-4 w-4" /> Send to Client
                      </Button>
-                     <Button variant="outline" className="w-full font-bold h-12 gap-2 border-gray-200">
+                     <Button variant="outline" className="w-full font-bold h-12 gap-2 border-gray-200" onClick={() => handleDownloadPdf(selectedQuote)}>
                        <Download className="h-4 w-4" /> Download PDF
                      </Button>
                    </div>
 
                    <div className="space-y-4">
                      <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Internal</Label>
-                     <Button variant="ghost" className="w-full justify-start font-bold text-blue-600 hover:bg-blue-50 h-11 gap-3">
+                     <Button
+                       variant="ghost"
+                       className="w-full justify-start font-bold text-blue-600 hover:bg-blue-50 h-11 gap-3"
+                       onClick={() => { setShowDetailDialog(false); openEditQuote(selectedQuote); }}
+                     >
                        <Edit className="h-4 w-4" /> Edit Content
                      </Button>
-                     <Button variant="ghost" className="w-full justify-start font-bold text-[#013E37] hover:bg-[#EEF7F5] h-11 gap-3">
+                     <Button
+                       variant="ghost"
+                       className="w-full justify-start font-bold text-[#013E37] hover:bg-[#EEF7F5] h-11 gap-3"
+                       onClick={() => handleDuplicateQuote(selectedQuote)}
+                     >
                        <Copy className="h-4 w-4" /> Duplicate
                      </Button>
-                     <Button variant="ghost" className="w-full justify-start font-bold text-rose-600 hover:bg-rose-50 h-11 gap-3">
+                     <Button
+                       variant="ghost"
+                       className="w-full justify-start font-bold text-rose-600 hover:bg-rose-50 h-11 gap-3"
+                       onClick={() => updateQuoteStatus(selectedQuote.id, 'cancelled', 'Quotation dibatalkan.')}
+                     >
                        <XCircle className="h-4 w-4" /> Cancel Quote
                      </Button>
                    </div>

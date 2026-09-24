@@ -298,6 +298,8 @@ model Client {
   communications ClientCommunication[]
   // Bab 30 lanjutan -- lihat catatan lengkap di model Contract di bawah.
   contracts      Contract[]
+  // Bab 30 lanjutan -- lihat catatan lengkap di model Quotation di bawah.
+  quotations     Quotation[]
 
   @@map("clients")
   @@index([status])
@@ -417,6 +419,9 @@ model Opportunity {
   // Bab 30 lanjutan -- 1:1, lihat catatan lengkap di model Contract di
   // bawah (opportunityId di Contract di-@unique-kan).
   contract   Contract?
+  // Bab 30 lanjutan -- 1:banyak (satu opportunity bisa direvisi jadi
+  // beberapa quotation), lihat catatan lengkap di model Quotation di bawah.
+  quotations Quotation[]
 
   @@map("opportunities")
   @@index([status])
@@ -652,6 +657,8 @@ model Product {
   physicalAttrs      ProductPhysicalAttrs?
   performanceTargets PerformanceTarget[]
   opportunityLines   OpportunityProduct[]
+  // Bab 30 lanjutan -- lihat catatan lengkap di model QuotationItem di atas.
+  quotationLines     QuotationItem[]
 
   @@map("products")
   @@index([category])
@@ -913,6 +920,93 @@ model Contract {
   @@map("contracts")
   @@index([clientId])
   @@index([status])
+}
+
+
+// ---------------------------------------------------------------------
+// Bab 30 lanjutan (24 Sep 2026, hasil deep review + smoke test grup menu
+// Sales Pipeline) -- Quotation. Sebelumnya ada DUA fitur "quotation" yang
+// sama sekali tidak sadar satu sama lain, keduanya 100% frontend-only:
+//   1. ConfigurePriceQuote.tsx (menu "Configure, Propose & Quote" / CPQ)
+//      -- state lokal useState<Quote[]> dengan dummy seed, "Generate
+//      Quotation" cuma setQuotes(...), hilang saat refresh. Additional
+//      Discount (%) di-capture di form tapi TIDAK PERNAH dikurangkan dari
+//      totalAmount yang disimpan/ditampilkan (bug data konkret).
+//   2. QuotationManagement.tsx (menu "Quotation Management") -- array
+//      module-level QUOTATIONS yang di-hardcode (3 baris tetap, bukan
+//      useState), KPI card angka statis ('156', 'Rp 2.4B', dst, tidak
+//      diturunkan dari data), dan hampir semua tombol aksi (Generate
+//      Quotation, Export Report, Edit/Send per baris, Send to Client,
+//      Download PDF, Edit Content, Duplicate, Cancel Quote) tanpa
+//      onClick sama sekali.
+// Ini rumah backend sungguhan untuk KEDUANYA -- satu model, dipakai oleh
+// dua UI yang tadinya terpisah, field client/opportunity dibuat relasi
+// Prisma asli (pola sama seperti Contract) supaya data dummy (task
+// berikutnya) bisa menaut ke Opportunity/Client sungguhan.
+//
+// QuotationItem terpisah dari Quotation (pola sama seperti
+// OpportunityProduct) supaya baris produk per quotation punya quantity/
+// unitPrice/discountPercent/lineTotal sendiri-sendiri -- additionalDiscountPercent
+// di level Quotation itu sendiri adalah diskon KEDUA yang dikenakan di
+// atas subtotal (jumlah semua lineTotal), memperbaiki bug "Additional
+// Discount" di atas: totalAmount = subtotal * (1 - additionalDiscountPercent/100).
+//
+// Sama seperti DiscountApprovalRequest/Contract: migration ini tidak bisa
+// diverifikasi dengan `prisma generate`/`prisma migrate` dari sandbox ini
+// (tidak ada jalur jaringan ke binaries.prisma.sh) -- harus dijalankan
+// manual (`npx prisma migrate deploy`) dari mesin dengan akses jaringan
+// penuh sebelum fitur ini benar-benar hidup di production.
+enum QuotationStatus {
+  DRAFT     @map("draft")
+  SENT      @map("sent")
+  APPROVED  @map("approved")
+  REJECTED  @map("rejected")
+  EXPIRED   @map("expired")
+  CANCELLED @map("cancelled")
+}
+
+model Quotation {
+  id                        String          @id @default(uuid())
+  quoteNumber               String          @unique @map("quote_number")
+  clientId                  String?         @map("client_id")
+  client                    Client?         @relation(fields: [clientId], references: [id])
+  clientName                String          @map("client_name")
+  clientCompany             String?         @map("client_company")
+  clientEmail               String?         @map("client_email")
+  opportunityId             String?         @map("opportunity_id")
+  opportunity               Opportunity?    @relation(fields: [opportunityId], references: [id])
+  subtotal                  Decimal         @default(0) @map("subtotal") @db.Decimal(14, 2)
+  additionalDiscountPercent Decimal         @default(0) @map("additional_discount_percent") @db.Decimal(5, 2)
+  totalAmount               Decimal         @map("total_amount") @db.Decimal(14, 2)
+  status                    QuotationStatus @default(DRAFT)
+  validUntil                DateTime?       @map("valid_until")
+  notes                     String?
+  createdById               String?         @map("created_by_id")
+  createdAt                 DateTime        @default(now()) @map("created_at")
+  updatedAt                 DateTime        @updatedAt @map("updated_at")
+
+  items QuotationItem[]
+
+  @@map("quotations")
+  @@index([clientId])
+  @@index([opportunityId])
+  @@index([status])
+}
+
+model QuotationItem {
+  id              String    @id @default(uuid())
+  quotationId     String    @map("quotation_id")
+  quotation       Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  productId       String?   @map("product_id")
+  product         Product?  @relation(fields: [productId], references: [id])
+  productName     String    @map("product_name")
+  quantity        Int       @default(1)
+  unitPrice       Decimal   @map("unit_price") @db.Decimal(14, 2)
+  discountPercent Decimal   @default(0) @map("discount_percent") @db.Decimal(5, 2)
+  lineTotal       Decimal   @map("line_total") @db.Decimal(14, 2)
+
+  @@map("quotation_items")
+  @@index([quotationId])
 }
 
 

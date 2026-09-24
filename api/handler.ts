@@ -2897,6 +2897,227 @@ async function handleContracts(id: string | undefined, req: ApiRequest, res: Api
   }
 }
 
+// ---------------------------------------------------------------------
+// /api/quotations, /api/quotations/:id
+//
+// Bab 30 lanjutan (24 Sep 2026, hasil deep review + smoke test grup menu
+// Sales Pipeline) -- lihat catatan desain lengkap di prisma/schema.prisma
+// dekat model Quotation/QuotationItem. Menggantikan DUA fitur frontend-
+// only yang tidak sadar satu sama lain (ConfigurePriceQuote.tsx's
+// useState<Quote[]> dan QuotationManagement.tsx's hardcoded QUOTATIONS
+// array) dengan satu backend sungguhan.
+//
+// subtotal/totalAmount SENGAJA dihitung ulang di server dari items[],
+// tidak dipercaya dari body -- ini yang memperbaiki bug "Additional
+// Discount (%)" di ConfigurePriceQuote.tsx yang selama ini di-capture
+// tapi tidak pernah benar-benar mengurangi totalAmount yang disimpan.
+function computeQuotationTotals(
+  items: Array<{ quantity: number; unitPrice: number; discountPercent: number }>,
+  additionalDiscountPercent: number,
+) {
+  const subtotal = items.reduce((sum, item) => {
+    const lineGross = item.quantity * item.unitPrice;
+    const lineDiscount = (lineGross * item.discountPercent) / 100;
+    return sum + (lineGross - lineDiscount);
+  }, 0);
+  const totalAmount = subtotal - (subtotal * additionalDiscountPercent) / 100;
+  return { subtotal, totalAmount };
+}
+
+async function handleQuotations(id: string | undefined, req: ApiRequest, res: ApiResponse) {
+  try {
+    const user = await getUserFromToken(extractBearerToken(req.headers.authorization));
+
+    if (!id) {
+      // GET/POST /api/quotations
+      requireAuth(user);
+
+      if (req.method === 'GET') {
+        const quotations = await prisma.quotation.findMany({
+          include: { items: true },
+          orderBy: { createdAt: 'desc' },
+        });
+        res.status(200).json({ success: true, data: quotations });
+        return;
+      }
+
+      if (req.method === 'POST') {
+        const body = (req.body ?? {}) as Record<string, unknown>;
+        if (!body.clientName) {
+          res.status(400).json({ success: false, error: 'clientName wajib diisi' });
+          return;
+        }
+        const rawItems = Array.isArray(body.items) ? (body.items as Record<string, unknown>[]) : [];
+        const items = rawItems.map((it) => ({
+          productId: (it.productId as string) ?? null,
+          productName: (it.productName as string) ?? '',
+          quantity: Number(it.quantity) || 1,
+          unitPrice: Number(it.unitPrice) || 0,
+          discountPercent: Number(it.discountPercent) || 0,
+        }));
+        const additionalDiscountPercent = Number(body.additionalDiscountPercent) || 0;
+        if (additionalDiscountPercent < 0 || additionalDiscountPercent > 100) {
+          res.status(400).json({ success: false, error: 'additionalDiscountPercent harus antara 0 dan 100' });
+          return;
+        }
+        const { subtotal, totalAmount } = computeQuotationTotals(items, additionalDiscountPercent);
+
+        const quotation = await prisma.quotation.create({
+          data: {
+            quoteNumber: (body.quoteNumber as string) || `QTN-${Date.now()}`,
+            clientId: (body.clientId as string) ?? null,
+            clientName: body.clientName as string,
+            clientCompany: (body.clientCompany as string) ?? null,
+            clientEmail: (body.clientEmail as string) ?? null,
+            opportunityId: (body.opportunityId as string) ?? null,
+            subtotal,
+            additionalDiscountPercent,
+            totalAmount,
+            status: (body.status as 'DRAFT' | 'SENT' | 'APPROVED' | 'REJECTED' | 'EXPIRED' | 'CANCELLED') ?? 'DRAFT',
+            validUntil: body.validUntil ? new Date(body.validUntil as string) : null,
+            notes: (body.notes as string) ?? null,
+            createdById: user.id,
+            items: {
+              create: items.map((it) => ({
+                productId: it.productId,
+                productName: it.productName,
+                quantity: it.quantity,
+                unitPrice: it.unitPrice,
+                discountPercent: it.discountPercent,
+                lineTotal: it.quantity * it.unitPrice - (it.quantity * it.unitPrice * it.discountPercent) / 100,
+              })),
+            },
+          },
+          include: { items: true },
+        });
+        res.status(201).json({ success: true, data: quotation });
+        return;
+      }
+
+      res.status(405).json({ success: false, error: 'Method not allowed' });
+      return;
+    }
+
+    // GET/PUT/DELETE /api/quotations/:id
+    if (req.method === 'GET') {
+      requireAuth(user);
+      const quotation = await prisma.quotation.findUnique({ where: { id }, include: { items: true } });
+      if (!quotation) {
+        res.status(404).json({ success: false, error: 'Quotation not found' });
+        return;
+      }
+      res.status(200).json({ success: true, data: quotation });
+      return;
+    }
+
+    if (req.method === 'PUT') {
+      requireAuth(user);
+      const body = (req.body ?? {}) as Record<string, unknown>;
+
+      // Editing items/discount recomputes subtotal+totalAmount server-side
+      // (same reasoning as POST); a pure status change (Send/Cancel/
+      // Approve/Reject from QuotationManagement.tsx) sends neither and
+      // just updates status, leaving totals untouched.
+      let totals: { subtotal: number; totalAmount: number; additionalDiscountPercent: number } | undefined;
+      if (body.items !== undefined || body.additionalDiscountPercent !== undefined) {
+        const current = await prisma.quotation.findUnique({ where: { id }, include: { items: true } });
+        if (!current) {
+          res.status(404).json({ success: false, error: 'Quotation not found' });
+          return;
+        }
+        const rawItems = Array.isArray(body.items)
+          ? (body.items as Record<string, unknown>[])
+          : current.items.map((it: { productId: string | null; productName: string; quantity: number; unitPrice: unknown; discountPercent: unknown }) => ({
+              productId: it.productId,
+              productName: it.productName,
+              quantity: it.quantity,
+              unitPrice: Number(it.unitPrice),
+              discountPercent: Number(it.discountPercent),
+            }));
+        const items = rawItems.map((it: Record<string, unknown>) => ({
+          productId: (it.productId as string) ?? null,
+          productName: (it.productName as string) ?? '',
+          quantity: Number(it.quantity) || 1,
+          unitPrice: Number(it.unitPrice) || 0,
+          discountPercent: Number(it.discountPercent) || 0,
+        }));
+        const additionalDiscountPercent =
+          body.additionalDiscountPercent !== undefined
+            ? Number(body.additionalDiscountPercent)
+            : Number(current.additionalDiscountPercent);
+        const computed = computeQuotationTotals(items, additionalDiscountPercent);
+        totals = { ...computed, additionalDiscountPercent };
+
+        if (body.items !== undefined) {
+          await prisma.quotationItem.deleteMany({ where: { quotationId: id } });
+          await prisma.quotationItem.createMany({
+            data: items.map((it: { productId: string | null; productName: string; quantity: number; unitPrice: number; discountPercent: number }) => ({
+              quotationId: id,
+              productId: it.productId,
+              productName: it.productName,
+              quantity: it.quantity,
+              unitPrice: it.unitPrice,
+              discountPercent: it.discountPercent,
+              lineTotal: it.quantity * it.unitPrice - (it.quantity * it.unitPrice * it.discountPercent) / 100,
+            })),
+          });
+        }
+      }
+
+      const quotation = await prisma.quotation.update({
+        where: { id },
+        data: {
+          ...(body.quoteNumber !== undefined && { quoteNumber: body.quoteNumber as string }),
+          ...(body.clientId !== undefined && { clientId: body.clientId as string | null }),
+          ...(body.clientName !== undefined && { clientName: body.clientName as string }),
+          ...(body.clientCompany !== undefined && { clientCompany: body.clientCompany as string | null }),
+          ...(body.clientEmail !== undefined && { clientEmail: body.clientEmail as string | null }),
+          ...(body.opportunityId !== undefined && { opportunityId: body.opportunityId as string | null }),
+          ...(body.status !== undefined && {
+            status: body.status as 'DRAFT' | 'SENT' | 'APPROVED' | 'REJECTED' | 'EXPIRED' | 'CANCELLED',
+          }),
+          ...(body.validUntil !== undefined && {
+            validUntil: body.validUntil ? new Date(body.validUntil as string) : null,
+          }),
+          ...(body.notes !== undefined && { notes: body.notes as string | null }),
+          ...(totals !== undefined && {
+            subtotal: totals.subtotal,
+            additionalDiscountPercent: totals.additionalDiscountPercent,
+            totalAmount: totals.totalAmount,
+          }),
+        },
+        include: { items: true },
+      });
+      res.status(200).json({ success: true, data: quotation });
+      return;
+    }
+
+    if (req.method === 'DELETE') {
+      requireRole(user, ['SUPER_ADMIN', 'SALES_MANAGER']);
+      await prisma.quotation.delete({ where: { id } });
+      res.status(200).json({ success: true });
+      return;
+    }
+
+    res.status(405).json({ success: false, error: 'Method not allowed' });
+  } catch (err) {
+    if (err instanceof UnauthorizedError || err instanceof ForbiddenError) {
+      res.status(err.status).json({ success: false, error: err.message });
+      return;
+    }
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2025') {
+      res.status(404).json({ success: false, error: 'Quotation not found' });
+      return;
+    }
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2002') {
+      res.status(409).json({ success: false, error: 'Nomor quotation sudah digunakan' });
+      return;
+    }
+    console.error('[api/quotations] unexpected error:', err);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   const resource = getParam(req, 'resource');
   const sub = getParam(req, 'id'); // for resource === 'auth', this is the action
@@ -2940,6 +3161,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return;
     case 'contracts':
       await handleContracts(sub, req, res);
+      return;
+    case 'quotations':
+      await handleQuotations(sub, req, res);
       return;
     case 'products':
       await handleProducts(sub, req, res);
