@@ -1214,6 +1214,20 @@ async function handlePerformanceTargets(id: string | undefined, req: ApiRequest,
     if (req.method === 'PUT') {
       requireAuth(user);
       const body = (req.body ?? {}) as Record<string, unknown>;
+      // Bab 32/33 (24 Sep 2026): PUT had no validation at all (only POST's
+      // validatePerformanceTargetBody did) -- an empty/invalid Quota Target
+      // input client-side becomes NaN, which JSON.stringify serializes as
+      // literal `null` (not dropped, unlike `undefined`), which then hit
+      // Prisma's non-nullable `target`/`actual` Decimal columns as an
+      // explicit null and crashed with a generic 500 instead of a clear 400.
+      if (body.target !== undefined && (typeof body.target !== 'number' || Number.isNaN(body.target) || body.target < 0)) {
+        res.status(400).json({ success: false, error: 'Target harus angka >= 0' });
+        return;
+      }
+      if (body.actual !== undefined && (typeof body.actual !== 'number' || Number.isNaN(body.actual) || body.actual < 0)) {
+        res.status(400).json({ success: false, error: 'Actual harus angka >= 0' });
+        return;
+      }
       const target = await prisma.performanceTarget.update({
         where: { id },
         data: {
@@ -1611,6 +1625,30 @@ async function handleProducts(id: string | undefined, req: ApiRequest, res: ApiR
         const body = (req.body ?? {}) as Record<string, unknown>;
         const physicalAttrs = body.physicalAttrs as Record<string, unknown> | undefined;
 
+        // Bab 32/33 (24 Sep 2026, deep review + smoke test grup Produk &
+        // Wilayah): sebelumnya tidak ada validasi runtime sama sekali di
+        // sini -- request langsung (Postman dsb) yang melewati validate()
+        // client-side (productsRepository.ts) bisa menyimpan harga/stock
+        // negatif, dan field wajib yang hilang (mis. sku) baru ketahuan
+        // lewat error Prisma generik yang jatuh ke catch -> 500, bukan 400
+        // yang jelas.
+        if (!body.sku || !body.name || !body.category || typeof body.price !== 'number') {
+          res.status(400).json({ success: false, error: 'SKU, nama, kategori, dan harga (angka) wajib diisi' });
+          return;
+        }
+        if ((body.price as number) < 0) {
+          res.status(400).json({ success: false, error: 'Harga harus angka >= 0' });
+          return;
+        }
+        if (body.stock !== undefined && (typeof body.stock !== 'number' || body.stock < 0)) {
+          res.status(400).json({ success: false, error: 'Stock harus angka >= 0' });
+          return;
+        }
+        if (body.sold !== undefined && (typeof body.sold !== 'number' || body.sold < 0)) {
+          res.status(400).json({ success: false, error: 'Sold harus angka >= 0' });
+          return;
+        }
+
         const product = await prisma.product.create({
           data: {
             sku: body.sku as string,
@@ -1665,6 +1703,22 @@ async function handleProducts(id: string | undefined, req: ApiRequest, res: ApiR
       requireRole(user, ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADMIN']);
       const body = (req.body ?? {}) as Record<string, unknown>;
       const physicalAttrs = body.physicalAttrs as Record<string, unknown> | undefined;
+
+      // Bab 32/33: same bounds guard as POST, applied only to fields
+      // actually present in this partial update.
+      if (body.price !== undefined && (typeof body.price !== 'number' || body.price < 0)) {
+        res.status(400).json({ success: false, error: 'Harga harus angka >= 0' });
+        return;
+      }
+      if (body.stock !== undefined && (typeof body.stock !== 'number' || body.stock < 0)) {
+        res.status(400).json({ success: false, error: 'Stock harus angka >= 0' });
+        return;
+      }
+      if (body.sold !== undefined && (typeof body.sold !== 'number' || body.sold < 0)) {
+        res.status(400).json({ success: false, error: 'Sold harus angka >= 0' });
+        return;
+      }
+
       const product = await prisma.product.update({
         where: { id },
         data: {
@@ -2376,6 +2430,18 @@ async function handleTerritories(id: string | undefined, req: ApiRequest, res: A
           res.status(400).json({ success: false, error: 'name dan region wajib diisi' });
           return;
         }
+        // Bab 32/33 (24 Sep 2026): coverage was never bounds-checked here
+        // (only the client-side validate() in territoriesRepository.ts
+        // enforced 0-100, and only on create) -- a direct API call could
+        // store any value, and an empty/NaN coverage from the Edit dialog
+        // (see PUT below) crashed with a generic 500 instead of a clear 400.
+        if (
+          body.coverage !== undefined &&
+          (typeof body.coverage !== 'number' || Number.isNaN(body.coverage) || body.coverage < 0 || body.coverage > 100)
+        ) {
+          res.status(400).json({ success: false, error: 'Coverage harus angka 0-100' });
+          return;
+        }
         const territory = await prisma.territory.create({
           data: {
             name: body.name as string,
@@ -2410,6 +2476,13 @@ async function handleTerritories(id: string | undefined, req: ApiRequest, res: A
     if (req.method === 'PUT') {
       requireRole(user, ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADMIN']);
       const body = (req.body ?? {}) as Record<string, unknown>;
+      if (
+        body.coverage !== undefined &&
+        (typeof body.coverage !== 'number' || Number.isNaN(body.coverage) || body.coverage < 0 || body.coverage > 100)
+      ) {
+        res.status(400).json({ success: false, error: 'Coverage harus angka 0-100' });
+        return;
+      }
       const territory = await prisma.territory.update({
         where: { id },
         data: {

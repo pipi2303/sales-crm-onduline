@@ -281,13 +281,58 @@ const STAGE_PROBABILITY: Record<string, number> = {
   'closed-lost': 0,
 };
 
-// Territory is NOT seeded anywhere in this script (created manually by
-// the user through the app's own UI -- see the comment in
-// clientsAndOpportunities.ts) -- so this looks up existing records by
-// name and fails loudly if one doesn't exist yet, rather than silently
-// creating a new placeholder Territory that would fork from the real one.
+// Bab 32/33 (24 Sep 2026, deep review + smoke test grup Produk & Wilayah):
+// Territory used to NOT be seeded anywhere in this script at all -- it was
+// created lazily by TerritoryManagement.tsx's own frontend code the first
+// time anyone opened that page (an auto-seed-on-empty-load side effect,
+// itself replaced by an explicit "Load Dummy Data" button in this same
+// round -- see the component's own comments). seedOpportunities() below
+// depended on those exact 4 territory names already existing, but that
+// dependency was only ever documented as a comment, never enforced: running
+// this script against a genuinely fresh database (a new environment, CI, or
+// simply before anyone had opened Territory Management in a browser even
+// once) made seedOpportunities() throw on its very first record and abort
+// main() before any of the seeders after it ever ran. seedTerritories()
+// creates the same 4 territories (+ a performance_targets row each) that
+// TerritoryManagement.tsx has always shipped as sample data, making this
+// script fully self-contained. Territory.name has no @@unique constraint
+// (see prisma/schema.prisma's Territory model), so this uses
+// findFirst-by-name instead of upsert -- same idempotency, no schema change
+// needed.
+async function seedTerritories() {
+  const SEED_TERRITORIES = [
+    { name: 'Jakarta Pusat', region: 'DKI Jakarta', assignedTo: 'Budi Santoso', coverage: 85, target: 300000000, actual: 350000000 },
+    { name: 'Jakarta Selatan', region: 'DKI Jakarta', assignedTo: 'Ani Wijaya', coverage: 78, target: 300000000, actual: 280000000 },
+    { name: 'Bandung', region: 'Jawa Barat', assignedTo: 'Dewi Kartika', coverage: 92, target: 400000000, actual: 520000000 },
+    { name: 'Surabaya', region: 'Jawa Timur', assignedTo: 'Eko Prasetyo', coverage: 65, target: 250000000, actual: 185000000 },
+  ];
+  const period = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+  let created = 0;
+  for (const seed of SEED_TERRITORIES) {
+    let territory = await prisma.territory.findFirst({ where: { name: seed.name } });
+    if (!territory) {
+      territory = await prisma.territory.create({
+        data: { name: seed.name, region: seed.region, assignedTo: seed.assignedTo, coverage: seed.coverage },
+      });
+      created += 1;
+    }
+
+    const existingTarget = await prisma.performanceTarget.findFirst({
+      where: { territoryId: territory.id, period },
+    });
+    if (!existingTarget) {
+      await prisma.performanceTarget.create({
+        data: { territoryId: territory.id, period, target: seed.target, actual: seed.actual },
+      });
+    }
+  }
+  console.log(`Seeded ${created} territories (${SEED_TERRITORIES.length} total, idempotent).`);
+}
+
 // Idempotent via findFirst-by-name(clientId+name) before create, since
-// Opportunity has no natural unique business key of its own.
+// Opportunity has no natural unique business key of its own. Depends on
+// seedTerritories() above having already run in this same main().
 async function seedOpportunities() {
   const clientByCustId = new Map<string, NonNullable<Awaited<ReturnType<typeof prisma.client.findUnique>>>>();
   for (const c of clientSeeds) {
@@ -853,6 +898,7 @@ async function main() {
   await seedProductCatalog();
   await seedProductInstances();
   await seedClients();
+  await seedTerritories();
   await seedOpportunities();
   await seedClientContactsAndIntelligence();
   await seedVisitTasks();

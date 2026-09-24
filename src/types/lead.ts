@@ -16,4 +16,11 @@ export interface Lead {
   createdAt: Date;
   lastContact: Date;
   notes: string;
+  // Bab 32/33 (24 Sep 2026, deep review + smoke test grup Produk & Wilayah):
+  // backend (Lead.territoryId, api/handler.ts's handleLeads) already
+  // supported this field, and Territory Management's "Leads" count per
+  // territory was already computed from it -- but no UI anywhere let a
+  // user actually set it, so that count was structurally guaranteed to
+  // read 0 forever. Added here + a Territory picker in LeadManagement.tsx.
+  territoryId?: string | null;
 }

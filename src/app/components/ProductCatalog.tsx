@@ -134,20 +134,24 @@ export function ProductCatalog() {
   };
 
   const getCategorySubtext = (category: string) => {
-    // Bab 10 #3 (23 Sep 2026): keys here are matched against real
-    // product.category values coming from /api/products (ProductCategory
-    // model, prisma/schema.prisma -- codes ATAP/WATERPROOFING/
-    // PHOTOVOLTAIC/GREEN_ROOF/ACCESSORIES). An unmatched category still
-    // falls back to 'KATALOG PRODUK' below, so this mapping only needs to
-    // cover the categories Onduline actually sells -- it no longer lists
-    // hospital-software modules that were never real product data here.
+    // Bab 10 #3 (23 Sep 2026), corrected Bab 32/33 (24 Sep 2026): keys here
+    // must match the actual free-text `Product.category` values stored in
+    // the database (there is a separate ProductCategory/ProductFamily
+    // hierarchy in prisma/schema.prisma, but it is NOT what this field's
+    // values come from -- Product.category is a plain, unrelated String
+    // column; see prisma/seedData/productCatalog.ts for the 5 real values).
+    // The previous version of this mapping was keyed on the OLD (also now
+    // fixed) ProductForm.tsx dropdown vocabulary ('Atap Bitumen', 'Solar',
+    // 'Aksesoris & Talang'), which never matched the real category strings
+    // for 3 of the app's 5 categories -- live-verified showing the generic
+    // 'KATALOG PRODUK' fallback for Aksesoris/Photovoltaic/Atap tabs.
     const mapping: Record<string, string> = {
       'all': 'SEMUA PRODUK',
-      'Atap Bitumen': 'GENTENG BITUMEN',
+      'Atap': 'ATAP GENTENG',
       'Waterproofing': 'PELAPIS ANTI BOCOR',
-      'Solar': 'PANEL SURYA ATAP',
+      'Photovoltaic': 'PANEL SURYA ATAP',
       'Green Roof': 'ATAP HIJAU',
-      'Aksesoris & Talang': 'AKSESORIS & TALANG',
+      'Aksesoris': 'AKSESORIS & TALANG',
     };
     return mapping[category] || 'KATALOG PRODUK';
   };

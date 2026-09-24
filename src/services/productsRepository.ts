@@ -137,6 +137,19 @@ function validate(input: NewProduct): string | null {
   return null;
 }
 
+// Bab 32/33 (24 Sep 2026): update() used to skip validation entirely
+// (only create() called validate(), which requires every field) -- a
+// price/stock/sold update() call bypassing the UI could send a negative
+// number straight through with nothing catching it client-side. Only
+// checks fields actually present in a partial update.
+function validatePartial(input: Partial<NewProduct>): string | null {
+  if (input.category !== undefined && !input.category?.trim()) return 'Kategori wajib diisi';
+  if (input.price !== undefined && (typeof input.price !== 'number' || input.price < 0)) return 'Harga harus angka >= 0';
+  if (input.stock !== undefined && (typeof input.stock !== 'number' || input.stock < 0)) return 'Stock harus angka >= 0';
+  if (input.sold !== undefined && (typeof input.sold !== 'number' || input.sold < 0)) return 'Sold harus angka >= 0';
+  return null;
+}
+
 export const productsRepository = {
   async getAll(): Promise<Result<Product[]>> {
     const res = await apiFetch<any[]>('/api/products');
@@ -163,6 +176,9 @@ export const productsRepository = {
   },
 
   async update(id: string, updates: Partial<NewProduct>): Promise<Result<Product>> {
+    const validationError = validatePartial(updates);
+    if (validationError) return { success: false, error: validationError };
+
     const res = await apiFetch<any>(`/api/products/${id}`, {
       method: 'PUT',
       body: JSON.stringify(toApiPayload(updates)),

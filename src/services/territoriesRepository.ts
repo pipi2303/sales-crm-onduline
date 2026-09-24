@@ -55,6 +55,23 @@ function validate(input: NewTerritoryProfile): string | null {
   return null;
 }
 
+// Bab 32/33 (24 Sep 2026): update() used to call no validation at all
+// (only create() did) -- a well-formed-looking PUT with a blank name or an
+// out-of-range coverage sailed straight through to the server. Only checks
+// fields actually present in a partial update.
+function validatePartial(input: Partial<NewTerritoryProfile>): string | null {
+  if (input.name !== undefined && !input.name?.trim()) return 'Nama wilayah wajib diisi';
+  if (input.region !== undefined && !input.region?.trim()) return 'Region wajib diisi';
+  if (input.assignedTo !== undefined && !input.assignedTo?.trim()) return 'Penanggung jawab wajib diisi';
+  if (
+    input.coverage !== undefined &&
+    (typeof input.coverage !== 'number' || Number.isNaN(input.coverage) || input.coverage < 0 || input.coverage > 100)
+  ) {
+    return 'Coverage harus angka 0-100';
+  }
+  return null;
+}
+
 export const territoriesRepository = {
   async getAll(): Promise<Result<TerritoryProfile[]>> {
     return apiFetch<TerritoryProfile[]>('/api/territories');
@@ -75,6 +92,9 @@ export const territoriesRepository = {
   },
 
   async update(id: string, updates: Partial<NewTerritoryProfile>): Promise<Result<TerritoryProfile>> {
+    const validationError = validatePartial(updates);
+    if (validationError) return { success: false, error: validationError };
+
     return apiFetch<TerritoryProfile>(`/api/territories/${id}`, {
       method: 'PUT',
       body: JSON.stringify(updates),

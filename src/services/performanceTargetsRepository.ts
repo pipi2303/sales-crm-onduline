@@ -58,6 +58,30 @@ function entityKey(input: Pick<NewPerformanceTarget, 'productId' | 'salesRepId' 
   return `territory:${input.territoryId}`;
 }
 
+// Bab 32/33 (24 Sep 2026): neither create() nor update() validated
+// anything client-side -- an empty/invalid Quota Target input in
+// TerritoryManagement.tsx's Edit dialog produced `NaN`, which
+// JSON.stringify serializes as literal `null`, which the PUT handler then
+// sent straight to Prisma against a non-nullable Decimal column, crashing
+// with a generic 500. This is defense-in-depth (the form itself is now
+// also guarded, see TerritoryManagement.tsx), and protects any other
+// current/future caller of this repository too.
+function validatePartial(input: Partial<NewPerformanceTarget>): string | null {
+  if (
+    input.target !== undefined &&
+    (typeof input.target !== 'number' || Number.isNaN(input.target) || input.target < 0)
+  ) {
+    return 'Target harus angka >= 0';
+  }
+  if (
+    input.actual !== undefined &&
+    (typeof input.actual !== 'number' || Number.isNaN(input.actual) || input.actual < 0)
+  ) {
+    return 'Actual harus angka >= 0';
+  }
+  return null;
+}
+
 function fromApiTarget(row: any): PerformanceTarget {
   return {
     ...row,
@@ -83,6 +107,9 @@ export const performanceTargetsRepository = {
   },
 
   async create(input: NewPerformanceTarget): Promise<Result<PerformanceTarget>> {
+    const validationError = validatePartial(input);
+    if (validationError) return { success: false, error: validationError };
+
     const res = await apiFetch<any>('/api/performance-targets', {
       method: 'POST',
       body: JSON.stringify(input),
@@ -92,6 +119,9 @@ export const performanceTargetsRepository = {
   },
 
   async update(id: string, updates: Partial<NewPerformanceTarget>): Promise<Result<PerformanceTarget>> {
+    const validationError = validatePartial(updates);
+    if (validationError) return { success: false, error: validationError };
+
     const res = await apiFetch<any>(`/api/performance-targets/${id}`, {
       method: 'PUT',
       body: JSON.stringify(updates),

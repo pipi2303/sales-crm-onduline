@@ -3469,3 +3469,224 @@ dijelaskan di poin 1 di atas), `vite build` (sukses), `vitest run`
 (11/11 tetap lulus). Tidak ada commit yang di-push (tidak ada kredensial
 git di sandbox ini) -- semua 5 commit ada di local branch `main`, siap
 di-push oleh user.
+
+## 32. Deep review + smoke test: grup menu "Produk & Wilayah" (Product Catalog + Territory Management)
+
+Task murni investigasi (review kode + smoke test live di
+`sales-crm.intramedika.co.id`), TIDAK ada perubahan kode yang dibuat --
+hasil disampaikan sebagai laporan insight ke user, bukan komit.
+
+Metodologi: 2 subagent riset paralel (satu untuk Product Catalog, satu
+untuk Territory Management), masing-masing membaca frontend component +
+repository + handler backend terkait + schema Prisma + seed data, lalu
+temuan kunci diverifikasi langsung lewat smoke test browser (built-in
+browser, sudah login dari sesi sebelumnya -- tidak perlu ketik password).
+
+### Product Catalog (`ProductCatalog.tsx`, `ProductForm.tsx`, `productsRepository.ts`, `handleProducts`)
+
+**Bug terkonfirmasi (termasuk live-verified di production):**
+1. **Taksonomi kategori tidak sinkron antara seed data dan form.**
+   `prisma/seedData/productCatalog.ts` mem-seed kategori `'Atap'`,
+   `'Photovoltaic'`, `'Aksesoris'`, tapi `ProductForm.tsx`'s dropdown
+   kategori hanya berisi `'Atap Bitumen'`, `'Solar'`,
+   `'Aksesoris & Talang'`, `'Building Material'`, `'Waterproofing'`,
+   `'Green Roof'`. **LIVE-VERIFIED**: membuka Edit di produk manapun
+   berkategori Atap/Photovoltaic/Aksesoris (24 dari 29 produk demo)
+   menampilkan dropdown Kategori KOSONG ("Pilih kategori") -- kalau
+   admin asal pilih opsi yang mirip lalu Simpan, kategori produk itu
+   diam-diam berubah permanen. Tab kategori di katalog untuk 3 dari 5
+   kategori ini juga cuma menampilkan subtitle generik "KATALOG PRODUK"
+   alih-alih subtitle spesifik yang dimaksud kode
+   (`getCategorySubtext`) -- juga live-verified di screenshot.
+2. **Field opsional (Warna/Berat) tidak bisa dikosongkan lewat Edit** --
+   `formData.color || undefined` dikirim sebagai `undefined`, yang
+   di-drop oleh `JSON.stringify` (bukan `null`), sehingga Prisma
+   `update()` menganggap "tidak berubah", bukan "dikosongkan". Warna/
+   berat yang sudah pernah diisi tidak akan pernah bisa dihapus, cuma
+   bisa ditimpa nilai lain.
+3. **Tidak ada validasi server-side pada create/update produk** --
+   `price`/`stock` negatif langsung tersimpan lewat API call langsung
+   (Postman dsb); `update()` di repository bahkan skip validasi client
+   yang dipunya `create()`.
+
+**Code smell:** `productsApi` (localStorage fake) masih ada di
+`src/services/api.ts` walau sudah tidak dipakai di mana pun -- pola
+"jalur API kedua yang mati" yang sama seperti bug Contract/Quotation
+sebelumnya, berisiko ke-reconnect tak sengaja nanti. `sold` masih angka
+manual dari admin (bukan diturunkan dari data Opportunity/Quotation
+sungguhan) yang drive KPI dashboard -- sudah ditandai sbg tech debt di
+`src/types/product.ts`. `parseInt(price)` membuang sen (Decimal 14,2).
+Delete produk cascade hapus PerformanceTarget & SET NULL histori
+OpportunityProduct/QuotationItem tanpa peringatan ke user.
+
+### Territory Management (`TerritoryManagement.tsx`, `TerritoryMap.tsx`, `territoriesRepository.ts`, `handleTerritories`)
+
+Beda dari kebanyakan menu "management" lain di app ini, Territory
+Management SUDAH punya backend Prisma CRUD sungguhan (bukan localStorage
+fake) -- tapi:
+
+**Bug terkonfirmasi (termasuk live-verified):**
+1. **Tab "Visual Map" tidak pernah menampilkan satu pun pin, untuk
+   territory apapun, selamanya.** `TerritoryMap.tsx` mencocokkan
+   `mapPoints` hardcode (`id: '1'|'2'|'3'|'4'`) terhadap Territory asli
+   yang id-nya UUID -- `'1' === '<uuid>'` tidak pernah true.
+   **LIVE-VERIFIED**: tab Visual Map di production menampilkan peta
+   Jawa bergaya + legend tapi nol pin, walau ada 4 territory dengan
+   data lengkap.
+2. **Search box di tab Wilayah adalah no-op murni.** `searchQuery`
+   di-set tapi tidak pernah dipakai memfilter list.
+   **LIVE-VERIFIED**: mengetik string acak yang tidak match apapun
+   ("zzz-nonexistent-xyz") tetap menampilkan semua 4 territory tanpa
+   filter.
+3. **Edit Quota Target / Market Coverage dengan input kosong bisa
+   500** -- `parseInt('')` -> `NaN` -> `JSON.stringify` men-serialize
+   `NaN` jadi `null` (bukan didrop seperti `undefined`) -> Prisma
+   `update()` terhadap kolom non-nullable -> 500 generik. Proteksi
+   `|| 0` yang ada di form Create tidak dibawa ke form Edit.
+4. **Coverage tidak divalidasi rentang 0-100 di Edit** (client maupun
+   server) -- HTML `max="100"` tidak mencegah ketik manual `250` atau
+   `-30`, mencemari `avgCoverage` KPI.
+5. **`assignedTo` null crash risk** -- tipe frontend bilang `string`
+   non-null tapi kolom DB nullable & tidak divalidasi wajib di backend;
+   `territory.assignedTo.split(' ')` tanpa guard di 2 tempat.
+6. **Create/Edit territory + performance target adalah 2 write terpisah
+   tanpa rollback** -- kalau write kedua gagal, row pertama (Territory)
+   sudah terlanjur tersimpan tapi dialog tetap terbuka seolah gagal
+   total -> resiko duplikat kalau user klik submit lagi.
+
+**Gap struktural:**
+7. **Leads/Opportunities count per territory: Leads SELALU 0.**
+   `Lead.territoryId` ada di schema & didukung backend, tapi TIDAK ADA
+   satupun UI (Lead Management, Opportunity form) yang bisa set
+   territory suatu lead/opportunity -- dan `seed.ts` tidak pernah
+   men-seed Lead sama sekali. **LIVE-VERIFIED**: keempat territory di
+   production menampilkan "0 LEADS" (Opportunities count nonzero
+   karena di-link langsung di level seed DB, bukan lewat UI).
+8. **`assignedTo` cuma teks bebas**, tidak terhubung ke model
+   User/SalesRep manapun -- tidak bisa dipakai filter "wilayah saya"
+   utk rep yang login, tidak sinkron kalau nama berubah.
+9. **Tidak ada role-gating di menu/frontend** padahal backend
+   mewajibkan `SUPER_ADMIN|SALES_MANAGER|MASTER_DATA_ADMIN` utk
+   POST/PUT/DELETE -- role lain bisa lihat tombol Add/Edit yang akan
+   403 kalau dipakai, dan auto-seed silen gagal tanpa toast kalau
+   tabel kosong & user tidak punya akses.
+10. **Auto-seed 4 territory dummy tertanam di dalam `loadData()`**
+    (bukan cuma dev-only), race-prone (nama territory tidak
+    `@@unique`) -- bisa duplikat kalau 2 tab load bersamaan saat DB
+    kosong.
+11. **`prisma/seed.ts` punya dependency urutan tak terdokumentasi**
+    (cuma komentar) ke 4 nama territory persis yang cuma dibuat lewat
+    auto-seed frontend di atas -- kalau dijalankan di DB benar-benar
+    baru (mis. environment baru/CI) sebelum pernah ada yang buka
+    halaman Territory Management, `seedOpportunities()` throw di record
+    pertama dan SEMUA seeder sesudahnya (`seedClientContactsAndIntelligence`,
+    `seedVisitTasks`, `seedContracts`, `seedQuotations`,
+    `seedDiscountApprovals`) ikut ter-skip.
+
+### Status
+Laporan disampaikan ke user via chat (bukan file/dokumen terpisah,
+sesuai pola review Bab 30 sebelumnya). Tidak ada kode yang diubah pada
+Bab ini -- murni investigasi + smoke test, menunggu arahan user apakah
+mau lanjut ke "perbaiki semuanya" seperti Bab 30->31.
+
+## 33. Bab 32 lanjutan — perbaikan semua temuan grup menu Produk & Wilayah
+
+Menindaklanjuti Bab 32 (deep review + smoke test), user minta "lanjut
+perbaiki semuanya" -- pola yang sama seperti Bab 30->31. Semua bug
+terkonfirmasi (termasuk yang live-verified) sudah diperbaiki; beberapa
+gap struktural yang butuh perubahan skema/RBAC lebih besar didokumentasikan
+di bagian "Belum dikerjakan" di bawah.
+
+### Product Catalog
+
+1. **Taksonomi kategori disamakan** -- `ProductForm.tsx`'s dropdown
+   kategori diganti dari vocabulary lama (`Atap Bitumen`, `Solar`,
+   `Aksesoris & Talang`, `Building Material`) ke 5 kategori nyata yang
+   sudah dipakai `prisma/seedData/productCatalog.ts` dan data live
+   (`Atap`, `Waterproofing`, `Photovoltaic`, `Green Roof`, `Aksesoris`,
+   plus `Lainnya` sebagai catch-all). `ProductCatalog.tsx`'s
+   `getCategorySubtext` mapping disamakan juga (komentar yang salah
+   soal ProductCategory model juga diperbaiki -- category itu memang
+   free-text, bukan berelasi ke tabel ProductCategory/ProductFamily).
+   Tidak ada migrasi data diperlukan karena hanya menyamakan form ke
+   data yang sudah ada, bukan sebaliknya.
+2. Field Warna/Berat sekarang mengirim `null` eksplisit (bukan
+   `undefined`) saat dikosongkan di form Edit -- `src/types/product.ts`
+   diperluas ke `string | null`/`number | null` untuk itu.
+3. Validasi harga/stock/sold >= 0 ditambahkan di server
+   (`handleProducts` POST+PUT, `api/handler.ts`) dan di
+   `productsRepository.update()` (sebelumnya hanya `create()` yang
+   validasi).
+
+### Territory Management
+
+4. **Visual Map pins diperbaiki** -- `TerritoryMap.tsx` sekarang
+   mencocokkan titik peta berdasarkan `name`, bukan `id` hardcode
+   `'1'-'4'` vs UUID asli yang tidak akan pernah cocok.
+5. **Search box** di tab Wilayah sekarang benar-benar memfilter
+   (`filteredTerritories`, cocok terhadap name/region/assignedTo).
+6. **NaN/range guard** ditambahkan di form Edit untuk Quota Target
+   & Market Coverage (client, sama seperti proteksi `|| 0` yang sudah
+   ada di form Add) DAN di server (`handleTerritories`,
+   `handlePerformanceTargets` PUT) -- keduanya sekarang menolak dengan
+   400 yang jelas, bukan 500 generik dari Prisma saat NaN
+   ter-serialize jadi `null`.
+7. **assignedTo null-crash** dihindari lewat helper `getInitials()`
+   baru + fallback teks "Belum ditugaskan" di 2 tempat render.
+8. **Rollback create()**: kalau performance target gagal dibuat
+   setelah Territory berhasil dibuat, Territory itu di-`remove()`
+   lagi (tidak ada lagi row yatim). **Edit()**: kalau target gagal
+   diupdate setelah profile berhasil, UI sekarang `loadData()` ulang
+   dan pesan error menyebut eksplisit bagian mana yang tersimpan.
+9. **Role-gating**: tombol "Add New Territory"/"Edit Wilayah"
+   sekarang hanya tampil untuk role yang memang diizinkan backend
+   (`Super Admin`/`Sales Manager`/`Master Data Admin`) -- role lain
+   tetap bisa lihat data (read-only, sama seperti backend GET), tidak
+   lagi lihat tombol yang bakal 403.
+10. **Auto-seed dipindah jadi tombol eksplisit** "Load Dummy Data"
+    (pola sama seperti CRM Management), hanya tampil saat wilayah
+    kosong DAN role diizinkan -- menghapus race condition (2 tab buka
+    barengan saat kosong) dan silent-fail untuk role tanpa akses tulis.
+11. **`prisma/seed.ts` dependency tak terdokumentasi dihapus** --
+    `seedTerritories()` baru ditambahkan (idempotent via
+    findFirst-by-name, tidak perlu migrasi `@@unique`), dipanggil
+    sebelum `seedOpportunities()` supaya script seed jalan sendiri di
+    database yang benar-benar baru tanpa bergantung pada halaman
+    Territory Management pernah dibuka duluan.
+12. Validasi partial ditambahkan di `territoriesRepository.update()`
+    dan `performanceTargetsRepository.create()/update()` (sebelumnya
+    tidak ada sama sekali di update()).
+
+### Fitur baru kecil: Lead -> Territory assignment
+
+Backend (`Lead.territoryId`, `handleLeads` POST/PUT) sudah mendukung
+ini sejak lama tapi tidak ada UI mana pun yang bisa men-set-nya --
+akibatnya kolom "Leads" di setiap kartu Territory Management dijamin
+selalu 0 (live-verified di Bab 32). Ditambahkan: `territoryId` di
+`src/types/lead.ts` + `leadsRepository.ts`'s `fromApiLead`, dan dropdown
+"Wilayah (Territory)" baru di form Tambah/Edit Lead
+(`LeadManagement.tsx`), mengambil daftar wilayah dari
+`territoriesRepository.getAll()`.
+
+### Yang BELUM dikerjakan (didokumentasikan, bukan diperbaiki)
+
+1. `Territory.assignedTo` masih free-text, tidak berelasi ke
+   User/SalesRep manapun -- filter "wilayah saya" untuk rep yang login
+   butuh perubahan skema (relasi baru) yang tidak bisa diverifikasi
+   dari sandbox ini (tidak ada akses jaringan ke Neon/Prisma binaries).
+2. Role-gating baru diterapkan di tombol Territory Management saja,
+   bukan audit RBAC menyeluruh di semua menu.
+3. `Territory.name` masih tidak punya constraint unik di level
+   database (diverifikasi aman dari sisi seed script lewat
+   findFirst-by-name, tapi race condition di level DB kalau ada 2
+   request create() bersamaan dengan nama sama masih mungkin secara
+   teori -- di luar cakupan tanpa migrasi terverifikasi).
+
+Diverifikasi: `tsc --noEmit` (0 error baru vs baseline -- 89 error
+pre-existing yang sama persis, hanya 2 baris bergeser nomor di
+LeadManagement.tsx karena penambahan kode di atasnya, isi errornya
+sama), `vite build` (sukses), `vitest run` (11/11 tetap lulus). 3 bug
+live-verified di Bab 32 (kategori kosong di Edit, Visual Map nol pin,
+search box no-op, Leads selalu 0) sudah diperbaiki di kode -- belum
+di-smoke-test ulang di production karena perubahan belum di-deploy
+(perlu `git push` oleh user + Vercel auto-deploy).

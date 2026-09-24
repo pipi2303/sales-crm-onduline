@@ -116,9 +116,15 @@ export function ProductFormModal({ product, onClose, onSuccess }: ProductFormPro
         sold: parseInt(formData.sold) || 0,
         features: featuresArray,
         unitOfMeasure: formData.unitOfMeasure,
-        color: formData.color || undefined,
+        // Bab 32/33 (24 Sep 2026): kirim `null` eksplisit saat field
+        // dikosongkan, bukan `undefined` -- JSON.stringify() MEMBUANG key
+        // yang bernilai undefined (tapi menyimpan null), jadi mengosongkan
+        // Warna/Berat yang sudah pernah diisi lalu Simpan sebelumnya tidak
+        // pernah benar-benar menghapusnya di database (PUT handler membaca
+        // key yang hilang sebagai "tidak berubah").
+        color: formData.color || null,
         specification: formData.specification,
-        weightKg: formData.weightKg ? parseFloat(formData.weightKg) : undefined,
+        weightKg: formData.weightKg ? parseFloat(formData.weightKg) : null,
       };
 
       const result = product
@@ -281,12 +287,22 @@ export function ProductFormModal({ product, onClose, onSuccess }: ProductFormPro
                       <SelectValue placeholder="Pilih kategori" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Atap Bitumen">Atap Bitumen</SelectItem>
+                      {/* Bab 32/33 (24 Sep 2026, deep review + smoke test grup
+                          Produk & Wilayah): nilai di sini HARUS persis sama
+                          dengan string category yang dipakai di
+                          prisma/seedData/productCatalog.ts dan di data
+                          product.category sungguhan -- sebelumnya form ini
+                          punya vocabulary sendiri ("Atap Bitumen", "Solar",
+                          "Aksesoris & Talang", dst) yang berbeda dari 3 dari
+                          5 kategori nyata ("Atap", "Photovoltaic",
+                          "Aksesoris"), sehingga dropdown Edit tampil kosong
+                          untuk 24 dari 29 produk demo (live-verified). */}
+                      <SelectItem value="Atap">Atap</SelectItem>
                       <SelectItem value="Waterproofing">Waterproofing</SelectItem>
-                      <SelectItem value="Solar">Solar (Panel Surya Atap)</SelectItem>
+                      <SelectItem value="Photovoltaic">Photovoltaic (Panel Surya Atap)</SelectItem>
                       <SelectItem value="Green Roof">Green Roof</SelectItem>
-                      <SelectItem value="Aksesoris & Talang">Aksesoris & Talang</SelectItem>
-                      <SelectItem value="Building Material">Building Material (Lainnya)</SelectItem>
+                      <SelectItem value="Aksesoris">Aksesoris</SelectItem>
+                      <SelectItem value="Lainnya">Lainnya</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

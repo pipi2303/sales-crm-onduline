@@ -12,15 +12,29 @@ interface TerritoryMapProps {
 export function TerritoryMap({ territories, onSelectTerritory }: TerritoryMapProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  // Approximate coordinates for stylized map (Java Island)
+  // Approximate coordinates for stylized map (Java Island).
+  //
+  // Bab 32/33 (24 Sep 2026, deep review + smoke test grup Produk &
+  // Wilayah): these points used to carry hardcoded ids '1'-'4' and were
+  // matched against real Territory records by `t.id === id` -- since
+  // Territory.id is a Prisma-generated UUID, that comparison could never
+  // be true, so NO pin ever rendered for ANY territory (live-verified: the
+  // map showed its background + legend but zero pins). Matched by `name`
+  // instead, since the 4 territories this stylized map was drawn for are
+  // known, stable seed names (see TerritoryManagement.tsx's
+  // SEED_TERRITORIES / prisma/seed.ts's seedTerritories()). This is still
+  // a fixed 4-city stylized map, not real GIS data -- a territory with a
+  // different name (added later via "Add New Territory") simply has no
+  // coordinate here and won't get a pin, same known limitation already
+  // documented for the CRM Management "Coverage Gap Wilayah" panel.
   const mapPoints = [
-    { id: '1', x: 200, y: 150, name: 'Jakarta Pusat' },
-    { id: '2', x: 220, y: 180, name: 'Jakarta Selatan' },
-    { id: '3', x: 280, y: 220, name: 'Bandung' },
-    { id: '4', x: 750, y: 280, name: 'Surabaya' },
+    { name: 'Jakarta Pusat', x: 200, y: 150 },
+    { name: 'Jakarta Selatan', x: 220, y: 180 },
+    { name: 'Bandung', x: 280, y: 220 },
+    { name: 'Surabaya', x: 750, y: 280 },
   ];
 
-  const getTerritoryData = (id: string) => territories.find(t => t.id === id);
+  const getTerritoryData = (name: string) => territories.find(t => t.name === name);
 
   return (
     <div className="relative w-full h-[500px] bg-gray-50 rounded-xl overflow-hidden border border-gray-100 shadow-inner">
@@ -43,18 +57,18 @@ export function TerritoryMap({ territories, onSelectTerritory }: TerritoryMapPro
 
       {/* Interactive Points */}
       {mapPoints.map((point) => {
-        const data = getTerritoryData(point.id);
+        const data = getTerritoryData(point.name);
         if (!data) return null;
 
-        const isHovered = hoveredId === point.id;
+        const isHovered = hoveredId === data.id;
         const colorClass = data.achievement >= 100 ? 'text-emerald-500' : 'text-[#013E37]';
 
         return (
           <div 
-            key={point.id}
+            key={data.id}
             className="absolute transition-all duration-300 transform -translate-x-1/2 -translate-y-1/2 cursor-pointer group"
             style={{ left: `${(point.x / 1000) * 100}%`, top: `${(point.y / 400) * 100}%` }}
-            onMouseEnter={() => setHoveredId(point.id)}
+            onMouseEnter={() => setHoveredId(data.id)}
             onMouseLeave={() => setHoveredId(null)}
             onClick={() => onSelectTerritory(data)}
           >

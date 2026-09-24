@@ -12,6 +12,8 @@ import { Textarea } from '@/app/components/ui/textarea';
 import type { Lead } from '@/types/lead';
 import { toast } from 'sonner';
 import { leadsRepository } from '@/services/leadsRepository';
+import { territoriesRepository } from '@/services/territoriesRepository';
+import type { TerritoryProfile } from '@/types/territory';
 import { formatCurrency } from '@/utils/formatters';
 
 interface Company {
@@ -42,6 +44,10 @@ export function LeadManagement() {
   const [detailCompanies, setDetailCompanies] = useState<Company[]>([]);
   const [isAddingCompany, setIsAddingCompany] = useState(false);
   const [newCompany, setNewCompany] = useState<Company>({ name: '', position: '', department: '', email: '', phone: '' });
+  // Bab 32/33 (24 Sep 2026): backs the new "Wilayah (Territory)" field
+  // below -- see src/types/lead.ts's territoryId comment for why this
+  // exists.
+  const [territories, setTerritories] = useState<TerritoryProfile[]>([]);
 
   const statusColors: Record<string, string> = {
     new: 'bg-[#EEF7F5] text-[#013E37]',
@@ -56,6 +62,9 @@ export function LeadManagement() {
   // Fetch leads from Supabase
   useEffect(() => {
     fetchLeads();
+    territoriesRepository.getAll().then((res) => {
+      if (res.success && res.data) setTerritories(res.data);
+    });
   }, []);
 
   const fetchLeads = async () => {
@@ -558,6 +567,28 @@ export function LeadManagement() {
                   className="h-10"
                 />
               </div>
+            </div>
+
+            {/* Row 4b: Wilayah (Territory) — Bab 32/33 (24 Sep 2026):
+                assigns Lead.territoryId so Territory Management's "Leads"
+                count per territory reflects real data instead of always
+                reading 0 (see src/types/lead.ts's territoryId comment). */}
+            <div className="space-y-2">
+              <Label htmlFor="territoryId" className="text-sm font-medium text-gray-700">Wilayah (Territory)</Label>
+              <Select
+                value={formData.territoryId || 'none'}
+                onValueChange={(value) => setFormData({ ...formData, territoryId: value === 'none' ? null : value })}
+              >
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder="Belum ditentukan" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Belum ditentukan</SelectItem>
+                  {territories.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Row 5: Catatan */}

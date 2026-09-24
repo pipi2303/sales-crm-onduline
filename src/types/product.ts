@@ -54,9 +54,13 @@ export interface Product {
   /** Cumulative units sold to date (aggregate display field — see revision note above). */
   sold: number;
   unitOfMeasure: string; // e.g. 'm2', 'pcs', 'roll'
-  color?: string;
+  // `| null` added Bab 32/33 (24 Sep 2026): the form sends an explicit
+  // `null` to clear these on Edit (see productsRepository.ts's toApiPayload
+  // header comment) -- JSON.stringify drops `undefined` keys, which used to
+  // make clearing a previously-set value silently no-op.
+  color?: string | null;
   specification: string;
-  weightKg?: number;
+  weightKg?: number | null;
   createdAt: string; // ISO 8601
   updatedAt: string; // ISO 8601
 }

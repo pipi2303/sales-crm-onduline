@@ -15,6 +15,7 @@ import { formatCurrency } from '@/utils/formatters';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { CHART_PRIMARY, CHART_GRID, CHART_TOOLTIP_STYLE, chartColor } from '@/styles/chartTheme';
 import { TerritoryMap } from './TerritoryMap';
+import { useAuth } from '@/app/contexts/AuthContext';
 import { territoriesRepository } from '@/services/territoriesRepository';
 import { performanceTargetsRepository } from '@/services/performanceTargetsRepository';
 import { computeAchievementPct } from '@/types/performanceTarget';
@@ -39,6 +40,18 @@ function getCurrentPeriod(): string {
   return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
 }
 
+// Bab 32/33 (24 Sep 2026): `assignedTo` is a nullable column server-side
+// (Territory.assignedTo String?) but the UI always required it on
+// create/edit -- so it can only be null via a direct API call bypassing
+// this form (Postman, a future caller). `territory.assignedTo.split(' ')`
+// with no guard would then throw and crash the whole grid's render (not
+// just one card), since it happens inside a top-level .map(). Used at
+// every render site instead of inlining the null check three times.
+function getInitials(name: string | null | undefined): string {
+  if (!name?.trim()) return '?';
+  return name.trim().split(/\s+/).map((n) => n[0]).join('').slice(0, 3).toUpperCase();
+}
+
 // Seed data — same 4 territories this screen has always shipped with as
 // sample data, now created through territoriesRepository + a matching
 // performance_targets row instead of being hardcoded into component state.
@@ -49,7 +62,18 @@ const SEED_TERRITORIES = [
   { name: 'Surabaya', region: 'Jawa Timur', assignedTo: 'Eko Prasetyo', coverage: 65, revenue: 185000000, target: 250000000 },
 ];
 
+// Bab 32/33 (24 Sep 2026): mirrors the backend's own requireRole(...,
+// ['SUPER_ADMIN', 'SALES_MANAGER', 'MASTER_DATA_ADMIN']) on
+// POST/PUT/DELETE /api/territories (see api/handler.ts's handleTerritories)
+// -- previously every role saw "Add New Territory"/"Edit Wilayah", so a
+// Sales Rep/Executive could open the form only to have it fail with a 403
+// on submit. Read access (GET) intentionally stays open to every role, so
+// this only gates the mutating buttons, not the whole menu item.
+const TERRITORY_MANAGE_ROLES = ['Super Admin', 'Sales Manager', 'Master Data Admin'];
+
 export function TerritoryManagement() {
+  const { user } = useAuth();
+  const canManageTerritory = !!user?.role && TERRITORY_MANAGE_ROLES.includes(user.role);
   const [activeTab, setActiveTab] = useState('territories');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -82,27 +106,8 @@ export function TerritoryManagement() {
   const loadData = async () => {
     setLoading(true);
     try {
-      let profilesResult = await territoriesRepository.getAll();
-      let profiles = profilesResult.data || [];
-
-      if (profiles.length === 0) {
-        for (const seed of SEED_TERRITORIES) {
-          const created = await territoriesRepository.create({
-            name: seed.name, region: seed.region, assignedTo: seed.assignedTo,
-            coverage: seed.coverage,
-          });
-          if (created.success && created.data) {
-            await performanceTargetsRepository.create({
-              territoryId: created.data.id,
-              period: getCurrentPeriod(),
-              target: seed.target,
-              actual: seed.revenue,
-            } as any);
-          }
-        }
-        profilesResult = await territoriesRepository.getAll();
-        profiles = profilesResult.data || [];
-      }
+      const profilesResult = await territoriesRepository.getAll();
+      const profiles = profilesResult.data || [];
 
       const targetsResult = await performanceTargetsRepository.getAll();
       const targets: PerformanceTarget[] = targetsResult.data || [];
@@ -135,6 +140,49 @@ export function TerritoryManagement() {
       toast.error(`Gagal memuat data wilayah: ${error.message}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Bab 32/33 (24 Sep 2026): this used to run automatically inside
+  // loadData() whenever the territories table was empty -- a hidden write
+  // side effect inside what looked like a read operation, with three real
+  // problems: (1) it fired for every role including ones without write
+  // access, failing 403 silently with no toast, no console warning, just
+  // an empty "0 territories" dashboard with no explanation; (2) it wasn't
+  // gated to any environment, so a genuinely empty production DB would
+  // auto-populate demo data the first time anyone opened this page; (3) it
+  // was racy -- Territory.name has no unique constraint, so two tabs
+  // loading the empty page at the same time could both pass the
+  // `profiles.length === 0` check and both insert a full set of 4
+  // territories. Converted to an explicit button (same "Load Dummy Data"
+  // pattern already used on the CRM Management page), gated to the same
+  // roles that can actually write here.
+  const handleLoadDummyData = async () => {
+    if (!canManageTerritory) return;
+    setLoading(true);
+    try {
+      for (const seed of SEED_TERRITORIES) {
+        const created = await territoriesRepository.create({
+          name: seed.name, region: seed.region, assignedTo: seed.assignedTo,
+          coverage: seed.coverage,
+        });
+        if (created.success && created.data) {
+          await performanceTargetsRepository.create({
+            territoryId: created.data.id,
+            period: getCurrentPeriod(),
+            target: seed.target,
+            actual: seed.revenue,
+          } as any);
+        } else {
+          toast.error(created.error || `Gagal membuat wilayah contoh "${seed.name}"`);
+        }
+      }
+      toast.success('Data contoh wilayah berhasil dimuat');
+    } catch (error: any) {
+      console.error('Error loading dummy territory data:', error);
+      toast.error(`Gagal memuat data contoh: ${error.message}`);
+    } finally {
+      await loadData();
     }
   };
 
@@ -173,7 +221,13 @@ export function TerritoryManagement() {
           actual: selectedTerritory.revenue,
         } as any);
     if (!targetResult.success) {
-      toast.error(targetResult.error || 'Gagal memperbarui target wilayah');
+      // Bab 32/33 (24 Sep 2026): the profile update above (name/region/
+      // assignedTo/coverage) had already succeeded by this point -- closing
+      // over stale local state and just showing an error implied nothing
+      // was saved, when part of it was. Refresh from the server so the UI
+      // reflects what's actually persisted, and say so explicitly.
+      toast.error(targetResult.error || 'Profil wilayah tersimpan, tapi target gagal diperbarui');
+      await loadData();
       return;
     }
 
@@ -203,7 +257,14 @@ export function TerritoryManagement() {
       actual: newTerritory.revenue || 0,
     } as any);
     if (!targetResult.success) {
-      toast.error(targetResult.error || 'Gagal membuat target wilayah');
+      // Bab 32/33 (24 Sep 2026): this used to leave the Territory row from
+      // above already committed while showing an error and keeping the
+      // dialog open -- a user who, reasonably, tried "Create Territory"
+      // again ended up with a second orphaned territory of the same name
+      // and still no target. Roll back the just-created territory instead
+      // of leaving a half-written record behind.
+      await territoriesRepository.remove(profileResult.data.id);
+      toast.error(targetResult.error || 'Gagal membuat target wilayah — wilayah dibatalkan, silakan coba lagi');
       return;
     }
 
@@ -247,6 +308,20 @@ export function TerritoryManagement() {
     color: chartColor(idx),
   }));
 
+  // Bab 32/33 (24 Sep 2026): the search box used to set `searchQuery` but
+  // nothing ever read it back -- the Wilayah tab always rendered the full
+  // `territories` list regardless of what was typed (live-verified: typing
+  // a string matching nothing still showed all 4 territories).
+  const filteredTerritories = territories.filter((t) => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      t.name.toLowerCase().includes(q) ||
+      t.region.toLowerCase().includes(q) ||
+      (t.assignedTo ?? '').toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div className="space-y-8 pb-10 animate-in fade-in duration-500">
       {/* Premium Header */}
@@ -264,12 +339,14 @@ export function TerritoryManagement() {
           <Button variant="outline" className="border-gray-200 text-gray-600 font-bold uppercase tracking-wider text-xs px-4 h-11 transition-all hover:bg-gray-50">
             <TrendingUp className="h-4 w-4 mr-2" /> Penetration Report
           </Button>
-          <Button 
-            className="bg-[#013E37] hover:bg-[#028076] text-white font-bold uppercase tracking-wider text-xs px-6 h-11 shadow-lg shadow-[#013E37]/20 transition-all active:scale-95"
-            onClick={() => setIsAddOpen(true)}
-          >
-            <Plus className="h-4 w-4 mr-2" /> Add New Territory
-          </Button>
+          {canManageTerritory && (
+            <Button 
+              className="bg-[#013E37] hover:bg-[#028076] text-white font-bold uppercase tracking-wider text-xs px-6 h-11 shadow-lg shadow-[#013E37]/20 transition-all active:scale-95"
+              onClick={() => setIsAddOpen(true)}
+            >
+              <Plus className="h-4 w-4 mr-2" /> Add New Territory
+            </Button>
+          )}
         </div>
       </div>
 
@@ -370,8 +447,28 @@ export function TerritoryManagement() {
             </div>
           </div>
 
+          {territories.length === 0 && (
+            <Card className="border-dashed border-gray-200">
+              <CardContent className="py-12 flex flex-col items-center justify-center gap-3 text-center">
+                <MapPin className="h-8 w-8 text-gray-300" />
+                <p className="text-sm font-bold text-gray-500">Belum ada data wilayah.</p>
+                {canManageTerritory ? (
+                  <Button
+                    variant="outline"
+                    className="border-gray-200 text-gray-600 font-bold uppercase tracking-wider text-xs px-4 h-10 hover:bg-gray-50"
+                    onClick={handleLoadDummyData}
+                  >
+                    Load Dummy Data
+                  </Button>
+                ) : (
+                  <p className="text-xs text-gray-400">Hubungi Sales Manager / Master Data Admin untuk menambahkan wilayah.</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           <div className="grid gap-6 md:grid-cols-2">
-            {territories.map((territory) => (
+            {filteredTerritories.map((territory) => (
               <Card key={territory.id} className="group hover:border-[#013E37]/50 hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden border-gray-100">
                 <CardHeader className="pb-4 bg-gray-50/30">
                   <div className="flex items-start justify-between">
@@ -392,11 +489,11 @@ export function TerritoryManagement() {
                 <CardContent className="p-6 space-y-6">
                   <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-xl border border-gray-100">
                     <div className="h-10 w-10 rounded-full bg-[#013E37] flex items-center justify-center text-white text-xs font-black">
-                      {territory.assignedTo.split(' ').map(n => n[0]).join('')}
+                      {getInitials(territory.assignedTo)}
                     </div>
                     <div>
                       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Territory Manager</p>
-                      <p className="text-sm font-bold text-gray-900 uppercase tracking-tight">{territory.assignedTo}</p>
+                      <p className="text-sm font-bold text-gray-900 uppercase tracking-tight">{territory.assignedTo || 'Belum ditugaskan'}</p>
                     </div>
                   </div>
 
@@ -449,13 +546,15 @@ export function TerritoryManagement() {
                     >
                       <Eye className="h-4 w-4 mr-2" /> Detail Data
                     </Button>
-                    <Button 
-                      variant="outline" 
-                      className="flex-1 font-black text-[10px] uppercase tracking-widest border-gray-200 h-11 hover:bg-gray-50"
-                      onClick={() => handleOpenEdit(territory)}
-                    >
-                      <Edit className="h-4 w-4 mr-2" /> Edit Wilayah
-                    </Button>
+                    {canManageTerritory && (
+                      <Button 
+                        variant="outline" 
+                        className="flex-1 font-black text-[10px] uppercase tracking-widest border-gray-200 h-11 hover:bg-gray-50"
+                        onClick={() => handleOpenEdit(territory)}
+                      >
+                        <Edit className="h-4 w-4 mr-2" /> Edit Wilayah
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -599,10 +698,10 @@ export function TerritoryManagement() {
                 </h4>
                 <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
                   <div className="h-12 w-12 rounded-full bg-[#013E37] flex items-center justify-center text-white font-black">
-                    {selectedTerritory?.assignedTo.split(' ').map(n => n[0]).join('')}
+                    {getInitials(selectedTerritory?.assignedTo)}
                   </div>
                   <div>
-                    <p className="text-sm font-black text-gray-900 uppercase tracking-tight">{selectedTerritory?.assignedTo}</p>
+                    <p className="text-sm font-black text-gray-900 uppercase tracking-tight">{selectedTerritory?.assignedTo || 'Belum ditugaskan'}</p>
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Senior Territory Manager</p>
                   </div>
                 </div>
@@ -715,9 +814,19 @@ export function TerritoryManagement() {
                   <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Quota Target (IDR)</Label>
                   <Input 
                     type="number"
+                    min="0"
                     value={selectedTerritory?.target || 0} 
                     onChange={(e) => {
-                      const val = parseInt(e.target.value);
+                      // Bab 32/33 (24 Sep 2026): parseInt('') / parseInt of a
+                      // non-numeric string is NaN -- JSON.stringify then
+                      // serializes NaN as literal `null` (its evil-twin
+                      // behavior to dropping `undefined`), which the PUT
+                      // handler happily sent to Prisma against a non-nullable
+                      // column, crashing with a generic 500. The Add dialog
+                      // already guarded this with `|| 0`; this brings Edit
+                      // to the same behavior instead of clearing the field.
+                      const raw = parseInt(e.target.value);
+                      const val = Number.isNaN(raw) ? 0 : Math.max(0, raw);
                       setSelectedTerritory(prev => prev ? {...prev, target: val, achievement: val > 0 ? (prev.revenue / val) * 100 : 0} : null);
                     }}
                     className="h-11 font-bold"
@@ -727,9 +836,19 @@ export function TerritoryManagement() {
                   <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Market Coverage (%)</Label>
                   <Input 
                     type="number"
+                    min="0"
                     max="100"
                     value={selectedTerritory?.coverage || 0} 
-                    onChange={(e) => setSelectedTerritory(prev => prev ? {...prev, coverage: parseInt(e.target.value)} : null)}
+                    onChange={(e) => {
+                      // Same NaN guard as Quota Target above, plus clamping
+                      // to 0-100: the HTML `max="100"` attribute does not
+                      // stop a value typed or pasted directly, so without
+                      // this a manually-entered 250 or -30 was persisted
+                      // verbatim and corrupted the Avg Coverage KPI.
+                      const raw = parseInt(e.target.value);
+                      const val = Number.isNaN(raw) ? 0 : Math.min(100, Math.max(0, raw));
+                      setSelectedTerritory(prev => prev ? {...prev, coverage: val} : null);
+                    }}
                     className="h-11 font-bold"
                   />
                 </div>

@@ -118,6 +118,7 @@ function fromApiLead(row: any): LeadWithExtra {
     source: row.source ?? '',
     assignedTo: row.assignedTo ?? '',
     notes: row.notes ?? '',
+    territoryId: row.territoryId ?? null,
     createdAt: new Date(row.createdAt),
     lastContact: row.lastContact ? new Date(row.lastContact) : new Date(row.createdAt),
     ...(row.extra ?? {}),
