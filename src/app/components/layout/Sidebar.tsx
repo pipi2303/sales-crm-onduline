@@ -9,7 +9,8 @@
 import React from 'react';
 import { ChevronLeft, ChevronDown, ChevronRight, LogOut } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
-import type { MenuGroup } from '@/types/menu';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/app/components/ui/tooltip';
+import type { MenuGroup, MenuItem } from '@/types/menu';
 
 interface SidebarProps {
   menuGroups: MenuGroup[];
@@ -36,6 +37,59 @@ export function Sidebar({
   setIsSidebarOpen,
   onLogout,
 }: SidebarProps) {
+  // Bab 42: saat sidebar di-collapse ke icon-only (isSidebarOpen === false),
+  // label menu tidak lagi terlihat -- tambahkan tooltip per ikon supaya user
+  // tetap tahu menu apa yang mereka tunjuk tanpa harus expand sidebar dulu.
+  // Saat sidebar terbuka, label teks sudah terlihat langsung jadi tidak
+  // perlu tooltip (dan render tombol yang sama, tanpa wrapper Tooltip).
+  const renderMenuItemButton = (item: MenuItem) => {
+    const button = (
+      <button
+        onClick={() => {
+          if (item.subMenus) {
+            setExpandedMenus(prev =>
+              prev.includes(item.id)
+                ? prev.filter(id => id !== item.id)
+                : [...prev, item.id]
+            );
+          } else {
+            setActiveMenu(item.id);
+          }
+        }}
+        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
+          activeMenu === item.id
+            ? 'bg-[#013E37] text-white shadow-md'
+            : 'text-gray-700 hover:bg-[#EEF7F5] hover:text-[#013E37]'
+        }`}
+      >
+        <item.icon className="h-5 w-5 flex-shrink-0" />
+        {isSidebarOpen && (
+          <>
+            <span className="font-medium text-sm truncate flex-1 text-left">{item.name}</span>
+            {item.subMenus && (
+              expandedMenus.includes(item.id)
+                ? <ChevronDown className="h-4 w-4 flex-shrink-0" />
+                : <ChevronRight className="h-4 w-4 flex-shrink-0" />
+            )}
+          </>
+        )}
+      </button>
+    );
+
+    if (isSidebarOpen) {
+      return button;
+    }
+
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>{button}</TooltipTrigger>
+        <TooltipContent side="right" className="bg-[#013E37] text-white">
+          {item.name}
+        </TooltipContent>
+      </Tooltip>
+    );
+  };
+
   return (
     <aside className={`${isSidebarOpen ? 'w-64' : 'w-20'} relative bg-white border-r border-gray-200 transition-all duration-300 flex flex-col shadow-lg`}>
       {/* Floating collapse/expand toggle - sits astride the sidebar/content
@@ -79,38 +133,7 @@ export function Sidebar({
                   <div className="space-y-1">
                     {group.items.map((item) => (
                       <div key={item.id}>
-                        <button
-                          onClick={() => {
-                            if (item.subMenus) {
-                              setExpandedMenus(prev => {
-                                if (prev.includes(item.id)) {
-                                  return prev.filter(id => id !== item.id);
-                                } else {
-                                  return [...prev, item.id];
-                                }
-                              });
-                            } else {
-                              setActiveMenu(item.id);
-                            }
-                          }}
-                          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
-                            activeMenu === item.id
-                              ? 'bg-[#013E37] text-white shadow-md'
-                              : 'text-gray-700 hover:bg-[#EEF7F5] hover:text-[#013E37]'
-                          }`}
-                        >
-                          <item.icon className="h-5 w-5 flex-shrink-0" />
-                          {isSidebarOpen && (
-                            <>
-                              <span className="font-medium text-sm truncate flex-1 text-left">{item.name}</span>
-                              {item.subMenus && (
-                                expandedMenus.includes(item.id) 
-                                  ? <ChevronDown className="h-4 w-4 flex-shrink-0" />
-                                  : <ChevronRight className="h-4 w-4 flex-shrink-0" />
-                              )}
-                            </>
-                          )}
-                        </button>
+                        {renderMenuItemButton(item)}
                         {isSidebarOpen && item.subMenus && expandedMenus.includes(item.id) && (
                           <div className="mt-1 space-y-1">
                             {item.subMenus.map(subItem => (
