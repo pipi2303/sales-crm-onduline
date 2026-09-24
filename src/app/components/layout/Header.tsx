@@ -2,13 +2,26 @@
 // indicator, notifications, user menu) - moved out of App.tsx so it's a
 // self-contained unit, separate from Sidebar.tsx. Pure presentational
 // component: all state lives in App.tsx and is passed down as props.
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { User, LogOut } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { AppNotifications } from '@/app/components/AppNotifications';
 import { CollaborationIndicator } from '@/app/components/CollaborationIndicator';
 import type { AuthUser } from '@/app/contexts/AuthContext';
 import type { Contract as ContractType } from '@/app/data/dummyData';
+
+// Bab 41: jam & tanggal sederhana di header, menggantikan judul menu
+// aktif di sebelah kanan judul aplikasi. Update tiap menit (cukup untuk
+// tampilan jam header, tidak perlu presisi detik) supaya re-render
+// minimal.
+function useSimpleClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
 
 interface HeaderProps {
   activeMenuName: string;
@@ -35,6 +48,17 @@ export function Header({
   user,
   onLogout,
 }: HeaderProps) {
+  const now = useSimpleClock();
+  const dateTimeLabel = `${now.toLocaleDateString('id-ID', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })}  ${now.toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })}`;
+
   // Get user initials for avatar
   const userInitials = user?.name
     .split(' ')
@@ -59,8 +83,8 @@ export function Header({
             <p className="text-[7px] font-medium tracking-[0.08em] text-white/60 whitespace-nowrap">PEOPLE . PIPELINE . GROWTH</p>
           </div>
         </div>
-        <h2 className="text-[15px] font-bold text-white truncate">
-          {activeMenuName}
+        <h2 className="text-[13px] font-medium text-white/80 truncate">
+          {dateTimeLabel}
         </h2>
       </div>
       
