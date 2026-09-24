@@ -16,12 +16,11 @@ import {
 import { AIEmailGenerator } from '@/app/components/ai/AIEmailGenerator';
 import { AILeadScoring } from '@/app/components/ai/AILeadScoring';
 import { AISmartRecommendations } from '@/app/components/ai/AISmartRecommendations';
-import { AddCommunicationDialog } from '@/app/components/AddCommunicationDialog';
 import { ClientOrgTreePanel } from '@/app/components/ClientOrgTreePanel';
 import { ClientIntelligencePanel } from '@/app/components/ClientIntelligencePanel';
+import { ClientCommunicationsPanel } from '@/app/components/ClientCommunicationsPanel';
 
 import type { Client } from '@/types/client';
-import type { Communication } from '@/types/communication';
 
 interface ClientDetailDialogProps {
   open: boolean;
@@ -32,7 +31,6 @@ interface ClientDetailDialogProps {
 
 export function ClientDetailDialog({ open, onOpenChange, client, onEdit }: ClientDetailDialogProps) {
   const [showEmailGenerator, setShowEmailGenerator] = useState(false);
-  const [showAddCommunication, setShowAddCommunication] = useState(false);
   const [expandedSections, setExpandedSections] = useState({
     informasiDasar: true,  // Default open
     profilingTeknis: false,
@@ -42,7 +40,6 @@ export function ClientDetailDialog({ open, onOpenChange, client, onEdit }: Clien
     dokumentasiLegal: false,
     orgTree: false,
     customerIntelligence: false,
-    komunikasi: false,
     aiTools: false
   });
   const [discountValue, setDiscountValue] = useState(0);
@@ -62,92 +59,6 @@ export function ClientDetailDialog({ open, onOpenChange, client, onEdit }: Clien
       toast.success(`Diskon ${discountValue}% untuk ${client?.nama_entitas} telah DISETUJUI oleh atasan!`);
     }, 5000);
   };
-  const [communications, setCommunications] = useState<Communication[]>([
-    {
-      id: '1',
-      type: 'Telepon',
-      title: 'Follow-up Call - Contract Discussion',
-      description: 'Discussed contract renewal terms and additional module requirements. Client requested demo for new telemedicine feature.',
-      timestamp: '27 Jan 2026, 14:30',
-      categories: ['Telepon', 'Hot Lead']
-    },
-    {
-      id: '2',
-      type: 'Email',
-      title: 'Email - Monthly Report Sent',
-      description: 'Sent monthly performance report and usage analytics. Highlighted 15% increase in system efficiency.',
-      timestamp: '25 Jan 2026, 09:15',
-      categories: ['Email', 'Report']
-    },
-    {
-      id: '3',
-      type: 'Meeting',
-      title: 'Meeting - Technical Review',
-      description: 'Site survey bersama tim gudang. Membahas kapasitas stok atap dan jadwal pengiriman.',
-      timestamp: '20 Jan 2026, 13:00',
-      categories: ['Meeting', 'Technical']
-    },
-    {
-      id: '4',
-      type: 'WhatsApp',
-      title: 'WhatsApp - Quick Support Response',
-      description: 'Resolved technical issue regarding user authentication. Provided step-by-step guide for password reset procedure.',
-      timestamp: '18 Jan 2026, 16:45',
-      categories: ['WhatsApp', 'Support']
-    },
-    {
-      id: '5',
-      type: 'Visit',
-      title: 'Visit - On-site Training',
-      description: 'Conducted on-site product training for 25 toko staff members. Covered new products and best practices for stock display.',
-      timestamp: '15 Jan 2026, 10:00',
-      categories: ['Visit', 'Training']
-    }
-  ]);
-
-  const handleAddCommunication = (newCommunication: Communication) => {
-    setCommunications(prev => [newCommunication, ...prev]);
-    setShowAddCommunication(false);
-  };
-
-  const getIconForType = (type: string) => {
-    switch (type) {
-      case 'Telepon': return <Phone className="h-4 w-4 text-green-600" />;
-      case 'Email': return <Mail className="h-4 w-4 text-blue-600" />;
-      case 'Meeting': return <Users className="h-4 w-4 text-[#013E37]" />;
-      case 'WhatsApp': return <MessageSquare className="h-4 w-4 text-emerald-600" />;
-      case 'Visit': return <Calendar className="h-4 w-4 text-amber-600" />;
-      default: return <MessageSquare className="h-4 w-4 text-gray-600" />;
-    }
-  };
-
-  const getBgColorForType = (type: string) => {
-    switch (type) {
-      case 'Telepon': return 'bg-green-100';
-      case 'Email': return 'bg-blue-100';
-      case 'Meeting': return 'bg-[#DFF0EC]';
-      case 'WhatsApp': return 'bg-emerald-100';
-      case 'Visit': return 'bg-amber-100';
-      default: return 'bg-gray-100';
-    }
-  };
-
-  const getBadgeColorForCategory = (category: string) => {
-    const colorMap: Record<string, string> = {
-      'Telepon': 'bg-green-50 text-green-700 border-green-200',
-      'Email': 'bg-blue-50 text-blue-700 border-blue-200',
-      'Meeting': 'bg-[#EEF7F5] text-[#013E37] border-[#C3DDD9]',
-      'WhatsApp': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      'Visit': 'bg-amber-50 text-amber-700 border-amber-200',
-      'Hot Lead': 'bg-blue-50 text-blue-700 border-blue-200',
-      'Report': 'bg-[#EEF7F5] text-[#013E37] border-[#C3DDD9]',
-      'Technical': 'bg-orange-50 text-orange-700 border-orange-200',
-      'Support': 'bg-red-50 text-red-700 border-red-200',
-      'Training': 'bg-[#EEF7F5] text-[#013E37] border-[#C3DDD9]',
-    };
-    return colorMap[category] || 'bg-gray-50 text-gray-700 border-gray-200';
-  };
-  
   if (!client) return null;
 
   const leadData = {
@@ -173,11 +84,6 @@ export function ClientDetailDialog({ open, onOpenChange, client, onEdit }: Clien
         context={`Client type: ${client.kategori_client}, Package: ${client.paket_aktif}, Status: ${client.status_hubungan}`}
       />
 
-      <AddCommunicationDialog
-        open={showAddCommunication}
-        onClose={() => setShowAddCommunication(false)}
-        onAdd={handleAddCommunication}
-      />
       
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="!max-w-[1100px] w-full max-h-[calc(100%-2rem)] overflow-hidden p-0 flex flex-col [&>button]:hidden">
@@ -828,79 +734,8 @@ export function ClientDetailDialog({ open, onOpenChange, client, onEdit }: Clien
               )}
             </div>
 
-            {/* Komunikasi */}
-            <div className="bg-gradient-to-br from-[#EEF7F5] to-blue-50 rounded-xl border border-[#DFF0EC] overflow-hidden">
-              <div className="w-full flex items-center justify-between px-6 py-4 bg-white/50">
-                <button
-                  type="button"
-                  onClick={() => setExpandedSections(prev => ({ ...prev, komunikasi: !prev.komunikasi }))}
-                  className="flex items-center gap-3 hover:opacity-80 transition-opacity"
-                >
-                  <div className="h-10 w-10 rounded-lg bg-[#013E37] flex items-center justify-center">
-                    <MessageSquare className="h-5 w-5 text-white" />
-                  </div>
-                  <div className="text-left">
-                    <h3 className="text-xl font-bold text-gray-900 leading-none">Komunikasi</h3>
-                    <p className="text-[10px] text-[#013E37] mt-1 uppercase tracking-wider font-semibold opacity-70">LOG INTERAKSI & RIWAYAT FOLLOW-UP</p>
-                  </div>
-                </button>
-                <div className="flex items-center gap-3">
-                  <Button
-                    size="sm"
-                    onClick={() => setShowAddCommunication(true)}
-                    className="bg-[#013E37] hover:bg-[#013E37] text-white"
-                  >
-                    <Send className="h-4 w-4 mr-2" />
-                    Tambah Komunikasi
-                  </Button>
-                  <button
-                    type="button"
-                    onClick={() => setExpandedSections(prev => ({ ...prev, komunikasi: !prev.komunikasi }))}
-                    className="hover:opacity-80 transition-opacity"
-                  >
-                    {expandedSections.komunikasi ? (
-                      <ChevronUp className="h-5 w-5 text-[#013E37]" />
-                    ) : (
-                      <ChevronDown className="h-5 w-5 text-[#013E37]" />
-                    )}
-                  </button>
-                </div>
-              </div>
-              
-              {expandedSections.komunikasi && (
-                <div className="px-6 pb-6 pt-2">
-                  {/* Communication Timeline */}
-                  <div className="space-y-3">
-                    {/* Sample Communication Items */}
-                    {communications.map(comm => (
-                      <div key={comm.id} className="bg-white rounded-lg p-4 border border-[#DFF0EC] hover:shadow-md transition-shadow">
-                        <div className="flex items-start gap-3">
-                          <div className={`h-8 w-8 rounded-full ${getBgColorForType(comm.type)} flex items-center justify-center flex-shrink-0`}>
-                            {getIconForType(comm.type)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2 mb-1">
-                              <p className="font-semibold text-gray-900">{comm.title}</p>
-                              <span className="text-xs text-gray-500 whitespace-nowrap">{comm.timestamp}</span>
-                            </div>
-                            <p className="text-sm text-gray-600 mb-2">
-                              {comm.description}
-                            </p>
-                            <div className="flex items-center gap-2">
-                              {comm.categories.map(cat => (
-                                <Badge key={cat} variant="outline" className={`text-xs ${getBadgeColorForCategory(cat)}`}>
-                                  {cat}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            {/* Komunikasi -- Bab 16.5 lanjutan (24 Sep 2026): diekstrak ke ClientCommunicationsPanel */}
+            <ClientCommunicationsPanel clientId={client.id} />
 
             {/* AI Tools */}
             <div className="bg-gradient-to-br from-[#EEF7F5] to-[#EEF7F5] rounded-xl border-2 border-[#013E37] overflow-hidden">

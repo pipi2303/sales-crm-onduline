@@ -1,32 +1,57 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/app/components/ui/dialog';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
 import { Textarea } from '@/app/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
 import { X, Send, Phone, Mail, Users, MessageSquare, Calendar } from 'lucide-react';
-import type { Communication } from '@/types/communication';
+import type { CommunicationType, NewCommunicationInput } from '@/types/communication';
 
 interface AddCommunicationDialogProps {
   open: boolean;
   onClose: () => void;
-  onAdd: (communication: Communication) => void;
+  onAdd: (input: NewCommunicationInput) => void;
+  // Bab 16.5 lanjutan (24 Sep 2026): daftar kontak org tree client ini,
+  // untuk "Kontak Terkait" opsional -- boleh kosong (komunikasi lama pun
+  // tidak semua terkait ke kontak tertentu), lihat catatan desain di
+  // schema.prisma dekat ClientCommunication.
+  contacts?: { id: string; nama: string }[];
+  saving?: boolean;
 }
 
-export function AddCommunicationDialog({ open, onClose, onAdd }: AddCommunicationDialogProps) {
-  const [formData, setFormData] = useState({
-    type: 'Telepon' as 'Telepon' | 'Email' | 'Meeting' | 'WhatsApp' | 'Visit',
-    title: '',
-    description: '',
-    date: '',
-    time: '',
-    category1: '',
-    category2: ''
-  });
+function todayDateStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+function nowTimeStr(): string {
+  return new Date().toTimeString().slice(0, 5);
+}
+
+const EMPTY_FORM = {
+  type: 'Telepon' as CommunicationType,
+  title: '',
+  description: '',
+  date: todayDateStr(),
+  time: nowTimeStr(),
+  category1: '',
+  category2: '',
+  contactId: '',
+};
+
+export function AddCommunicationDialog({ open, onClose, onAdd, contacts = [], saving = false }: AddCommunicationDialogProps) {
+  const [formData, setFormData] = useState(EMPTY_FORM);
+
+  // Reset ke default (termasuk tanggal/waktu sekarang) tiap kali dialog
+  // dibuka, bukan cuma sekali saat mount.
+  useEffect(() => {
+    if (open) {
+      setFormData(EMPTY_FORM);
+    }
+  }, [open]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = () => {
@@ -35,32 +60,16 @@ export function AddCommunicationDialog({ open, onClose, onAdd }: AddCommunicatio
       return;
     }
 
-    const categories = [
-      formData.type,
-      formData.category1,
-      formData.category2
-    ].filter(Boolean);
+    const occurredAt = new Date(`${formData.date}T${formData.time}`).toISOString();
+    const categories = [formData.category1, formData.category2].filter(Boolean);
 
-    const newCommunication: Communication = {
-      id: Date.now().toString(),
+    onAdd({
       type: formData.type,
       title: formData.title,
       description: formData.description,
-      timestamp: `${formData.date}, ${formData.time}`,
-      categories
-    };
-
-    onAdd(newCommunication);
-    
-    // Reset form
-    setFormData({
-      type: 'Telepon',
-      title: '',
-      description: '',
-      date: '',
-      time: '',
-      category1: '',
-      category2: ''
+      occurred_at: occurredAt,
+      categories,
+      contact_id: formData.contactId || undefined,
     });
   };
 
@@ -69,7 +78,7 @@ export function AddCommunicationDialog({ open, onClose, onAdd }: AddCommunicatio
     { value: 'Email', label: 'Email', icon: Mail },
     { value: 'Meeting', label: 'Meeting', icon: Users },
     { value: 'WhatsApp', label: 'WhatsApp', icon: MessageSquare },
-    { value: 'Visit', label: 'Visit', icon: Calendar }
+    { value: 'Visit', label: 'Visit', icon: Calendar },
   ];
 
   return (
@@ -114,7 +123,7 @@ export function AddCommunicationDialog({ open, onClose, onAdd }: AddCommunicatio
                 <button
                   key={value}
                   type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, type: value as any }))}
+                  onClick={() => setFormData((prev) => ({ ...prev, type: value as CommunicationType }))}
                   className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
                     formData.type === value
                       ? 'border-[#013E37] bg-emerald-50'
@@ -154,10 +163,9 @@ export function AddCommunicationDialog({ open, onClose, onAdd }: AddCommunicatio
               <Input
                 id="date"
                 name="date"
-                type="text"
+                type="date"
                 value={formData.date}
                 onChange={handleChange}
-                placeholder="27 Jan 2026"
                 className="border-gray-300 focus:border-[#013E37] focus:ring-[#013E37]"
               />
             </div>
@@ -168,13 +176,33 @@ export function AddCommunicationDialog({ open, onClose, onAdd }: AddCommunicatio
               <Input
                 id="time"
                 name="time"
-                type="text"
+                type="time"
                 value={formData.time}
                 onChange={handleChange}
-                placeholder="14:30"
                 className="border-gray-300 focus:border-[#013E37] focus:ring-[#013E37]"
               />
             </div>
+          </div>
+
+          {/* Kontak Terkait (opsional) */}
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold text-gray-700">Kontak Terkait (Opsional)</Label>
+            <Select
+              value={formData.contactId || 'none'}
+              onValueChange={(v) => setFormData((prev) => ({ ...prev, contactId: v === 'none' ? '' : v }))}
+            >
+              <SelectTrigger className="border-gray-300 focus:border-[#013E37] focus:ring-[#013E37]">
+                <SelectValue placeholder="- Tidak dikaitkan ke kontak tertentu -" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">- Tidak dikaitkan ke kontak tertentu -</SelectItem>
+                {contacts.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.nama}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Description */}
@@ -226,20 +254,12 @@ export function AddCommunicationDialog({ open, onClose, onAdd }: AddCommunicatio
 
         {/* Footer */}
         <div className="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onClose}
-            className="min-w-24 border-gray-300 hover:bg-gray-100"
-          >
+          <Button type="button" variant="outline" onClick={onClose} className="min-w-24 border-gray-300 hover:bg-gray-100">
             Batal
           </Button>
-          <Button
-            onClick={handleSubmit}
-            className="min-w-32 bg-[#013E37] hover:bg-[#025C52] text-white"
-          >
+          <Button onClick={handleSubmit} disabled={saving} className="min-w-32 bg-[#013E37] hover:bg-[#025C52] text-white">
             <Send className="h-4 w-4 mr-2" />
-            Tambah Komunikasi
+            {saving ? 'Menyimpan...' : 'Tambah Komunikasi'}
           </Button>
         </div>
       </DialogContent>

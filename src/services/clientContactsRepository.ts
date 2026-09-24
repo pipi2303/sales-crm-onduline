@@ -99,8 +99,12 @@ function fromApiContact(row: any): ClientContact {
     updated_at: row.updatedAt ?? '',
     // _count hanya ada di response list/get-single (lihat
     // handleClientContacts di api/handler.ts) -- fallback 0 kalau endpoint
-    // lain (mis. hasil create/update) tidak menyertakannya.
-    meeting_count: row._count?.activities ?? 0,
+    // lain (mis. hasil create/update) tidak menyertakannya. Digabung dari
+    // OpportunityActivity (lewat "Catat Pertemuan" di ClientOrgTreePanel)
+    // DAN ClientCommunication (lewat tab Komunikasi) -- lihat catatan di
+    // schema.prisma dekat model ClientCommunication kenapa keduanya
+    // terpisah tapi sama-sama dihitung sebagai "pertemuan".
+    meeting_count: (row._count?.activities ?? 0) + (row._count?.communications ?? 0),
   };
 }
 
