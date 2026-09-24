@@ -19,6 +19,11 @@ export interface Activity {
   description: string;
   createdAt: string;
   createdBy?: string;
+  // Bab 16.5 (24 Sep 2026): opsional -- kalau aktivitas ini adalah
+  // pertemuan dengan salah satu kontak di org tree client-nya (lihat
+  // src/types/clientContact.ts). Dipakai LogMeetingDialog.tsx supaya
+  // "jumlah pertemuan" per kontak bisa dihitung dari data ini.
+  contactId?: string;
 }
 
 export interface Opportunity {

@@ -15,8 +15,9 @@ import { Label } from '@/app/components/ui/label';
 import { Textarea } from '@/app/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, MessagesSquare, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, MessagesSquare, Loader2, CalendarPlus } from 'lucide-react';
 import { clientContactsRepository } from '@/services/clientContactsRepository';
+import { LogMeetingDialog } from '@/app/components/LogMeetingDialog';
 import type { ClientContact, InfluenceRole, RelationshipStatus, RelationshipCloseness } from '@/types/clientContact';
 import { INFLUENCE_ROLE_LABELS, RELATIONSHIP_STATUS_LABELS, RELATIONSHIP_CLOSENESS_LABELS } from '@/types/clientContact';
 
@@ -64,6 +65,7 @@ export function ClientOrgTreePanel({ clientId }: ClientOrgTreePanelProps) {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [loggingContact, setLoggingContact] = useState<ClientContact | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -181,6 +183,15 @@ export function ClientOrgTreePanel({ clientId }: ClientOrgTreePanelProps) {
                   <p className="text-sm text-gray-500">{contact.jabatan || '-'}</p>
                 </div>
                 <div className="flex gap-1">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 text-indigo-600 hover:text-indigo-700"
+                    title="Catat Pertemuan"
+                    onClick={() => setLoggingContact(contact)}
+                  >
+                    <CalendarPlus className="h-3.5 w-3.5" />
+                  </Button>
                   <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(contact)}>
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
@@ -333,6 +344,15 @@ export function ClientOrgTreePanel({ clientId }: ClientOrgTreePanelProps) {
             </Button>
           </div>
         </div>
+      )}
+      {loggingContact && (
+        <LogMeetingDialog
+          open={!!loggingContact}
+          onOpenChange={(v) => { if (!v) setLoggingContact(null); }}
+          clientId={clientId}
+          contact={loggingContact}
+          onLogged={load}
+        />
       )}
     </div>
   );

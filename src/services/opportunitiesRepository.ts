@@ -199,6 +199,7 @@ function fromApiOpportunity(row: any): OpportunityWithExtra {
       description: a.description,
       createdAt: a.createdAt,
       createdBy: a.createdBy ?? undefined,
+      contactId: a.contactId ?? undefined,
     })),
 
     createdBy: row.createdBy ?? undefined,
