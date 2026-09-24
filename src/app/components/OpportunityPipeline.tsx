@@ -43,7 +43,7 @@ const stages = [
   { id: 'proposal', name: 'Proposal', probability: 50, color: 'bg-[#DFF0EC] text-[#012D29]', borderColor: 'border-[#5BB5AB]', salesStage: 'Solution' },
   { id: 'negotiation', name: 'Negotiation', probability: 70, color: 'bg-orange-100 text-orange-800', borderColor: 'border-orange-300', salesStage: 'Align' },
   { id: 'closed-won', name: 'Closed Won', probability: 100, color: 'bg-green-100 text-green-800', borderColor: 'border-green-300', salesStage: 'Execute' },
-  { id: 'closed-lost', name: 'Closed Lost', probability: 0, color: 'bg-red-100 text-red-800', borderColor: 'border-red-300', salesStage: 'Close' },
+  { id: 'closed-lost', name: 'Closed Lost', probability: 0, color: 'bg-red-100 text-red-800', borderColor: 'border-red-300', salesStage: 'Close (Win/Loss)' },
 ];
 
 // Sortable Card Component

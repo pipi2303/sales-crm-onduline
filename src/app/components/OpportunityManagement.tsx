@@ -251,7 +251,8 @@ export function OpportunityManagement() {
         'Membuka kembali opportunity yang sudah ditutup? Close Reason/Detail akan dikosongkan.'
       );
       if (!proceed) return;
-      applyStageChange(opportunity, newStage, { closeReason: undefined, closeDetail: undefined });
+      // null (not undefined) so the "kosongkan" intent survives JSON.stringify -- see the comment on Opportunity.closeReason/closeDetail in src/types/opportunity.ts.
+      applyStageChange(opportunity, newStage, { closeReason: null, closeDetail: null });
       return;
     }
 
@@ -283,7 +284,8 @@ export function OpportunityManagement() {
 
     await applyStageChange(closeDialogOpp, closeDialogStage, {
       closeReason: closeReasonValue,
-      closeDetail: closeReasonValue === 'Other' ? closeDetailValue.trim() : undefined,
+      // null clears any stale detail left over from a previous 'Other' selection -- see the comment on Opportunity.closeDetail in src/types/opportunity.ts for why null (not undefined).
+      closeDetail: closeReasonValue === 'Other' ? closeDetailValue.trim() : null,
     });
 
     setCloseDialogOpen(false);

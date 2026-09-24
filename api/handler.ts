@@ -389,7 +389,14 @@ async function handleLeads(id: string | undefined, req: ApiRequest, res: ApiResp
 
       if (req.method === 'POST') {
         const body = (req.body ?? {}) as Record<string, unknown>;
-        if (!body.name || !body.company || !body.value) {
+        // Bab 30 (24 Sep 2026, hasil deep review + smoke test grup Sales
+        // Pipeline): `!body.value` menolak 0 juga (falsy di JS), padahal 0
+        // adalah nilai default yang sah di form ("Nilai Lead" placeholder-nya
+        // literal "0" dan tidak ada tanda field ini wajib > 0) -- lead yang
+        // sengaja/tidak sengaja dibiarkan di 0 selalu gagal disimpan dengan
+        // pesan yang membingungkan (menyebut name/company yang sudah diisi).
+        // Cek presence-nya secara eksplisit, bukan truthy-nya.
+        if (!body.name || !body.company || body.value === undefined || body.value === null || body.value === '') {
           res.status(400).json({ success: false, error: 'name, company, dan value wajib diisi' });
           return;
         }
@@ -1429,8 +1436,8 @@ async function handleOpportunities(id: string | undefined, req: ApiRequest, res:
           ...(body.stage !== undefined && { stage: body.stage as 'PROSPECTING' | 'PROPOSAL' | 'NEGOTIATION' | 'CLOSED_WON' | 'CLOSED_LOST' }),
           ...(nextStatus !== undefined && { status: nextStatus }),
           ...(body.lossReason !== undefined && { lossReason: body.lossReason as string }),
-          ...(body.closeReason !== undefined && { closeReason: body.closeReason as string }),
-          ...(body.closeDetail !== undefined && { closeDetail: body.closeDetail as string }),
+          ...(body.closeReason !== undefined && { closeReason: body.closeReason as string | null }),
+          ...(body.closeDetail !== undefined && { closeDetail: body.closeDetail as string | null }),
           ...(body.notes !== undefined && { notes: body.notes as string }),
           ...(body.territoryId !== undefined && { territoryId: body.territoryId as string | null }),
           ...(body.extra !== undefined && { extra: body.extra as object }),
@@ -2065,6 +2072,20 @@ async function handleDiscountApprovals(id: string | undefined, req: ApiRequest, 
 
         const originalPrice = Number(body.originalPrice);
         const discountPercent = Number(body.discountPercent);
+        // Bab 30 follow-up (24 Sep 2026, hasil deep review + smoke test grup
+        // Sales Pipeline): sebelumnya tidak ada validasi rentang sama sekali
+        // -- discountPercent negatif lolos sebagai "diskon" level 1 (auto
+        // self-approved, padahal itu justru kenaikan harga), dan NaN/Infinity
+        // (dari body.discountPercent yang bukan angka) bikin kolom Decimal di
+        // Postgres menolak insert dengan 500 yang membingungkan.
+        if (!Number.isFinite(originalPrice) || originalPrice < 0) {
+          res.status(400).json({ success: false, error: 'originalPrice harus berupa angka >= 0' });
+          return;
+        }
+        if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+          res.status(400).json({ success: false, error: 'discountPercent harus berupa angka antara 0 dan 100' });
+          return;
+        }
         const discountAmount = originalPrice * (discountPercent / 100);
         const finalPrice = originalPrice - discountAmount;
         const level = discountLevelForPercent(discountPercent);
@@ -2077,7 +2098,7 @@ async function handleDiscountApprovals(id: string | undefined, req: ApiRequest, 
               level: 1,
               approverName: user.name,
               approverRole: discountLevelLabel(1),
-              action: 'approved' as const,
+              action: 'APPROVED' as const,
               decidedAt: new Date(),
               comment: 'Self-approval sesuai kewenangan (diskon <= 10%)',
             };
@@ -2086,7 +2107,7 @@ async function handleDiscountApprovals(id: string | undefined, req: ApiRequest, 
             level: stepLevel,
             approverName: '',
             approverRole: discountLevelLabel(stepLevel),
-            action: 'pending' as const,
+            action: 'PENDING' as const,
           };
         });
 
@@ -2103,7 +2124,7 @@ async function handleDiscountApprovals(id: string | undefined, req: ApiRequest, 
             requestedById: user.id,
             requestedByName: user.name,
             reason: body.reason as string,
-            status: selfApproved ? 'approved' : 'pending',
+            status: selfApproved ? 'APPROVED' : 'PENDING',
             currentApprover: selfApproved ? '-' : discountLevelLabel(2),
             approvalLevel: selfApproved ? 1 : 2,
             urgency: (body.urgency as string) ?? 'medium',
@@ -2158,20 +2179,20 @@ async function handleDiscountApprovals(id: string | undefined, req: ApiRequest, 
         return;
       }
       requireRole(user, discountApproverRolesForLevel(current.approvalLevel));
-      if (current.status !== 'pending') {
+      if (current.status !== 'PENDING') {
         res.status(400).json({
           success: false,
           error: `Pengajuan sudah berstatus ${current.status}, tidak bisa diputuskan lagi`,
         });
         return;
       }
-      const pendingStep = current.steps.find((s) => s.level === current.approvalLevel && s.action === 'pending');
+      const pendingStep = current.steps.find((s) => s.level === current.approvalLevel && s.action === 'PENDING');
       if (!pendingStep) {
         res.status(400).json({ success: false, error: 'Tidak ada level yang sedang menunggu approval' });
         return;
       }
 
-      const stepAction = action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'counter-offer';
+      const stepAction = action === 'approve' ? 'APPROVED' : action === 'reject' ? 'REJECTED' : 'COUNTER_OFFER';
       const maxLevel = Math.max(...current.steps.map((s) => s.level));
       const isLastLevel = current.approvalLevel >= maxLevel;
 
@@ -2180,12 +2201,12 @@ async function handleDiscountApprovals(id: string | undefined, req: ApiRequest, 
         data: {
           status:
             action === 'reject'
-              ? 'rejected'
+              ? 'REJECTED'
               : action === 'counter-offer'
-              ? 'counter-offer'
+              ? 'COUNTER_OFFER'
               : isLastLevel
-              ? 'approved'
-              : 'pending',
+              ? 'APPROVED'
+              : 'PENDING',
           currentApprover: action === 'approve' && !isLastLevel ? discountLevelLabel(current.approvalLevel + 1) : '-',
           approvalLevel: action === 'approve' && !isLastLevel ? current.approvalLevel + 1 : current.approvalLevel,
           ...(body.conditions !== undefined && { conditions: body.conditions as string }),

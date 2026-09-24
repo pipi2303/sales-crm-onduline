@@ -42,6 +42,7 @@ import {
   MessageSquare,
   Activity
 } from 'lucide-react';
+import { toast } from 'sonner';
 import type { Opportunity, ProductItem } from '@/types/opportunity';
 import { partnersApi, employeesApi } from '@/services/api';
 import { clientsRepository } from '@/services/clientsRepository';
@@ -100,7 +101,7 @@ export function OpportunityFormNew({ opportunity, products, onSave, onCancel }: 
     annualRevenue: 0,
     sizeOfDeal: 0,
     monthlyRev: 0,
-    salesStage: 'Engage' as 'Engage' | 'Understand' | 'Solution' | 'Align' | 'Execute' | 'Close',
+    salesStage: 'Engage' as 'Engage' | 'Understand' | 'Solution' | 'Align' | 'Execute' | 'Close (Win/Loss)',
     winProbability: 0,
     currentStatus: '',
     nextAction: '',
@@ -227,7 +228,17 @@ export function OpportunityFormNew({ opportunity, products, onSave, onCancel }: 
     probability: 30,
     closeDate: '',
     stage: 'prospecting' as 'prospecting' | 'proposal' | 'negotiation' | 'closed-won' | 'closed-lost',
-    ownerName: 'Current User',
+    // Bab 30 (24 Sep 2026, hasil deep review + smoke test): dulu default-nya
+    // literal 'Current User' tanpa UI untuk mengubahnya -- karena key ini
+    // selalu terkirim (bukan undefined), nilai itu MENIMPA fallback masuk
+    // akal di backend (ownerName ?? user.name), jadi setiap Opportunity baru
+    // selalu tampil dengan owner "Current User" di semua list/pipeline/detail.
+    // Default '' di sini supaya untuk opportunity BARU, key ini dibuang oleh
+    // toApiPayload (opportunitiesRepository.ts membuang string kosong sama
+    // seperti field opsional lain) dan backend jatuh ke fallback user.name
+    // yang benar. loadOpportunity() di bawah tetap mengisi ini dengan
+    // ownerName asli saat EDIT data yang sudah ada.
+    ownerName: '',
   });
 
   useEffect(() => {
@@ -480,6 +491,21 @@ export function OpportunityFormNew({ opportunity, products, onSave, onCancel }: 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Bab 30 (24 Sep 2026): closeDate lives in the "Sales Details" tab
+    // (Financial Details section, collapsed by default) -- native HTML
+    // `required` validation on that input does not reliably surface to the
+    // user when the field sits in a currently-inactive Tabs panel (browsers
+    // skip constraint validation for elements that aren't visible/focusable
+    // there), so this used to fail silently at the SERVER with a confusing
+    // "closeDate wajib diisi" error naming fields the user had already
+    // filled in. Check it explicitly here, with a clear message, and jump
+    // the user to the right tab so they can actually see and fix it.
+    if (!financialData.closeDate) {
+      toast.error('Close Date wajib diisi (tab "Sales Details" → Financial Details).');
+      setActiveTab('sales');
+      return;
+    }
+
     const totalValue = calculateTotalValue();
 
     const opportunityData: Partial<Opportunity> = {
@@ -495,7 +521,7 @@ export function OpportunityFormNew({ opportunity, products, onSave, onCancel }: 
       // 'open' even for an already Closed Won/Lost opportunity whenever someone edited any other
       // field via this form (stage itself can only be changed via the Kanban drag-and-drop, which
       // now goes through the Close Reason flow in OpportunityManagement's handleStageChange).
-      status: formData.stage === 'closed-won' ? 'won' : formData.stage === 'closed-lost' ? 'lost' : 'open',
+      status: financialData.stage === 'closed-won' ? 'won' : financialData.stage === 'closed-lost' ? 'lost' : 'open',
       reminderSent: false,
       activities: opportunity?.activities || [],
       createdAt: opportunity?.createdAt || new Date().toISOString(),
@@ -505,6 +531,20 @@ export function OpportunityFormNew({ opportunity, products, onSave, onCancel }: 
       // Save field history to backend
       fieldHistory: fieldHistory,
     };
+
+    // Bab 30 follow-up: for a brand-new opportunity with no owner picked
+    // (financialData.ownerName left at its '' default -- see the comment on
+    // that state above), omit the key entirely rather than sending an empty
+    // string. opportunitiesRepository's toApiPayload only wraps EXTRA_KEYS,
+    // it does not drop empty strings on its own, and the backend's fallback
+    // (`body.ownerName ?? user.name`) only kicks in for null/undefined, not
+    // ''. JSON.stringify drops keys whose value is `undefined` before the
+    // request body is built (same mechanism the Close Reason clearing flow
+    // in OpportunityManagement.tsx relies on), so deleting it here lets the
+    // backend's real-user-name fallback apply as intended.
+    if (!financialData.ownerName.trim()) {
+      delete (opportunityData as Record<string, unknown>).ownerName;
+    }
 
     onSave(opportunityData);
   };
@@ -1485,6 +1525,27 @@ export function OpportunityFormNew({ opportunity, products, onSave, onCancel }: 
                     <div className="space-y-4">
 
                   <div className="grid grid-cols-2 gap-4">
+                    {/* Bab 30 (24 Sep 2026, hasil deep review + smoke test grup
+                        Sales Pipeline): financialData.closeDate is REQUIRED by
+                        POST /api/opportunities (api/handler.ts) but never had
+                        an input anywhere in this ~2400-line form -- it only
+                        ever got populated when EDITING an existing record via
+                        loadOpportunity(). Every "New Opportunity" submission
+                        failed with "closeDate wajib diisi" even though the
+                        three other required fields (name/clientName/
+                        contactPerson) were filled in, and there was no way to
+                        fix it from the UI. This is that missing field. */}
+                    <div className="space-y-2">
+                      <Label>Close Date *</Label>
+                      <Input
+                        type="date"
+                        required
+                        value={financialData.closeDate}
+                        onChange={(e) => setFinancialData({ ...financialData, closeDate: e.target.value })}
+                      />
+                      <p className="text-xs text-gray-500">Target tanggal deal ini akan closed (wajib diisi).</p>
+                    </div>
+
                     {/* 13. BIZMOD */}
                     <div className="space-y-2">
                       <Label>BizMod</Label>

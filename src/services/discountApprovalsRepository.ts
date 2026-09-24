@@ -16,11 +16,39 @@
 
 import type {
   DiscountRequest,
+  DiscountRequestStatus,
   ApprovalStep,
+  ApprovalStepAction,
   NewDiscountRequest,
   DiscountDecisionInput,
 } from '@/types/discountApproval';
 import type { Result } from '@/types/result';
+
+// Bab 30 (24 Sep 2026, hasil deep review + smoke test grup Sales
+// Pipeline): repository ini SEBELUMNYA tidak punya translasi enum sama
+// sekali (beda dari leadsRepository/opportunitiesRepository/dst yang
+// semuanya punya STATUS_OUT/STATUS_IN) -- row.status/row.action dari API
+// diteruskan mentah-mentah ke frontend. Ini baru kelihatan setelah bug
+// literal enum di api/handler.ts diperbaiki (lihat komentar di sana):
+// begitu backend benar mengembalikan 'PENDING'/'APPROVED'/dst (nilai
+// enum Prisma asli, SCREAMING_SNAKE_CASE), UI yang membandingkan ke
+// 'pending'/'approved' (huruf kecil, sesuai DiscountRequestStatus di
+// src/types/discountApproval.ts) akan langsung tidak pernah cocok lagi.
+// Maps di bawah ini menutup gap itu, pola yang sama dengan repository
+// lain di codebase ini.
+const STATUS_IN: Record<string, DiscountRequestStatus> = {
+  PENDING: 'pending',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+  EXPIRED: 'expired',
+  COUNTER_OFFER: 'counter-offer',
+};
+const STEP_ACTION_IN: Record<string, ApprovalStepAction> = {
+  PENDING: 'pending',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+  COUNTER_OFFER: 'counter-offer',
+};
 
 function getAuthToken(): string | undefined {
   try {
@@ -62,7 +90,7 @@ function fromApiStep(row: any): ApprovalStep {
     level: row.level,
     approverName: row.approverName,
     approverRole: row.approverRole,
-    action: row.action,
+    action: STEP_ACTION_IN[row.action] ?? row.action,
     date: row.decidedAt ? String(row.decidedAt).slice(0, 10) : undefined,
     comment: row.comment ?? undefined,
     counterOfferPercent:
@@ -87,7 +115,7 @@ function fromApiRequest(row: any): DiscountRequest {
     requestedBy: row.requestedByName,
     requestedDate: typeof row.requestedDate === 'string' ? row.requestedDate.slice(0, 10) : row.requestedDate,
     reason: row.reason,
-    status: row.status,
+    status: STATUS_IN[row.status] ?? row.status,
     currentApprover: row.currentApprover ?? '-',
     approvalLevel: row.approvalLevel,
     approvalHistory: ((row.steps ?? []) as any[]).map(fromApiStep),

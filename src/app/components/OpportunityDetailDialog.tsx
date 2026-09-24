@@ -41,7 +41,7 @@ export function OpportunityDetailDialog({ open, onClose, opportunity }: Opportun
       'proposal': { label: 'Proposal', color: 'bg-[#013E37]', salesStage: 'Solution' },
       'negotiation': { label: 'Negotiation', color: 'bg-orange-600', salesStage: 'Align' },
       'closed-won': { label: 'Closed Won', color: 'bg-green-600', salesStage: 'Execute' },
-      'closed-lost': { label: 'Closed Lost', color: 'bg-red-600', salesStage: 'Close' }
+      'closed-lost': { label: 'Closed Lost', color: 'bg-red-600', salesStage: 'Close (Win/Loss)' }
     };
     return stages[stage] || stages['prospecting'];
   };

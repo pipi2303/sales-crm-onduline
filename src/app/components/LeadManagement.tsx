@@ -133,9 +133,19 @@ export function LeadManagement() {
     try {
       setIsSubmitting(true);
 
+      // Bab 30 (24 Sep 2026, hasil deep review + smoke test grup Sales
+      // Pipeline): `companies` (state edited via handleCompanyChange/
+      // handleAddCompany/handleRemoveCompany above) was never merged into
+      // the submit payload -- only bare `formData` was sent, so anything
+      // typed into the "Perusahaan" editor was silently discarded on Save.
+      // Filter out fully-empty rows (an untouched extra row added via
+      // "+ Tambah Perusahaan" and never filled in) before sending.
+      const nonEmptyCompanies = companies.filter((c) => c.name.trim() || c.position.trim());
+      const payload = { ...formData, companies: nonEmptyCompanies };
+
       if (selectedLead) {
         // Update existing lead
-        const result = await leadsRepository.update(selectedLead.id, formData);
+        const result = await leadsRepository.update(selectedLead.id, payload);
         
         if (result.success && result.data) {
           setLeads(leads.map(l => l.id === selectedLead.id ? result.data : l));
@@ -146,7 +156,7 @@ export function LeadManagement() {
       } else {
         // Create new lead
         // Defensive default: pastikan status tidak pernah kosong walau form belum disentuh
-        const result = await leadsRepository.create({ status: 'new', ...formData });
+        const result = await leadsRepository.create({ status: 'new', ...payload });
         
         if (result.success && result.data) {
           setLeads([...leads, result.data]);
@@ -722,15 +732,36 @@ export function LeadManagement() {
                           <Button
                             size="sm"
                             className="bg-[#013E37] text-white hover:bg-[#025C52] h-8 text-xs"
-                            onClick={() => {
+                            disabled={isSubmitting}
+                            onClick={async () => {
                               if (!newCompany.name || !newCompany.position) {
                                 toast.error('Nama perusahaan dan posisi wajib diisi');
                                 return;
                               }
-                              setDetailCompanies([...detailCompanies, newCompany]);
-                              setNewCompany({ name: '', position: '', department: '', email: '', phone: '' });
-                              setIsAddingCompany(false);
-                              toast.success('Perusahaan berhasil ditambahkan!');
+                              if (!selectedLead) return;
+                              // Bab 30 (24 Sep 2026, hasil deep review + smoke test grup
+                              // Sales Pipeline): tombol ini sebelumnya CUMA update state
+                              // lokal (setDetailCompanies) + toast sukses -- tidak pernah
+                              // ada panggilan API sama sekali, jadi "berhasil ditambahkan"
+                              // itu bohong: data hilang begitu dialog/lead dibuka ulang.
+                              const updatedCompanies = [...detailCompanies, newCompany];
+                              setIsSubmitting(true);
+                              try {
+                                const result = await leadsRepository.update(selectedLead.id, { companies: updatedCompanies });
+                                if (result.success && result.data) {
+                                  const updatedLead = result.data;
+                                  setDetailCompanies(updatedCompanies);
+                                  setSelectedLead(updatedLead);
+                                  setLeads((prev) => prev.map((l) => (l.id === selectedLead.id ? updatedLead : l)));
+                                  setNewCompany({ name: '', position: '', department: '', email: '', phone: '' });
+                                  setIsAddingCompany(false);
+                                  toast.success('Perusahaan berhasil ditambahkan!');
+                                } else {
+                                  toast.error(result.error || 'Gagal menyimpan perusahaan');
+                                }
+                              } finally {
+                                setIsSubmitting(false);
+                              }
                             }}
                           >
                             Simpan

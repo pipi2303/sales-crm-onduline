@@ -59,8 +59,18 @@ export interface Opportunity {
   status: 'open' | 'won' | 'lost';
   lossReason?: string;
   // FR-04: Close Reason/Detail, required before an Opportunity can move to Closed Won/Lost.
-  closeReason?: string;
-  closeDetail?: string;
+  // Bab 30 (24 Sep 2026, hasil deep review + smoke test grup Sales
+  // Pipeline): dilebarkan ke `| null` supaya "kosongkan field ini" bisa
+  // dikirim eksplisit ke backend. Sebelumnya kode pengosongan memakai
+  // `undefined`, tapi JSON.stringify() membuang key ber-nilai undefined
+  // sebelum body request terbentuk (opportunitiesRepository.ts's
+  // toApiPayload) -- jadi "kosongkan" itu tidak pernah benar-benar
+  // sampai ke server, dan closeReason/closeDetail lama tetap nyangkut di
+  // DB. `null` selamat dari JSON.stringify dan backend (api/handler.ts)
+  // sudah menerimanya dengan benar sebagai "set ke NULL" (kolomnya
+  // nullable di schema.prisma).
+  closeReason?: string | null;
+  closeDetail?: string | null;
   
   // Assignment
   ownerId?: string;
@@ -98,10 +108,19 @@ export interface Opportunity {
   salesRep?: string;
   salesRepId?: string;
   bizmod?: string;
+  // Bab 30 (24 Sep 2026, hasil deep review + smoke test grup Sales
+  // Pipeline): field ini sudah punya input UI di OpportunityFormNew.tsx
+  // (Contract Period, tab Sales Details) sejak awal, tapi tidak pernah
+  // dideklarasikan di sini ATAU dimasukkan ke EXTRA_KEYS di
+  // opportunitiesRepository.ts -- jadi terkirim sebagai key top-level yang
+  // tidak pernah dibaca backend (bukan error, tapi juga tidak pernah
+  // tersimpan): user pilih nilainya, terlihat selama dialog terbuka, lalu
+  // hilang lagi begitu dibuka ulang.
+  contractPeriod?: string;
   annualRevenue?: number;
   sizeOfDeal?: number;
   monthlyRev?: number;
-  salesStage?: 'Engage' | 'Understand' | 'Solution' | 'Align' | 'Execute' | 'Close';
+  salesStage?: 'Engage' | 'Understand' | 'Solution' | 'Align' | 'Execute' | 'Close (Win/Loss)';
   winProbability?: number;
   currentStatus?: string;
   nextAction?: string;

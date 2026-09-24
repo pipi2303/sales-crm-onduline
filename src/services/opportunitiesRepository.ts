@@ -25,13 +25,18 @@
 //   PUT does a full delete+recreate of each on every update (the UI always
 //   sends the complete current array for both, never a delta).
 //
-// getReminders(): OpportunityManagement.tsx expects `priority` and
-// `reminderMessage` fields on each reminder, but neither the old
-// localStorage fallback nor any server route ever actually computed them
-// — this was already dead/broken before this file existed (the toast just
-// showed "undefined", the badge never got a color). Kept as-is (same
-// 7-day close-date window, still no priority/reminderMessage) rather than
-// inventing behavior no one asked for.
+// getReminders(): Bab 30 fix (24 Sep 2026, hasil deep review + smoke test
+// grup Sales Pipeline). OpportunityManagement.tsx expects `priority` and
+// `reminderMessage` (and reads `daysUntilClose`) on each reminder, but
+// neither the old localStorage fallback nor any server route ever actually
+// computed them -- the "Action Required" badge literally rendered
+// "undefinedd left" for every card, and the urgent-priority toast
+// (`reminder.priority === 'urgent'`) could never fire since priority was
+// always undefined. Now computed here from closeDate, same 7-day lookahead
+// window as before, extended to also surface already-overdue open deals
+// (the UI already had an `Overdue` label ready for negative daysUntilClose,
+// it just never received one) and excluding deals that are already
+// won/lost (a closed deal doesn't need a close-date reminder).
 
 import type { Opportunity, ProductItem, Activity } from '@/types/opportunity';
 import type { Result } from '@/types/result';
@@ -113,7 +118,7 @@ const EXTRA_KEYS = [
   'whyBuyIntramedika', 'winStrategyBuyingProcess', 'jointExecutionPlanCreated', 'vendorChoice',
   'agreementStatus', 'customerCommit', 'businessCaseStatus', 'jointExecutionPlanAgreed', 'risk',
   'functionFit', 'competitiveDifferentiation', 'solutionDemoStatus', 'implementationStrategy',
-  'solutionArchitectureValidated', 'implementationPlanAgreed', 'timestamps', 'fieldHistory',
+  'solutionArchitectureValidated', 'implementationPlanAgreed', 'contractPeriod', 'timestamps', 'fieldHistory',
 ] as const;
 
 type OpportunityWithExtra = Opportunity & Record<string, unknown>;
@@ -255,12 +260,25 @@ export const opportunitiesRepository = {
     const res = await this.getAll();
     if (!res.success || !res.data) return res;
     const today = new Date();
-    const reminders = res.data.filter((opp) => {
-      if (!opp.closeDate) return false;
-      const closeDate = new Date(opp.closeDate);
-      const diffDays = Math.floor((closeDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      return diffDays >= 0 && diffDays <= 7;
-    });
+    const reminders = res.data
+      .filter((opp) => opp.status === 'open' && !!opp.closeDate)
+      .map((opp) => {
+        const closeDate = new Date(opp.closeDate);
+        const daysUntilClose = Math.floor((closeDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        return { opp, daysUntilClose };
+      })
+      .filter(({ daysUntilClose }) => daysUntilClose <= 7)
+      .map(({ opp, daysUntilClose }) => {
+        const priority: 'urgent' | 'high' | 'medium' | 'low' =
+          daysUntilClose <= 2 ? 'urgent' : daysUntilClose <= 5 ? 'high' : 'medium';
+        const reminderMessage =
+          daysUntilClose < 0
+            ? `${opp.name} sudah melewati target close ${Math.abs(daysUntilClose)} hari yang lalu!`
+            : daysUntilClose === 0
+            ? `${opp.name} target close HARI INI!`
+            : `${opp.name} target close dalam ${daysUntilClose} hari.`;
+        return { ...opp, daysUntilClose, priority, reminderMessage };
+      });
     return { success: true, data: reminders };
   },
 };

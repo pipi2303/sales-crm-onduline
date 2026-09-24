@@ -273,6 +273,19 @@ export function DiscountApprovalSystem() {
       toast.error('Justifikasi bisnis wajib diisi');
       return;
     }
+    // Bab 30 (24 Sep 2026, hasil deep review + smoke test): dulu tidak ada
+    // validasi rentang sama sekali -- diskon negatif bisa lolos jadi
+    // "self-approved" (padahal itu kenaikan harga), backend sekarang juga
+    // menolak ini (lihat api/handler.ts), tapi dicek di sini dulu supaya
+    // user dapat pesan yang jelas tanpa perlu round-trip ke server.
+    if (!Number.isFinite(newRequestData.discountPercent) || newRequestData.discountPercent < 0 || newRequestData.discountPercent > 100) {
+      toast.error('Discount % harus di antara 0 dan 100');
+      return;
+    }
+    if (!Number.isFinite(newRequestData.basePrice) || newRequestData.basePrice <= 0) {
+      toast.error('Base Price harus lebih besar dari 0');
+      return;
+    }
     const product = productCatalog[newRequestData.productId as keyof typeof productCatalog];
     setCreatingRequest(true);
     try {
@@ -691,6 +704,9 @@ export function DiscountApprovalSystem() {
                   <Label className="text-[10px] font-black uppercase tracking-widest text-gray-500">Discount %</Label>
                   <Input 
                     type="number" 
+                    min={0}
+                    max={100}
+                    step={1}
                     placeholder="%" 
                     className="h-12 border-gray-200" 
                     value={newRequestData.discountPercent}
