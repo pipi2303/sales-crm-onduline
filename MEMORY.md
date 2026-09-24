@@ -4576,3 +4576,66 @@ Seperti 6 kategori lain di `loadAllDummyData()`, langkah quotation ini
 juga TIDAK idempotent (klik dua kali akan menggandakan ketujuh
 quotation contoh ini juga) -- konsisten dengan catatan non-idempotency
 yang sudah didokumentasikan sejak Bab 39, bukan regresi baru.
+
+## 46. Lengkapi tab Analytics, Templates, Settings di Quotation Management -- 24 Sep 2026
+
+Menindaklanjuti pertanyaan user "apakah data yang di tambahkan di semua
+tabmenu" (jawaban: tidak -- audit menemukan 2 dari 4 tab Quotation
+Management tidak data-driven) dan follow-up instruksi user:
+- "tambahkan data di Tab Analytics, data yang relevan"
+- "hapus data di Tab Templates, ganti yang relevan"
+- "tambahkan di Tab Settings"
+
+### 1. Tab Analytics
+Grafik "Revenue Trend" (area chart) dulu memakai `ANALYTICS_DATA`,
+array module-level hardcode 6 bulan statis (Sep-Feb, angka tetap) yang
+SAMA SEKALI tidak terhubung ke data quotation asli -- akan tetap
+menampilkan angka yang sama persis berapa pun quotation yang ada.
+Diganti `revenueTrendData`, dihitung on-the-fly dari `quotations`
+state sungguhan (state yang sama dipakai `kpiStats`/
+`statusDistribution`): dikelompokkan per bulan `createdAt` untuk 6
+bulan terakhir (termasuk bulan tanpa quotation sama sekali, supaya
+sumbu-x tetap 6 titik, tidak collapse), dijumlah dari `totalAmount`
+tiap quotation di bulan itu. Grafik "Status Distribution" di tab yang
+sama sudah data-driven sejak awal (dari audit sebelumnya), tidak
+disentuh.
+
+### 2. Tab Templates
+3 template generik diganti. Salah satunya, "Healthcare Package"
+("Khusus untuk instalasi alat kesehatan RS"), ternyata peninggalan
+template hospital/HMS software asal proyek ini di-clone (pola yang
+sama seperti catatan di `populateCRMData.ts` soal dummy data client
+yang dulu juga berisi konten rumah sakit sebelum ditulis ulang) --
+sama sekali tidak relevan untuk Onduline (distributor bahan bangunan).
+3 template baru mengikuti 3 segmen bisnis nyata yang sudah dipakai di
+data dummy quotation Bab 45: "Toko & Distributor" (stok reguler atap +
+aksesoris), "Proyek Kontraktor" (bitumen + green roof volume besar),
+"Premium & Solar" (resort/hotel, atap hijau + panel surya). Icon
+`Layout` (bekas ikon "Enterprise Suite" yang dihapus) jadi tidak
+terpakai, dibersihkan dari import; ditambah `Building2` dan `Sun`
+untuk 2 template baru.
+
+### 3. Tab Settings
+Ditambah 2 field baru, setelah "Default Tax Rate", sebelum tombol
+"Save Configuration": "Masa Berlaku Penawaran (hari)" (default 30,
+terkait langsung ke field `validUntil` yang sungguhan dipakai tiap
+Quotation) dan "Prefix Nomor Penawaran" (default "QTN", match PERSIS
+dengan yang di-generate server saat `quoteNumber` tidak diisi manual
+-- dikonfirmasi dari `api/handler.ts`: `` `QTN-${Date.now()}` ``).
+Seperti 2 field yang sudah ada sebelumnya (Currency, Tax Rate), field
+baru ini masih murni mockup UI (`defaultValue` statis, tombol "Save
+Configuration" belum terhubung ke backend/persistence apa pun) --
+menambah persistence sungguhan (butuh model+endpoint baru) di luar
+scope permintaan ini, tidak dikerjakan di putaran ini.
+
+### Verifikasi
+`npx tsc --noEmit`: 131 error sebelum & sesudah, identik persis. `npx
+vite build`: sukses. `npx vitest run`: 11/11 tetap lulus.
+
+### Status
+Dikomit (`a4faecaf`). `git push` masih perlu dilakukan user sendiri.
+Field Settings baru (validity days, quote number prefix) TIDAK
+otomatis dipakai oleh dialog "New Quotation" yang sudah ada (dialog
+itu masih minta user isi `validUntil` manual, dan `quoteNumber` masih
+selalu auto-generate server-side) -- menyambungkan Settings ke
+perilaku form itu adalah pekerjaan terpisah, belum diminta.
