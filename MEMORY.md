@@ -2751,3 +2751,43 @@ BISA menangkap typo nama field Prisma kalau ternyata ada yang terlewat.
 - [ ] (Opsional, disarankan) jalankan `npx prisma generate && npx tsc
       --noEmit` di Terminal Mac Anda sendiri sekali sebagai extra-check
       independen dari review manual di atas.
+
+### Follow-up (sama hari, setelah user tanya "apakah masih ada gap?")
+
+Dua gap yang diakui jujur ke user langsung ditutup:
+
+1. **"Jumlah pertemuan selalu 0"** -- ternyata benar gap: tidak ada UI
+   manapun di app ini yang membuat activity dengan `contactId` terisi
+   (satu-satunya activity otomatis adalah log sistem "stage berubah").
+   Ditutup dengan `LogMeetingDialog.tsx` (tombol "Catat Pertemuan" di tiap
+   card kontak `ClientOrgTreePanel`) -- user pilih salah satu Opportunity
+   milik client tsb + jenis aktivitas + deskripsi, dicatat lewat jalur
+   yang sudah ada (`opportunitiesRepository.update` dengan array
+   `activities` penuh, pola yang sama seperti log stage-change di
+   `OpportunityManagement.tsx`). Constraint yang tetap berlaku: activity
+   WAJIB menempel ke satu Opportunity (skema `opportunityId` non-nullable)
+   -- kalau client belum punya Opportunity sama sekali, dialog menampilkan
+   pesan untuk buat Opportunity dulu, bukan memaksa lewat skema.
+   `Activity.contactId` ditambahkan ke `src/types/opportunity.ts` +
+   read-path `opportunitiesRepository.ts` (sebelumnya cuma ada di
+   write-path/`ActivityInput` backend).
+2. **"Belum ada data contoh"** -- ditutup lewat
+   `prisma/seedData/clientContactsAndIntelligence.ts` +
+   `seedClientContactsAndIntelligence()` di `seed.ts` (dipanggil setelah
+   `seedOpportunities()`, sebelum `seedVisitTasks()`): 9 ClientContact
+   (hierarki 2-3 level) + 4 ClientIntelligence untuk CUST-0001/0003/0007/
+   0009, plus 5 sample meeting supaya jumlah pertemuan tidak 0 di demo.
+   SENGAJA cuma 4 dari 12 client (semuanya B2B Kontraktor/Developer/
+   Instansi) -- 8 client lain dibiarkan kosong, mencerminkan pemakaian
+   nyata (tidak semua client langsung diisi lengkap).
+
+Verifikasi: `tsc --noEmit` tetap identik baseline 104 error pre-existing
+(termasuk 3 baris `prisma/seed.ts` yang SAMA dengan baseline -- bukan
+baru), `vite build` sukses, `vitest run` 11/11 lulus. Commit
+`320b6bfd` (LogMeetingDialog) dan `e2c2a5e8` (seed data).
+
+Seed BELUM dijalankan sungguhan ke database manapun dari sesi ini (tidak
+bisa -- lihat keterbatasan sandbox di atas) -- baru tervalidasi lewat
+`tsc`/review manual. User perlu jalankan `npm run db:seed` (atau `npx
+prisma db seed`) sendiri setelah migrate untuk benar-benar mengisi data
+contoh ini ke database.
