@@ -11,12 +11,14 @@ import {
   X, Check, Mail, Phone, MapPin, Calendar, Briefcase, 
   Shield, Building2, FileText, Hospital, Users, Package,
   Sparkles, Target, Lightbulb, Clipboard, MessageSquare, Send, ChevronDown, ChevronUp,
-  Percent, Clock, AlertCircle
+  Percent, Clock, AlertCircle, Network, Brain
 } from 'lucide-react';
 import { AIEmailGenerator } from '@/app/components/ai/AIEmailGenerator';
 import { AILeadScoring } from '@/app/components/ai/AILeadScoring';
 import { AISmartRecommendations } from '@/app/components/ai/AISmartRecommendations';
 import { AddCommunicationDialog } from '@/app/components/AddCommunicationDialog';
+import { ClientOrgTreePanel } from '@/app/components/ClientOrgTreePanel';
+import { ClientIntelligencePanel } from '@/app/components/ClientIntelligencePanel';
 
 import type { Client } from '@/types/client';
 import type { Communication } from '@/types/communication';
@@ -38,6 +40,8 @@ export function ClientDetailDialog({ open, onOpenChange, client, onEdit }: Clien
     produkLangganan: false,
     discountNegotiation: false,
     dokumentasiLegal: false,
+    orgTree: false,
+    customerIntelligence: false,
     komunikasi: false,
     aiTools: false
   });
@@ -485,6 +489,66 @@ export function ClientDetailDialog({ open, onOpenChange, client, onEdit }: Clien
                       </div>
                     </div>
                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* Organisation Tree / Influence Map -- Bab 16.5 (24 Sep 2026) */}
+            <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl border border-indigo-100 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setExpandedSections(prev => ({ ...prev, orgTree: !prev.orgTree }))}
+                className="w-full flex items-center justify-between px-6 py-4 hover:bg-indigo-100/50 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-indigo-600 flex items-center justify-center">
+                    <Network className="h-5 w-5 text-white" />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="text-xl font-bold text-gray-900 leading-none">Organisation Tree & Influence Map</h3>
+                    <p className="text-[10px] text-indigo-700 mt-1 uppercase tracking-wider font-semibold opacity-70">STRUKTUR, PERAN, DAN KEDEKATAN HUBUNGAN</p>
+                  </div>
+                </div>
+                {expandedSections.orgTree ? (
+                  <ChevronUp className="h-5 w-5 text-indigo-600" />
+                ) : (
+                  <ChevronDown className="h-5 w-5 text-indigo-600" />
+                )}
+              </button>
+
+              {expandedSections.orgTree && client && (
+                <div className="px-6 pb-6 pt-2">
+                  <ClientOrgTreePanel clientId={client.id} />
+                </div>
+              )}
+            </div>
+
+            {/* Customer Intelligence -- Bab 16.5 (24 Sep 2026) */}
+            <div className="bg-gradient-to-br from-cyan-50 to-teal-50 rounded-xl border border-cyan-100 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setExpandedSections(prev => ({ ...prev, customerIntelligence: !prev.customerIntelligence }))}
+                className="w-full flex items-center justify-between px-6 py-4 hover:bg-cyan-100/50 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-cyan-700 flex items-center justify-center">
+                    <Brain className="h-5 w-5 text-white" />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="text-xl font-bold text-gray-900 leading-none">Customer Intelligence</h3>
+                    <p className="text-[10px] text-cyan-700 mt-1 uppercase tracking-wider font-semibold opacity-70">INFORMASI INTERNAL & EKSTERNAL CALON CUSTOMER</p>
+                  </div>
+                </div>
+                {expandedSections.customerIntelligence ? (
+                  <ChevronUp className="h-5 w-5 text-cyan-700" />
+                ) : (
+                  <ChevronDown className="h-5 w-5 text-cyan-700" />
+                )}
+              </button>
+
+              {expandedSections.customerIntelligence && client && (
+                <div className="px-6 pb-6 pt-2">
+                  <ClientIntelligencePanel clientId={client.id} client={client} />
                 </div>
               )}
             </div>
