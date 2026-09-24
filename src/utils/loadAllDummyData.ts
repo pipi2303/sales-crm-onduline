@@ -38,6 +38,8 @@ import { performanceTargetsRepository } from '@/services/performanceTargetsRepos
 import { leadsRepository } from '@/services/leadsRepository';
 import { salesRepsRepository } from '@/services/salesRepsRepository';
 import { commissionsRepository } from '@/services/commissionsRepository';
+import { quotationsRepository, type QuotationStatus } from '@/services/quotationsRepository';
+import { productsRepository } from '@/services/productsRepository';
 import { clientsDummyData, salesRepresentativeDummyData, leadDummyData } from '@/utils/populateCRMData';
 import type { SalesRep } from '@/types/salesRep';
 import type { CommissionStatus } from '@/types/commission';
@@ -45,6 +47,16 @@ import type { CommissionStatus } from '@/types/commission';
 function getCurrentPeriod(): string {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+}
+
+// Bab 45: tanggal relatif terhadap saat tombol ditekan (bukan hardcode
+// absolut) supaya validUntil quotation contoh tetap masuk akal kapan pun
+// fitur ini dipakai -- negatif = sudah lewat (dipakai utk quotation yang
+// sengaja dibuat "expired").
+function daysFromNow(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
 }
 
 // Dipindah dari TerritoryManagement.tsx (Bab 32/33) -- 4 wilayah contoh
@@ -77,6 +89,122 @@ const SEED_COMMISSIONS = [
   { salesPersonName: 'Budi Santoso', periodIso: '2024-01-01', target: 300000000, totalSales: 420000000, baseCommission: 16250000, bonuses: 15000000, totalCommission: 31250000, status: 'paid' as CommissionStatus, deals: 6, paymentDate: '2024-02-05' },
 ];
 
+// Bab 45 (24 Sep 2026): "tambahkan data dummy di menu Quotation
+// Management, data dummy yang relevan". Quotation Management sebelum ini
+// tidak punya mekanisme dummy data sama sekali (tidak termasuk 5 yang
+// digabung di Bab 39) -- KPI/pipeline-nya selalu kosong sampai user bikin
+// quotation manual satu-satu. clientName di sini adalah nama KONTAK (PIC),
+// clientCompany nama perusahaan -- lihat handleGenerateQuotation di
+// QuotationManagement.tsx (contactPerson -> clientName, company ->
+// clientCompany), BUKAN clientName = nama perusahaan. companyName dipakai
+// untuk resolve clientId lewat clientByCompany (dibangun dari client yang
+// sama yang dibuat di langkah 1 di bawah), supaya quotation-nya benar2
+// terhubung ke Client record, bukan cuma teks bebas.
+//
+// items[].sku merujuk SKU asli dari katalog produk Onduline yang sudah
+// di-seed lewat prisma/seed.ts (prisma/seedData/productCatalog.ts) --
+// bukan produk fiktif -- supaya productId & unitPrice yang terpakai
+// benar-benar produk & harga yang ada di Product Catalog live, dan
+// relevan dengan kategori bisnis tiap client (toko bahan bangunan =
+// stok reguler atap, kontraktor proyek = bitumen+green roof volume
+// besar, resort = produk premium+solar, dst).
+const SEED_QUOTATIONS: Array<{
+  companyName: string;
+  contactPerson: string;
+  email: string;
+  status: QuotationStatus;
+  validUntil: string | null;
+  additionalDiscountPercent?: number;
+  notes: string;
+  items: Array<{ sku: string; quantity: number }>;
+}> = [
+  {
+    companyName: 'Toko Bangunan Makmur Jaya',
+    contactPerson: 'Bapak Hendra Wijaya',
+    email: 'info@makmurjayabangunan.co.id',
+    status: 'approved',
+    validUntil: daysFromNow(30),
+    notes: 'Pemesanan stok reguler bulanan, sudah disetujui.',
+    items: [
+      { sku: 'ONDC-BRN', quantity: 500 }, // ONDULINE CLASSIC Brown
+      { sku: 'NOKS-STD', quantity: 40 },  // NOK STANDAR
+    ],
+  },
+  {
+    companyName: 'Toko Material Sumber Rejeki',
+    contactPerson: 'Ibu Ratna Kartika',
+    email: 'sumberrejeki.material@gmail.com',
+    status: 'sent',
+    validUntil: daysFromNow(14),
+    notes: 'Menunggu keputusan pemilik toko.',
+    items: [
+      { sku: 'ONDV-SR', quantity: 200 },  // ONDUVILLA Shaded Red
+      { sku: 'VSTD-STD', quantity: 30 },  // VERGE STANDARD ONDULINE
+    ],
+  },
+  {
+    companyName: 'PT Kontraktor Bangun Persada',
+    contactPerson: 'Bambang Sutrisno, S.T.',
+    email: 'procurement@bangunpersada.co.id',
+    status: 'approved',
+    validUntil: daysFromNow(45),
+    additionalDiscountPercent: 5,
+    notes: 'Tahap pertama proyek atap gudang, sudah disetujui procurement.',
+    items: [
+      { sku: 'BITL-3MM', quantity: 300 }, // BITULINE 3mm
+      { sku: 'ONDG-EXT', quantity: 150 }, // ONDUGREEN Extensive System
+    ],
+  },
+  {
+    companyName: 'PT Agro Lestari Nusantara',
+    contactPerson: 'Hendra Gunawan',
+    email: 'facility@agrolestari.co.id',
+    status: 'draft',
+    validUntil: null,
+    notes: 'Estimasi awal untuk demo, menunggu hasil site visit.',
+    items: [
+      { sku: 'ONDC-BRN', quantity: 800 }, // ONDULINE CLASSIC Brown (gudang)
+      { sku: 'ONDCT-739', quantity: 10 }, // ONDUCOAT 739 (waterproofing lantai/atap gudang)
+    ],
+  },
+  {
+    companyName: 'CV Rumah Idaman Bersama',
+    contactPerson: 'Lisa Permata Sari',
+    email: 'info@rumahidamanbersama.com',
+    status: 'rejected',
+    validUntil: daysFromNow(-3),
+    notes: 'Client memilih vendor lain karena harga.',
+    items: [
+      { sku: 'ONDT-TRC', quantity: 120 }, // ONDULINE TILE Terracotta
+      { sku: 'SKYL-STD', quantity: 4 },   // SKYLIGHT
+    ],
+  },
+  {
+    companyName: 'Resort & Villa Ciwidey',
+    contactPerson: 'Ir. Johanes Surya',
+    email: 'facility@villaciwidey.co.id',
+    status: 'sent',
+    validUntil: daysFromNow(21),
+    notes: 'Proposal premium villa + solar rooftop, masih tahap negosiasi.',
+    items: [
+      { sku: 'OVCT-STD', quantity: 60 },  // ONDUVILLA CLEAR TILE
+      { sku: 'OSPH-550', quantity: 20 },  // ONDUSOLAR PRO HC 550Wp
+    ],
+  },
+  {
+    companyName: 'Toko Material Sumber Rejeki',
+    contactPerson: 'Ibu Ratna Kartika',
+    email: 'sumberrejeki.material@gmail.com',
+    status: 'expired',
+    validUntil: '2026-08-01',
+    notes: 'Penawaran awal sebelum revisi harga, sudah lewat masa berlaku.',
+    items: [
+      { sku: 'FLSB-STD', quantity: 40 },  // FLASHING BAND Self Adhesive
+      { sku: 'CVFL-STD', quantity: 100 }, // CORRUGATED VENTILATED FILLER
+    ],
+  },
+];
+
 export interface LoadAllDummyDataResult {
   clients: number;
   employees: number;
@@ -84,6 +212,7 @@ export interface LoadAllDummyDataResult {
   leads: number;
   salesReps: number;
   commissions: number;
+  quotations: number;
   errors: string[];
 }
 
@@ -95,15 +224,33 @@ export async function loadAllDummyData(): Promise<LoadAllDummyDataResult> {
     leads: 0,
     salesReps: 0,
     commissions: 0,
+    quotations: 0,
     errors: [],
   };
 
-  // 1. Client (dari SalesTeam.tsx)
+  // 1. Client (dari SalesTeam.tsx) -- juga membangun clientByCompany
+  // (nama_entitas -> id client yang baru dibuat) supaya step Quotation
+  // (Bab 45) di bawah bisa link ke Client record sungguhan, bukan cuma
+  // teks nama perusahaan lepas.
+  const clientByCompany = new Map<string, { id: string }>();
   for (const seed of clientsDummyData) {
     const { id: _localId, ...payload } = seed as any;
     const res = await clientsRepository.create(payload);
-    if (res.success) result.clients += 1;
-    else result.errors.push(`Client "${seed.nama_entitas}": ${res.error}`);
+    if (res.success && res.data) {
+      result.clients += 1;
+      clientByCompany.set(res.data.nama_entitas, { id: res.data.id });
+    } else {
+      result.errors.push(`Client "${seed.nama_entitas}": ${res.error}`);
+    }
+  }
+  // Fallback sama seperti Territory/SalesRep di bawah: kalau pembuatan
+  // client di atas gagal semua tapi datanya sudah ada dari sebelumnya,
+  // tetap resolve by name supaya Quotation tetap bisa dapat clientId.
+  if (clientByCompany.size === 0) {
+    const existingClients = await clientsRepository.getAll();
+    if (existingClients.success && existingClients.data) {
+      for (const c of existingClients.data) clientByCompany.set(c.nama_entitas, { id: c.id });
+    }
   }
 
   // 2. Employee (dari SalesRepresentative.tsx)
@@ -205,6 +352,43 @@ export async function loadAllDummyData(): Promise<LoadAllDummyDataResult> {
     });
     if (res.success) result.commissions += 1;
     else result.errors.push(`Komisi "${seed.salesPersonName}": ${res.error}`);
+  }
+
+  // 7. Quotation (Bab 45) -- butuh Client (langkah 1, resolve via
+  // clientByCompany) + Product katalog asli (fetch read-only, BUKAN
+  // dibuat di sini -- Product sudah di-seed lewat prisma/seed.ts, lihat
+  // catatan di SEED_QUOTATIONS di atas).
+  const productsRes = await productsRepository.getAll();
+  const productBySku = new Map<string, { id: string; name: string; price: number }>();
+  if (productsRes.success && productsRes.data) {
+    for (const p of productsRes.data) productBySku.set(p.sku, { id: p.id, name: p.name, price: p.price });
+  }
+  for (const seed of SEED_QUOTATIONS) {
+    const items = seed.items
+      .map((it) => {
+        const product = productBySku.get(it.sku);
+        if (!product) return null;
+        return { productId: product.id, productName: product.name, quantity: it.quantity, unitPrice: product.price };
+      })
+      .filter((it): it is NonNullable<typeof it> => it !== null);
+    if (items.length === 0) {
+      result.errors.push(`Quotation "${seed.companyName}": produk (SKU) tidak ditemukan di katalog, lewati`);
+      continue;
+    }
+    const client = clientByCompany.get(seed.companyName);
+    const res = await quotationsRepository.create({
+      clientId: client?.id ?? null,
+      clientName: seed.contactPerson,
+      clientCompany: seed.companyName,
+      clientEmail: seed.email,
+      additionalDiscountPercent: seed.additionalDiscountPercent ?? 0,
+      status: seed.status,
+      validUntil: seed.validUntil,
+      notes: seed.notes,
+      items,
+    });
+    if (res.success) result.quotations += 1;
+    else result.errors.push(`Quotation "${seed.companyName}": ${res.error}`);
   }
 
   return result;
