@@ -42,6 +42,10 @@ import { quotationsRepository, type QuotationStatus } from '@/services/quotation
 import { productsRepository } from '@/services/productsRepository';
 import { contractsRepository } from '@/services/contractsRepository';
 import type { Contract as ContractType } from '@/app/data/dummyData';
+import { opportunitiesRepository } from '@/services/opportunitiesRepository';
+import { discountApprovalsRepository } from '@/services/discountApprovalsRepository';
+import { tasksRepository } from '@/services/tasksRepository';
+import type { Task } from '@/types/task';
 import { clientsDummyData, salesRepresentativeDummyData, leadDummyData } from '@/utils/populateCRMData';
 import type { SalesRep } from '@/types/salesRep';
 import type { CommissionStatus } from '@/types/commission';
@@ -403,6 +407,362 @@ const SEED_CONTRACTS: Array<{
   },
 ];
 
+// Bab 50: Opportunity -- DIPAKAI LANGSUNG oleh KPI dashboard Home.tsx
+// (revenueYTD/MTD dari opp.totalValue yang WON, winRate dari won/(won+lost))
+// -- lihat komentar "Fase A/B seed data" di Home.tsx. Menambah data di sini
+// SENGAJA akan mengubah angka KPI Home juga, dikonfirmasi dengan user
+// sebelum implementasi (beda dari Quotation/Contract yang keduanya
+// self-contained di menunya sendiri). closeDateDays relatif terhadap
+// saat tombol ditekan, sama pola dengan validUntil/startDateDays di atas.
+const SEED_OPPORTUNITIES: Array<{
+  name: string;
+  company: string;
+  contactPerson: string;
+  totalValue: number;
+  probability: number;
+  closeDateDays: number;
+  stage: 'prospecting' | 'proposal' | 'negotiation' | 'closed-won' | 'closed-lost';
+  status: 'open' | 'won' | 'lost';
+  source: string;
+  description: string;
+  closeReason?: string;
+  ownerName: string;
+}> = [
+  {
+    name: 'Distribusi Atap ONDULINE CLASSIC - Makmur Jaya',
+    company: 'Toko Bangunan Makmur Jaya',
+    contactPerson: 'Bapak Hendra Wijaya',
+    totalValue: 25000000,
+    probability: 100,
+    closeDateDays: -175,
+    stage: 'closed-won',
+    status: 'won',
+    source: 'Referral',
+    description: 'Kontrak distribusi rutin tahunan, sudah ditandatangani.',
+    closeReason: 'Harga kompetitif dan hubungan jangka panjang dengan distributor.',
+    ownerName: 'Budi Santoso',
+  },
+  {
+    name: 'Proyek Atap Gudang Industri - Bangun Persada',
+    company: 'PT Kontraktor Bangun Persada',
+    contactPerson: 'Bambang Sutrisno, S.T.',
+    totalValue: 185000000,
+    probability: 100,
+    closeDateDays: -55,
+    stage: 'closed-won',
+    status: 'won',
+    source: 'Tender',
+    description: 'Proyek atap gudang industri BITULINE & ONDUGREEN, menang tender.',
+    closeReason: 'Spesifikasi teknis unggul dan track record proyek serupa.',
+    ownerName: 'Dewi Kartika',
+  },
+  {
+    name: 'Renovasi Atap Pabrik Tekstil Sentosa',
+    company: 'Pabrik Tekstil Sentosa',
+    contactPerson: 'Feri Kurniawan',
+    totalValue: 220000000,
+    probability: 70,
+    closeDateDays: 15,
+    stage: 'negotiation',
+    status: 'open',
+    source: 'Cold Outreach',
+    description: 'Negosiasi harga akhir untuk kontrak volume besar industri.',
+    ownerName: 'Eko Prasetyo',
+  },
+  {
+    name: 'Renovasi Atap 8 Cabang - Retail Modern',
+    company: 'PT Retail Modern Indonesia',
+    contactPerson: 'Sinta Marlina',
+    totalValue: 65000000,
+    probability: 55,
+    closeDateDays: 25,
+    stage: 'proposal',
+    status: 'open',
+    source: 'Website Inquiry',
+    description: 'Proposal renovasi atap 8 cabang ritel sedang direview procurement pusat.',
+    ownerName: 'Ani Wijaya',
+  },
+  {
+    name: 'Atap Premium & Solar - Resort Ciwidey',
+    company: 'Resort & Villa Ciwidey',
+    contactPerson: 'Ir. Johanes Surya',
+    totalValue: 145000000,
+    probability: 40,
+    closeDateDays: 40,
+    stage: 'proposal',
+    status: 'open',
+    source: 'Referral',
+    description: 'Proposal atap premium + panel surya, klien masih membandingkan vendor.',
+    ownerName: 'Dewi Kartika',
+  },
+  {
+    name: 'Pasokan Atap Cluster Perumahan - Grahamas Land',
+    company: 'PT Grahamas Land Development',
+    contactPerson: 'Anita Puspitasari',
+    totalValue: 95000000,
+    probability: 25,
+    closeDateDays: 60,
+    stage: 'prospecting',
+    status: 'open',
+    source: 'Trade Show',
+    description: 'Tahap awal eksplorasi kebutuhan atap untuk cluster perumahan tahap 1.',
+    ownerName: 'Budi Santoso',
+  },
+  {
+    name: 'Retrofit Atap Pasar Rakyat - Dinas PUPR Ciamis',
+    company: 'Dinas PUPR Kabupaten Ciamis',
+    contactPerson: 'Ir. Suparman, M.T.',
+    totalValue: 78000000,
+    probability: 0,
+    closeDateDays: -12,
+    stage: 'closed-lost',
+    status: 'lost',
+    source: 'Tender',
+    description: 'Tender retrofit atap pasar rakyat, proyek dibatalkan oleh dinas.',
+    closeReason: 'Anggaran dialihkan ke tender ulang tahun depan.',
+    ownerName: 'Eko Prasetyo',
+  },
+  {
+    name: 'Renovasi Atap Ruko - CV Wijaya Konstruksi',
+    company: 'CV Wijaya Konstruksi',
+    contactPerson: 'Pak Wijaya',
+    totalValue: 42000000,
+    probability: 0,
+    closeDateDays: -95,
+    stage: 'closed-lost',
+    status: 'lost',
+    source: 'Referral',
+    description: 'Deal sempat berjalan, klien membatalkan karena masalah internal.',
+    closeReason: 'Klien mengalami restrukturisasi internal dan menunda semua proyek.',
+    ownerName: 'Eko Prasetyo',
+  },
+];
+
+// Bab 50: Discount Approval. discountPercent MENENTUKAN level & status
+// approval SECARA OTOMATIS di server (lihat discountLevelForPercent di
+// api/handler.ts: <=10% level 1 self-approved, <=20% level 2, <=30% level
+// 3, >30% level 4) -- tidak bisa diset manual saat create(). Untuk 2 entri
+// yang designnya "sudah diputuskan" (approved/rejected di atas level 1),
+// step tambahan memanggil .decide() setelah create() -- best-effort, sama
+// seperti fallback role-gated lain di file ini (mis. Territory): kalau
+// user yang menekan tombol tidak punya role approver yang dibutuhkan,
+// request itu tetap tercipta sebagai 'pending', tidak dianggap error fatal.
+const SEED_DISCOUNT_REQUESTS: Array<{
+  clientName: string;
+  productName: string;
+  originalPrice: number;
+  discountPercent: number;
+  reason: string;
+  region: string;
+  originalMargin: number;
+  proposedMargin: number;
+  decision?: 'approve' | 'reject';
+  decisionComment?: string;
+}> = [
+  {
+    clientName: 'Toko Bangunan Makmur Jaya',
+    productName: 'ONDULINE CLASSIC Brown',
+    originalPrice: 25000000,
+    discountPercent: 8,
+    reason: 'Pembelian volume besar untuk stok reguler bulanan, pelanggan loyal jangka panjang.',
+    region: 'Jawa Barat',
+    originalMargin: 42,
+    proposedMargin: 38,
+  },
+  {
+    clientName: 'PT Kontraktor Bangun Persada',
+    productName: 'BITULINE 3mm',
+    originalPrice: 165000000,
+    discountPercent: 15,
+    reason: 'Proyek strategis multi-tahun, kompetitor menawarkan harga lebih rendah.',
+    region: 'Jawa Barat',
+    originalMargin: 38,
+    proposedMargin: 30,
+  },
+  {
+    clientName: 'Pabrik Tekstil Sentosa',
+    productName: 'BITULINE 3mm',
+    originalPrice: 210000000,
+    discountPercent: 22,
+    reason: 'Kontrak volume industri besar, klien minta harga khusus untuk komitmen jangka panjang.',
+    region: 'Jawa Tengah',
+    originalMargin: 40,
+    proposedMargin: 26,
+  },
+  {
+    clientName: 'PT Retail Modern Indonesia',
+    productName: 'ONDULINE CLASSIC Brown',
+    originalPrice: 62000000,
+    discountPercent: 12,
+    reason: 'Renovasi 8 cabang sekaligus, klien minta harga grosir.',
+    region: 'DKI Jakarta',
+    originalMargin: 40,
+    proposedMargin: 33,
+    decision: 'reject',
+    decisionComment: 'Margin terlalu tipis untuk kuantitas ini di luar musim ramai.',
+  },
+  {
+    clientName: 'Resort & Villa Ciwidey',
+    productName: 'ONDUSOLAR PRO HC 550Wp',
+    originalPrice: 76000000,
+    discountPercent: 18,
+    reason: 'Proyek premium, klien membandingkan dengan vendor solar lain.',
+    region: 'Jawa Barat',
+    originalMargin: 30,
+    proposedMargin: 20,
+    decision: 'approve',
+    decisionComment: 'Disetujui -- klien strategis untuk portofolio produk hijau.',
+  },
+  {
+    clientName: 'PT Grahamas Land Development',
+    productName: 'ONDUVILLA Shaded Red',
+    originalPrice: 66750000,
+    discountPercent: 35,
+    reason: 'Volume sangat besar untuk cluster perumahan 50 unit, butuh persetujuan tertinggi.',
+    region: 'Jawa Barat',
+    originalMargin: 42,
+    proposedMargin: 15,
+  },
+];
+
+// Bab 50: Task -- dipindah dari TaskManagement.tsx yang sebelumnya
+// auto-seed sendiri (silently create 7 SEED_TASKS begitu tabel Task
+// kosong saat komponen dibuka, TIDAK lewat tombol ini) -- pola lama yang
+// sama persis dengan yang sudah dihapus dari CommissionCalculator.tsx di
+// Bab 39. Konten lama (PT Maju Jaya, PT Global Solutions, dst -- generik,
+// bukan konteks Onduline, tanggal hardcode Feb 2024) diganti total dengan
+// task yang relevan & tanggal relatif, ditautkan ke company/konteks yang
+// sama dengan Quotation/Contract/Opportunity di atas.
+const SEED_TASKS: Array<Omit<Task, 'id' | 'createdDate' | 'dueDate'> & { dueDateDays: number }> = [
+  {
+    title: 'Follow up penawaran - Pabrik Tekstil Sentosa',
+    description: 'Follow up hasil negosiasi diskon 22% untuk kontrak BITULINE volume besar.',
+    status: 'in-progress',
+    priority: 'urgent',
+    type: 'call',
+    dueDateDays: 3,
+    assignedTo: 'Eko Prasetyo',
+    createdBy: 'Eko Prasetyo',
+    category: 'Sales Follow-up',
+    relatedTo: 'Pabrik Tekstil Sentosa',
+    tags: ['Negosiasi', 'Industri', 'High-Value'],
+  },
+  {
+    title: 'Kunjungan survey lokasi - Resort & Villa Ciwidey',
+    description: 'Survey lokasi atap villa untuk instalasi ONDUSOLAR & ONDUVILLA CLEAR TILE.',
+    status: 'todo',
+    priority: 'high',
+    type: 'visit',
+    dueDateDays: 5,
+    assignedTo: 'Dewi Kartika',
+    createdBy: 'Dewi Kartika',
+    category: 'Site Visit',
+    relatedTo: 'Resort & Villa Ciwidey',
+    tags: ['Survey', 'Premium', 'Solar'],
+  },
+  {
+    title: 'Kirim proposal renovasi 8 cabang - Retail Modern Indonesia',
+    description: 'Finalisasi dan kirim proposal renovasi atap 8 cabang ke procurement pusat.',
+    status: 'todo',
+    priority: 'high',
+    type: 'email',
+    dueDateDays: 2,
+    assignedTo: 'Ani Wijaya',
+    createdBy: 'Ani Wijaya',
+    category: 'Sales Follow-up',
+    relatedTo: 'PT Retail Modern Indonesia',
+    tags: ['Proposal', 'Retail', 'Multi-cabang'],
+  },
+  {
+    title: 'Tanda tangan kontrak - Bangun Persada',
+    description: 'Koordinasi jadwal tanda tangan kontrak proyek gudang industri.',
+    status: 'completed',
+    priority: 'urgent',
+    type: 'visit',
+    dueDateDays: -10,
+    assignedTo: 'Dewi Kartika',
+    createdBy: 'Dewi Kartika',
+    category: 'Contract',
+    relatedTo: 'PT Kontraktor Bangun Persada',
+    tags: ['Kontrak', 'Kontraktor', 'Signed'],
+  },
+  {
+    title: 'Update data CRM klien toko & distributor',
+    description: 'Bersihkan dan update data kontak seluruh klien toko bangunan aktif.',
+    status: 'in-progress',
+    priority: 'low',
+    type: 'other',
+    dueDateDays: 7,
+    assignedTo: 'Ani Wijaya',
+    createdBy: 'Ani Wijaya',
+    category: 'Admin',
+    tags: ['CRM', 'Data Quality'],
+  },
+  {
+    title: 'Presentasi eksplorasi kebutuhan - Grahamas Land Development',
+    description: 'Presentasi awal opsi atap untuk cluster perumahan tahap 1 (50 unit).',
+    status: 'todo',
+    priority: 'medium',
+    type: 'visit',
+    dueDateDays: 10,
+    assignedTo: 'Budi Santoso',
+    createdBy: 'Budi Santoso',
+    category: 'Site Visit',
+    relatedTo: 'PT Grahamas Land Development',
+    tags: ['Prospecting', 'Developer', 'Perumahan'],
+  },
+  {
+    title: 'Kirim survey kepuasan pelanggan Q3',
+    description: 'Kirim survey kepuasan ke seluruh klien aktif untuk evaluasi kuartal ini.',
+    status: 'todo',
+    priority: 'low',
+    type: 'email',
+    dueDateDays: 14,
+    assignedTo: 'Ani Wijaya',
+    createdBy: 'Sarah Manager',
+    category: 'Customer Success',
+    tags: ['Survey', 'Feedback'],
+  },
+  {
+    title: 'Review pengajuan diskon pending Level 3 & 4',
+    description: 'Review pengajuan diskon Pabrik Tekstil Sentosa dan Grahamas Land yang masih pending.',
+    status: 'todo',
+    priority: 'high',
+    type: 'other',
+    dueDateDays: 4,
+    assignedTo: 'Sarah Manager',
+    createdBy: 'Sarah Manager',
+    category: 'Approvals',
+    tags: ['Approval', 'Diskon', 'Management'],
+  },
+  {
+    title: 'Renovasi atap gudang - PT Agro Lestari Nusantara',
+    description: 'Follow up hasil site visit untuk estimasi renovasi atap gudang agro.',
+    status: 'todo',
+    priority: 'medium',
+    type: 'call',
+    dueDateDays: 6,
+    assignedTo: 'Budi Santoso',
+    createdBy: 'Budi Santoso',
+    category: 'Sales Follow-up',
+    relatedTo: 'PT Agro Lestari Nusantara',
+    tags: ['Estimasi', 'Gudang'],
+  },
+  {
+    title: 'Kunjungan rutin - Toko Material Sumber Rejeki',
+    description: 'Kunjungan rutin cek stok & penawaran ulang setelah quotation lama expired.',
+    status: 'todo',
+    priority: 'medium',
+    type: 'visit',
+    dueDateDays: 1,
+    assignedTo: 'Ani Wijaya',
+    createdBy: 'Ani Wijaya',
+    category: 'Site Visit',
+    relatedTo: 'Toko Material Sumber Rejeki',
+    tags: ['Rutin', 'Toko'],
+  },
+];
+
 export interface LoadAllDummyDataResult {
   clients: number;
   employees: number;
@@ -412,6 +772,9 @@ export interface LoadAllDummyDataResult {
   commissions: number;
   quotations: number;
   contracts: number;
+  opportunities: number;
+  discountApprovals: number;
+  tasks: number;
   errors: string[];
 }
 
@@ -425,6 +788,9 @@ export async function loadAllDummyData(): Promise<LoadAllDummyDataResult> {
     commissions: 0,
     quotations: 0,
     contracts: 0,
+    opportunities: 0,
+    discountApprovals: 0,
+    tasks: 0,
     errors: [],
   };
 
@@ -608,6 +974,72 @@ export async function loadAllDummyData(): Promise<LoadAllDummyDataResult> {
     });
     if (res.success) result.contracts += 1;
     else result.errors.push(`Contract "${seed.company}": ${res.error}`);
+  }
+
+  // 9. Opportunity (Bab 50) -- lihat catatan di SEED_OPPORTUNITIES soal
+  // efeknya ke KPI dashboard Home.tsx (dikonfirmasi dengan user).
+  for (const seed of SEED_OPPORTUNITIES) {
+    const client = clientByCompany.get(seed.company);
+    const res = await opportunitiesRepository.create({
+      name: seed.name,
+      clientId: client?.id ?? undefined,
+      clientName: seed.company,
+      contactPerson: seed.contactPerson,
+      totalValue: seed.totalValue,
+      currency: 'IDR',
+      probability: seed.probability,
+      closeDate: daysFromNow(seed.closeDateDays),
+      stage: seed.stage,
+      status: seed.status,
+      source: seed.source,
+      description: seed.description,
+      closeReason: seed.closeReason,
+      ownerName: seed.ownerName,
+    } as any);
+    if (res.success) result.opportunities += 1;
+    else result.errors.push(`Opportunity "${seed.name}": ${res.error}`);
+  }
+
+  // 10. Discount Approval (Bab 50) -- lihat catatan di SEED_DISCOUNT_REQUESTS
+  // soal discountPercent yang otomatis menentukan level & status server-side.
+  for (const seed of SEED_DISCOUNT_REQUESTS) {
+    const res = await discountApprovalsRepository.create({
+      clientName: seed.clientName,
+      productName: seed.productName,
+      originalPrice: seed.originalPrice,
+      discountPercent: seed.discountPercent,
+      reason: seed.reason,
+      region: seed.region,
+      originalMargin: seed.originalMargin,
+      proposedMargin: seed.proposedMargin,
+    });
+    if (res.success && res.data) {
+      result.discountApprovals += 1;
+      if (seed.decision && res.data.status === 'pending') {
+        // Best-effort: butuh role approver level yang sesuai (lihat
+        // discountApproverRolesForLevel di api/handler.ts). Kalau user
+        // yang menekan tombol tidak punya role itu, request tetap ada
+        // sebagai 'pending' -- bukan dianggap gagal.
+        await discountApprovalsRepository.decide(res.data.id, {
+          action: seed.decision,
+          comment: seed.decisionComment,
+        });
+      }
+    } else {
+      result.errors.push(`Discount request "${seed.clientName}": ${res.error}`);
+    }
+  }
+
+  // 11. Task (Bab 50) -- lihat catatan di SEED_TASKS soal migrasi dari
+  // auto-seed TaskManagement.tsx ke tombol gabungan ini.
+  for (const seed of SEED_TASKS) {
+    const { dueDateDays, ...rest } = seed;
+    const res = await tasksRepository.create({
+      ...rest,
+      dueDate: daysFromNow(dueDateDays),
+    });
+    if (res.success) result.tasks += 1;
+    else result.errors.push(`Task "${seed.title}": ${res.error}`);
   }
 
   return result;

@@ -27,126 +27,6 @@ const TASK_TYPE_LABEL: Record<TaskType, string> = {
 const TASK_CATEGORIES = ['Sales Follow-up', 'Reporting', 'Admin', 'Contract', 'Training', 'Customer Success', 'Approvals'];
 const TASK_ASSIGNEES = ['Budi Santoso', 'Ani Wijaya', 'Dewi Kartika', 'Eko Prasetyo', 'Sarah Manager'];
 
-// Seed/demo data — used only as a first-run fallback when localStorage has no tasks yet (see useEffect below).
-const SEED_TASKS: Task[] = [
-    {
-      id: '1',
-      title: 'Follow up with PT Maju Jaya',
-      description: 'Schedule demo presentation for Enterprise Plan',
-      status: 'todo',
-      priority: 'high',
-      type: 'visit',
-      dueDate: '2024-02-20',
-      assignedTo: 'Budi Santoso',
-      createdBy: 'Sarah Manager',
-      createdDate: '2024-02-15',
-      category: 'Sales Follow-up',
-      relatedTo: 'OPP-001',
-      tags: ['Demo', 'Enterprise', 'High-Value'],
-      subtasks: [
-        { id: '1a', title: 'Send calendar invite', completed: true },
-        { id: '1b', title: 'Prepare demo materials', completed: false },
-        { id: '1c', title: 'Review pricing options', completed: false }
-      ]
-    },
-    {
-      id: '2',
-      title: 'Prepare Q1 Sales Report',
-      description: 'Compile and analyze sales data for quarterly review',
-      status: 'in-progress',
-      priority: 'medium',
-      type: 'other',
-      dueDate: '2024-02-25',
-      assignedTo: 'Dewi Kartika',
-      createdBy: 'John Director',
-      createdDate: '2024-02-10',
-      category: 'Reporting',
-      tags: ['Report', 'Analytics', 'Quarterly'],
-      subtasks: [
-        { id: '2a', title: 'Gather sales data', completed: true },
-        { id: '2b', title: 'Create visualizations', completed: true },
-        { id: '2c', title: 'Write executive summary', completed: false },
-        { id: '2d', title: 'Review with manager', completed: false }
-      ]
-    },
-    {
-      id: '3',
-      title: 'Update CRM data',
-      description: 'Clean up and update all client contact information',
-      status: 'completed',
-      priority: 'low',
-      type: 'other',
-      dueDate: '2024-02-18',
-      assignedTo: 'Ani Wijaya',
-      createdBy: 'Ani Wijaya',
-      createdDate: '2024-02-14',
-      completedDate: '2024-02-17',
-      category: 'Admin',
-      tags: ['CRM', 'Data Quality'],
-      subtasks: [
-        { id: '3a', title: 'Verify email addresses', completed: true },
-        { id: '3b', title: 'Update phone numbers', completed: true },
-        { id: '3c', title: 'Check company info', completed: true }
-      ]
-    },
-    {
-      id: '4',
-      title: 'Contract renewal - PT Global Solutions',
-      description: 'Negotiate contract renewal terms for 3-year agreement',
-      status: 'todo',
-      priority: 'urgent',
-      type: 'visit',
-      dueDate: '2024-02-22',
-      assignedTo: 'Dewi Kartika',
-      createdBy: 'Sarah Manager',
-      createdDate: '2024-02-16',
-      category: 'Contract',
-      relatedTo: 'CONTRACT-003',
-      tags: ['Renewal', 'Strategic Account', 'High-Value']
-    },
-    {
-      id: '5',
-      title: 'Product training for new features',
-      description: 'Attend training session on new product features',
-      status: 'in-progress',
-      priority: 'medium',
-      type: 'other',
-      dueDate: '2024-02-21',
-      assignedTo: 'Eko Prasetyo',
-      createdBy: 'John Director',
-      createdDate: '2024-02-12',
-      category: 'Training',
-      tags: ['Training', 'Product Knowledge']
-    },
-    {
-      id: '6',
-      title: 'Client satisfaction survey',
-      description: 'Send satisfaction survey to all active clients',
-      status: 'todo',
-      priority: 'low',
-      type: 'email',
-      dueDate: '2024-02-28',
-      assignedTo: 'Ani Wijaya',
-      createdBy: 'Sarah Manager',
-      createdDate: '2024-02-15',
-      category: 'Customer Success',
-      tags: ['Survey', 'Feedback']
-    },
-    {
-      id: '7',
-      title: 'Review discount approval requests',
-      description: 'Process pending discount approval requests',
-      status: 'todo',
-      priority: 'high',
-      type: 'other',
-      dueDate: '2024-02-19',
-      assignedTo: 'Sarah Manager',
-      createdBy: 'Sarah Manager',
-      createdDate: '2024-02-17',
-      category: 'Approvals',
-      tags: ['Approval', 'Discount', 'Management']
-    },
-];
 
 // Bab 8 gap 2: downsizes+recompresses a picked/captured photo client-side
 // before it's base64-encoded and sent to the server — keeps the payload
@@ -239,18 +119,22 @@ export function TaskManagement() {
       try {
         const result = await tasksRepository.getAll();
         if (cancelled) return;
-        if (result.success && result.data && result.data.length > 0) {
+        if (result.success && result.data) {
+          // Bab 50: dulu di sini ada auto-seed diam-diam (bikin 7 SEED_TASKS
+          // begitu tabel kosong, tanpa lewat tombol "Load Dummy Data") --
+          // pola yang sama seperti yang sudah dihapus dari
+          // CommissionCalculator.tsx di Bab 39. Sekarang data dummy Task
+          // (lebih banyak & relevan ke konteks Onduline) dipindah ke
+          // loadAllDummyData.ts, satu-satunya sumber dummy data di seluruh
+          // aplikasi. Tabel kosong di sini sekarang benar-benar tampil
+          // kosong sampai tombol itu ditekan, bukan lagi diam-diam terisi.
           setTasks(result.data as Task[]);
         } else {
-          // First run on this browser: bootstrap with demo data and persist it.
-          setTasks(SEED_TASKS);
-          for (const seedTask of SEED_TASKS) {
-            await tasksRepository.create(seedTask);
-          }
+          setTasks([]);
         }
       } catch (error) {
         console.error('Failed to load tasks from storage:', error);
-        setTasks(SEED_TASKS);
+        setTasks([]);
       } finally {
         if (!cancelled) setTasksLoaded(true);
       }

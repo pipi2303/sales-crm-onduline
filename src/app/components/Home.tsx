@@ -76,6 +76,9 @@ export function Home() {
         result.commissions > 0 && `${result.commissions} komisi`,
         result.quotations > 0 && `${result.quotations} quotation`,
         result.contracts > 0 && `${result.contracts} contract`,
+        result.opportunities > 0 && `${result.opportunities} opportunity`,
+        result.discountApprovals > 0 && `${result.discountApprovals} pengajuan diskon`,
+        result.tasks > 0 && `${result.tasks} task`,
       ].filter(Boolean).join(', ');
       if (parts) toast.success(`Data contoh berhasil dimuat: ${parts}`);
       if (result.errors.length > 0) {
