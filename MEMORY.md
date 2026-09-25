@@ -4761,3 +4761,60 @@ Data baru ini otomatis muncul juga di tab Quote (ConfigurePriceQuote)
 dan di Analytics/Quick Stats Quotation Management (dihitung dari data
 live), tanpa perlu perubahan kode tambahan -- konsisten dengan pola
 Bab 45-47.
+
+## 49. Data dummy untuk menu Contract
+
+**Permintaan user**: "tambahkan data dummy di menu Contract, data yang
+relevan".
+
+### Temuan sebelum implementasi
+Menu Contract (`Contract.tsx`, backend sungguhan `contractsRepository`
+-> Prisma `Contract` model, sudah pakai API real sejak Bab 30) tidak
+pernah ikut disentuh saat konsolidasi "Load Dummy Data" di Bab 39 --
+tidak ada satupun step untuk Contract di `loadAllDummyData.ts` sebelum
+putaran ini, jadi menunya selalu kosong sampai sekarang.
+
+Beda penting dari Quotation: `POST /api/contracts` (`api/handler.ts`,
+`handleContracts`) **mewajibkan** `contractNumber` diisi client --
+tidak ada auto-generate `CTR-...` di server seperti `QTN-${Date.now()}`
+untuk Quotation. Jadi nomor kontrak di-hardcode manual di seed data
+(`CTR-2026-0001` dst, `CTR-2025-xxx` untuk yang expired/terminated agar
+konsisten dengan tahun kontraknya). Field `product` di model Contract
+juga teks bebas, bukan FK ke Product Catalog seperti `items` Quotation.
+
+### Data yang ditambahkan
+`SEED_CONTRACTS` (step ke-8, di `loadAllDummyData.ts`) -- 8 kontrak
+mencakup seluruh 5 nilai `ContractStatus`:
+- **active**: Toko Bangunan Makmur Jaya (distribusi rutin tahunan),
+  PT Kontraktor Bangun Persada (proyek gudang industri)
+- **pending**: Pabrik Tekstil Sentosa, PT Retail Modern Indonesia
+  (`signedBy` sengaja dikosongkan -- belum ditandatangani)
+- **draft**: Resort & Villa Ciwidey, PT Grahamas Land Development
+- **expired**: Toko Material Sumber Rejeki (endDate di masa lalu)
+- **terminated**: CV Wijaya Konstruksi (company baru, tidak overlap
+  dengan quotation manapun -- dihentikan di tengah jalan)
+
+`startDate`/`endDate` dihitung relatif (`daysFromNow`, fungsi yang
+sama dari Bab 45) supaya status tetap masuk akal kapan pun tombol
+ditekan. `salesPerson` memakai nama dari `SEED_REPS` yang sudah ada
+(Budi Santoso, Ani Wijaya, Dewi Kartika, Eko Prasetyo) supaya
+konsisten dengan data Sales Rep/Commission yang sudah ada. Beberapa
+company sengaja overlap dengan `SEED_QUOTATIONS` (Makmur Jaya,
+Kontraktor Bangun Persada, dll) untuk kesinambungan cerita klien, tapi
+Contract TIDAK dibuat 1:1 mengikuti status quotation-nya -- keduanya
+tabel independen yang merepresentasikan tahap berbeda dalam siklus
+penjualan.
+
+`Home.tsx`: toast ringkasan "Load Dummy Data" ditambah
+`${result.contracts} contract`.
+
+### Verifikasi
+`npx tsc --noEmit`: 131 error sebelum & sesudah. Satu baris sempat
+terlihat "baru" (`Home.tsx(534,49)` vs `(533,49)`) tapi `comm`
+konfirmasi itu pesan error yang sama persis, cuma bergeser 1 baris
+karena baris baru yang ditambahkan di atasnya -- pola false-alarm yang
+sama seperti Bab 45, bukan regresi. `npx vite build`: sukses. `npx
+vitest run`: 11/11 tetap lulus.
+
+### Status
+Dikomit (`722380e3`). `git push` masih perlu dilakukan user sendiri.
