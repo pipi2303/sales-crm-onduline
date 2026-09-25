@@ -4707,3 +4707,57 @@ Proposal yang dibuat lewat tombol ini akan muncul di tab "Quote" (dan
 di menu Quotation Management) berstatus "Draft", bisa diproses lebih
 lanjut (send/approve/reject/duplicate) dari sana seperti quotation
 biasa -- tidak ada state "Proposal" terpisah yang dilacak.
+
+## 48. Tambah variasi data dummy Quotation (7 -> 13 entri)
+
+**Permintaan user**: setelah insight tab Quotation Management diminta
+("ke menu Quotation Management, berikan insight ke saya"), user minta
+data dummy quotation lebih bervariasi ("ya biar lebih banyak variasi
+jika memungkinkan").
+
+### Insight yang diberikan (tanpa perubahan kode)
+Audit `QuotationManagement.tsx` (793 baris) sebelum menambah data:
+- **Fungsional**: search (live filter by quote number/nama
+  klien/company), Export Report (CSV), row actions View/Edit/Send,
+  dan di dialog Detail: Send/Download PDF/Edit/Duplicate/Cancel.
+- **Dekoratif/belum berfungsi**: tombol Filter (ikon corong di
+  sebelah search, tanpa `onClick`), tombol "Use Template" di tab
+  Templates (tanpa `onClick`), tombol "Save Configuration" di tab
+  Settings (tanpa `onClick` -- field Currency/Tax Rate/Masa
+  Berlaku/Prefix murni mockup, tidak tersimpan ke backend apa pun).
+  Icon `MoreHorizontal` di-import tapi tidak pernah dipakai --sinyal
+  row-action dropdown (mis. Approve/Reject/Duplicate langsung dari
+  list tanpa buka dialog Detail dulu) kemungkinan pernah direncanakan
+  tapi belum dibangun.
+- Poin-poin ini disampaikan sebagai insight saja, tidak diperbaiki di
+  putaran ini (di luar scope permintaan data dummy).
+
+### Data dummy baru
+`SEED_QUOTATIONS` di `src/utils/loadAllDummyData.ts` bertambah dari 7
+jadi 13 entri, 6 segmen bisnis baru yang belum terwakili:
+- Dinas PUPR Kabupaten Ciamis -- proyek pemerintah, **status
+  `cancelled`** (status pertama kali dipakai di data dummy; notes:
+  proyek dibatalkan krn anggaran dialihkan ke tender ulang)
+- PT Retail Modern Indonesia -- renovasi atap 8 cabang toko ritel
+  sekaligus, diskon 3%
+- Yayasan Pendidikan Al-Hikmah -- gedung sekolah baru 3 lantai
+- Pabrik Tekstil Sentosa -- kontrak volume industri besar, diskon 8%
+- PT Grahamas Land Development -- cluster perumahan 50 unit
+- Bengkel & Gudang UMKM Barokah -- skala kecil/UMKM
+
+Semua tetap memakai SKU & harga asli dari `productCatalog.ts` (tidak
+ada produk fiktif). Distribusi status sekarang mencakup keenam nilai
+`QuotationStatus`: draft(3), sent(4), approved(3), rejected(1),
+expired(1), cancelled(1) -- sebelumnya `cancelled` belum pernah
+terwakili sama sekali di data dummy manapun.
+
+### Verifikasi
+`npx tsc --noEmit`: 131 error sebelum & sesudah, identik persis. `npx
+vite build`: sukses. `npx vitest run`: 11/11 tetap lulus.
+
+### Status
+Dikomit (`4dd42092`). `git push` masih perlu dilakukan user sendiri.
+Data baru ini otomatis muncul juga di tab Quote (ConfigurePriceQuote)
+dan di Analytics/Quick Stats Quotation Management (dihitung dari data
+live), tanpa perlu perubahan kode tambahan -- konsisten dengan pola
+Bab 45-47.
