@@ -4818,3 +4818,104 @@ vitest run`: 11/11 tetap lulus.
 
 ### Status
 Dikomit (`722380e3`). `git push` masih perlu dilakukan user sendiri.
+
+## 50. Data dummy untuk Opportunity, Discount Approval, dan Task
+
+**Permintaan user**: "lanjutkan ke menu yang lainnya yang serupa (data
+masih kosong dan sedikit)" -- lanjutan audit dari Bab 49 (Contract).
+
+### Temuan audit
+Repository dengan backend nyata (`GET/POST` ke Prisma) yang BELUM
+pernah disentuh `loadAllDummyData.ts`: `opportunitiesRepository`,
+`discountApprovalsRepository`, `tasksRepository`, plus beberapa lain
+yang sengaja TIDAK disentuh di putaran ini (lihat "Di luar scope" di
+bawah).
+
+Temuan penting: `prisma/seed.ts` ternyata punya pipeline seed sendiri
+yang JAUH lebih lengkap (`seedDistributorsAndStores`,
+`seedOpportunities`, `seedClientContactsAndIntelligence`,
+`seedVisitTasks`, `seedContracts`, `seedQuotations`,
+`seedDiscountApprovals`) -- tapi ini mekanisme TERPISAH (dijalankan
+lewat CLI `prisma db seed`, bukan tombol "Load Dummy Data" di Home).
+Tidak bisa dipastikan dari sesi ini apakah `main()` di seed.ts itu
+pernah benar-benar dijalankan terhadap database production (Prisma
+Client di lingkungan kerja sesi ini generated untuk `darwin-arm64`,
+device_bash jalan di `linux-arm64` -- query langsung ke DB terblokir
+oleh mismatch binary yang sama seperti kendala migration selama ini).
+User mengonfirmasi lewat pengamatan langsung di app bahwa menu-menu
+ini memang masih kosong/sedikit, jadi tombol "Load Dummy Data" tetap
+jadi mekanisme yang dipakai (konsisten dengan Bab 39-49 sebelumnya).
+
+**Pertanyaan penting yang diajukan ke user sebelum implementasi**:
+Opportunity & Task beda dari Quotation/Contract -- keduanya dipakai
+LANGSUNG oleh KPI dashboard Home.tsx (`revenueYTD`/`revenueMTD` dari
+`opp.totalValue` yang WON, `winRate` dari `won/(won+lost)` -- lihat
+komentar "Fase A/B seed data" di `Home.tsx`). Menambah dummy Opportunity
+otomatis mengubah angka KPI di Home juga. User memilih "Ya, tambahkan
+juga" setelah tahu efek ini.
+
+### Data yang ditambahkan
+**Opportunity** (step 9, 8 entri) -- mencakup semua kombinasi
+stage/status: closed-won (Makmur Jaya, Bangun Persada), negotiation
+(Pabrik Tekstil Sentosa), proposal (Retail Modern, Resort Ciwidey),
+prospecting (Grahamas Land), closed-lost (Dinas PUPR -- proyek
+dibatalkan, CV Wijaya Konstruksi -- klien restrukturisasi). Company
+sama dengan SEED_QUOTATIONS/SEED_CONTRACTS untuk kesinambungan cerita
+lintas menu. `closeDateDays` relatif (pola `daysFromNow` yang sama).
+
+**Discount Approval** (step 10, 6 entri) -- `discountPercent` sengaja
+dipilih (8/15/22/12/18/35%) untuk mengenai keempat level approval
+server (`discountLevelForPercent`: <=10% level 1 self-approved,
+<=20% level 2, <=30% level 3, >30% level 4) karena level & status
+TIDAK bisa diset manual saat create -- server yang menentukan. 2 entri
+(Retail Modern Indonesia -> reject, Resort Ciwidey -> approve)
+memanggil `.decide()` tambahan setelah create() untuk simulasi
+keputusan Sales Manager; best-effort seperti fallback role-gated
+lain di file ini (Territory dkk) -- kalau user yang menekan tombol
+tidak punya role approver yang cocok, request itu tetap ada sebagai
+'pending', tidak dianggap gagal.
+
+**Task** (step 11, 10 entri, MIGRASI bukan cuma tambahan) -- konten
+lama di `TaskManagement.tsx` (`SEED_TASKS`, 7 item generik: "PT Maju
+Jaya", "PT Global Solutions", tanggal hardcode Feb 2024) dihapus total
+dan digantikan array baru yang relevan Onduline (Follow up Pabrik
+Tekstil Sentosa, survey lokasi Resort Ciwidey, dst) dengan
+`dueDateDays` relatif. Yang lebih penting: `TaskManagement.tsx`
+sebelumnya auto-seed DIAM-DIAM begitu tabel kosong saat komponen
+dibuka (bukan lewat tombol) -- pola sama persis yang sudah dihapus
+dari `CommissionCalculator.tsx` di Bab 39. Auto-seed itu dihapus;
+sekarang tabel Task benar-benar tampil kosong sampai tombol "Load
+Dummy Data" ditekan, konsisten dengan prinsip satu-satunya-sumber-
+dummy-data dari Bab 39.
+
+`Home.tsx`: toast ringkasan ditambah `opportunity`, `pengajuan diskon`,
+`task`.
+
+### Di luar scope putaran ini (kandidat lanjutan kalau diminta)
+Repository lain yang juga belum disentuh `loadAllDummyData.ts`, tapi
+sengaja tidak dikerjakan sekarang karena butuh keputusan/konteks
+tambahan: `clientContactsRepository` + `clientIntelligenceRepository`
+(data tambahan per-klien di tab detail CRM, butuh Client/Opportunity
+yang sudah ada dulu -- prisma/seed.ts's `seedClientContactsAndIntelligence`
+menyarankan ini nge-link ke Opportunity spesifik, bukan cuma company),
+`distributorsRepository` + `storesRepository` (peta 30 titik Distributor
+& Toko yang sudah dipindah ke tab CRM sejak Bab 12 -- prisma/seed.ts
+punya `distributorSeeds`/`storeSeeds` hardcoded 11+19 titik, kemungkinan
+sudah ter-seed permanen lewat rute production seed yang berbeda, perlu
+dikonfirmasi user dulu sebelum ditambah lewat tombol supaya tidak
+duplikat), `usersRepository` (akun user sungguhan, sengaja tidak diisi
+data palsu), `auditLogRepository` (log otomatis dari aktivitas nyata,
+bukan sesuatu yang lazim di-dummy-kan).
+
+### Verifikasi
+`npx tsc --noEmit`: 131 error sebelum & sesudah (sempat 151 di
+percobaan pertama -- `Omit<Task, 'id' | 'createdDate'>` masih
+mewajibkan `dueDate` karena tidak ikut di-omit, diperbaiki jadi
+`Omit<Task, 'id' | 'createdDate' | 'dueDate'>`; setelah fix, identik
+persis kecuali 1 baris pergeseran nomor baris yang sudah dikonfirmasi
+`comm` sebagai pesan sama, bukan regresi -- pola false-alarm yang sama
+sejak Bab 45). `npx vite build`: sukses. `npx vitest run`: 11/11 tetap
+lulus.
+
+### Status
+Dikomit (`150c226c`). `git push` masih perlu dilakukan user sendiri.
