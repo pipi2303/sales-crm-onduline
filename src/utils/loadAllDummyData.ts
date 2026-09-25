@@ -203,6 +203,80 @@ const SEED_QUOTATIONS: Array<{
       { sku: 'CVFL-STD', quantity: 100 }, // CORRUGATED VENTILATED FILLER
     ],
   },
+  {
+    companyName: 'Dinas PUPR Kabupaten Ciamis',
+    contactPerson: 'Ir. Suparman, M.T.',
+    email: 'pengadaan@pupr.ciamiskab.go.id',
+    status: 'cancelled',
+    validUntil: daysFromNow(-10),
+    notes: 'Retrofit atap pasar rakyat, proyek dibatalkan karena anggaran dialihkan ke tender ulang.',
+    items: [
+      { sku: 'ONDT-TRC', quantity: 600 }, // ONDULINE TILE Terracotta
+      { sku: 'VSTD-STD', quantity: 80 },  // VERGE STANDARD ONDULINE
+    ],
+  },
+  {
+    companyName: 'PT Retail Modern Indonesia',
+    contactPerson: 'Sinta Marlina',
+    email: 'procurement@retailmodern.co.id',
+    status: 'sent',
+    validUntil: daysFromNow(18),
+    additionalDiscountPercent: 3,
+    notes: 'Renovasi atap 8 cabang toko ritel sekaligus, menunggu approval pusat.',
+    items: [
+      { sku: 'ONDC-BRN', quantity: 950 }, // ONDULINE CLASSIC Brown
+      { sku: 'NOKS-STD', quantity: 60 },  // NOK STANDAR
+    ],
+  },
+  {
+    companyName: 'Yayasan Pendidikan Al-Hikmah',
+    contactPerson: 'Drs. Wahyu Nugroho',
+    email: 'sarpras@alhikmah-edu.sch.id',
+    status: 'draft',
+    validUntil: null,
+    notes: 'Estimasi awal gedung sekolah baru 3 lantai, menunggu keputusan yayasan.',
+    items: [
+      { sku: 'ONDT-TRC', quantity: 250 }, // ONDULINE TILE Terracotta
+      { sku: 'SKYL-STD', quantity: 12 },  // SKYLIGHT (pencahayaan alami ruang kelas)
+    ],
+  },
+  {
+    companyName: 'Pabrik Tekstil Sentosa',
+    contactPerson: 'Feri Kurniawan',
+    email: 'purchasing@tekstilsentosa.co.id',
+    status: 'approved',
+    validUntil: daysFromNow(60),
+    additionalDiscountPercent: 8,
+    notes: 'Kontrak volume besar renovasi atap pabrik, sudah disetujui direksi.',
+    items: [
+      { sku: 'BITL-3MM', quantity: 1200 }, // BITULINE 3mm
+      { sku: 'CVFL-STD', quantity: 300 },  // CORRUGATED VENTILATED FILLER
+    ],
+  },
+  {
+    companyName: 'PT Grahamas Land Development',
+    contactPerson: 'Anita Puspitasari',
+    email: 'procurement@grahamasland.co.id',
+    status: 'sent',
+    validUntil: daysFromNow(25),
+    notes: 'Pasokan atap untuk cluster perumahan tahap 1 (50 unit rumah).',
+    items: [
+      { sku: 'ONDV-SR', quantity: 750 },  // ONDUVILLA Shaded Red
+      { sku: 'VSTD-STD', quantity: 100 }, // VERGE STANDARD ONDULINE
+    ],
+  },
+  {
+    companyName: 'Bengkel & Gudang UMKM Barokah',
+    contactPerson: 'Pak Slamet Riyadi',
+    email: 'bengkelbarokah@gmail.com',
+    status: 'draft',
+    validUntil: null,
+    notes: 'Estimasi renovasi atap bengkel kecil, masih tahap tanya-tanya harga.',
+    items: [
+      { sku: 'ONDC-BRN', quantity: 60 }, // ONDULINE CLASSIC Brown
+      { sku: 'NOKS-STD', quantity: 8 },  // NOK STANDAR
+    ],
+  },
 ];
 
 export interface LoadAllDummyDataResult {
