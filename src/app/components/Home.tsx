@@ -75,6 +75,7 @@ export function Home() {
         result.salesReps > 0 && `${result.salesReps} sales rep`,
         result.commissions > 0 && `${result.commissions} komisi`,
         result.quotations > 0 && `${result.quotations} quotation`,
+        result.contracts > 0 && `${result.contracts} contract`,
       ].filter(Boolean).join(', ');
       if (parts) toast.success(`Data contoh berhasil dimuat: ${parts}`);
       if (result.errors.length > 0) {

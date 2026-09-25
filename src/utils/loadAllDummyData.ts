@@ -40,6 +40,8 @@ import { salesRepsRepository } from '@/services/salesRepsRepository';
 import { commissionsRepository } from '@/services/commissionsRepository';
 import { quotationsRepository, type QuotationStatus } from '@/services/quotationsRepository';
 import { productsRepository } from '@/services/productsRepository';
+import { contractsRepository } from '@/services/contractsRepository';
+import type { Contract as ContractType } from '@/app/data/dummyData';
 import { clientsDummyData, salesRepresentativeDummyData, leadDummyData } from '@/utils/populateCRMData';
 import type { SalesRep } from '@/types/salesRep';
 import type { CommissionStatus } from '@/types/commission';
@@ -279,6 +281,128 @@ const SEED_QUOTATIONS: Array<{
   },
 ];
 
+// Bab 49: Contract (menu Contract) -- berbeda dari Quotation, Contract
+// TIDAK punya auto-generate contractNumber di server (lihat
+// api/handler.ts handleContracts: contractNumber wajib diisi client),
+// jadi nomor kontrak di-hardcode di sini seperti quoteNumber manual.
+// `product` di model Contract adalah teks bebas (bukan FK ke Product
+// Catalog seperti items Quotation), startDate/endDate relatif terhadap
+// saat tombol ditekan (pola sama seperti validUntil Quotation di atas)
+// supaya status draft/pending/active/expired/terminated tetap masuk
+// akal kapan pun dipakai. Tidak semua company di sini overlap dengan
+// SEED_QUOTATIONS -- Contract merepresentasikan tahap yang berbeda
+// (kontrak sudah/sedang ditandatangani), bukan cerminan 1:1 dari
+// quotation yang mana yang approved.
+const SEED_CONTRACTS: Array<{
+  contractNumber: string;
+  clientName: string;
+  company: string;
+  product: string;
+  value: number;
+  startDateDays: number;
+  endDateDays: number;
+  status: ContractType['status'];
+  signedBy: string;
+  salesPerson: string;
+}> = [
+  {
+    contractNumber: 'CTR-2026-0001',
+    clientName: 'Bapak Hendra Wijaya',
+    company: 'Toko Bangunan Makmur Jaya',
+    product: 'Distribusi Atap ONDULINE CLASSIC & Aksesoris (kontrak tahunan)',
+    value: 25000000,
+    startDateDays: -180,
+    endDateDays: 185,
+    status: 'active',
+    signedBy: 'Hendra Wijaya',
+    salesPerson: 'Budi Santoso',
+  },
+  {
+    contractNumber: 'CTR-2026-0002',
+    clientName: 'Bambang Sutrisno, S.T.',
+    company: 'PT Kontraktor Bangun Persada',
+    product: 'Proyek Atap Gudang Industri - BITULINE & ONDUGREEN',
+    value: 185000000,
+    startDateDays: -60,
+    endDateDays: 120,
+    status: 'active',
+    signedBy: 'Bambang Sutrisno',
+    salesPerson: 'Dewi Kartika',
+  },
+  {
+    contractNumber: 'CTR-2026-0003',
+    clientName: 'Feri Kurniawan',
+    company: 'Pabrik Tekstil Sentosa',
+    product: 'Renovasi Atap Pabrik Tekstil - BITULINE Volume Besar',
+    value: 220000000,
+    startDateDays: 0,
+    endDateDays: 365,
+    status: 'pending',
+    signedBy: '',
+    salesPerson: 'Eko Prasetyo',
+  },
+  {
+    contractNumber: 'CTR-2026-0004',
+    clientName: 'Sinta Marlina',
+    company: 'PT Retail Modern Indonesia',
+    product: 'Renovasi Atap 8 Cabang Ritel - ONDULINE CLASSIC',
+    value: 65000000,
+    startDateDays: 0,
+    endDateDays: 270,
+    status: 'pending',
+    signedBy: '',
+    salesPerson: 'Ani Wijaya',
+  },
+  {
+    contractNumber: 'CTR-2026-0005',
+    clientName: 'Ir. Johanes Surya',
+    company: 'Resort & Villa Ciwidey',
+    product: 'Instalasi Atap Premium & Panel Surya ONDUSOLAR',
+    value: 145000000,
+    startDateDays: 30,
+    endDateDays: 395,
+    status: 'draft',
+    signedBy: '',
+    salesPerson: 'Dewi Kartika',
+  },
+  {
+    contractNumber: 'CTR-2026-0006',
+    clientName: 'Anita Puspitasari',
+    company: 'PT Grahamas Land Development',
+    product: 'Pasokan Atap Cluster Perumahan Tahap 1 (50 unit)',
+    value: 95000000,
+    startDateDays: 20,
+    endDateDays: 200,
+    status: 'draft',
+    signedBy: '',
+    salesPerson: 'Budi Santoso',
+  },
+  {
+    contractNumber: 'CTR-2025-0042',
+    clientName: 'Ibu Ratna Kartika',
+    company: 'Toko Material Sumber Rejeki',
+    product: 'Kontrak Pasokan Rutin Tahunan',
+    value: 18000000,
+    startDateDays: -420,
+    endDateDays: -55,
+    status: 'expired',
+    signedBy: 'Ratna Kartika',
+    salesPerson: 'Ani Wijaya',
+  },
+  {
+    contractNumber: 'CTR-2025-0031',
+    clientName: 'Pak Wijaya',
+    company: 'CV Wijaya Konstruksi',
+    product: 'Renovasi Atap Ruko - ONDULINE TILE',
+    value: 42000000,
+    startDateDays: -240,
+    endDateDays: -90,
+    status: 'terminated',
+    signedBy: 'Wijaya',
+    salesPerson: 'Eko Prasetyo',
+  },
+];
+
 export interface LoadAllDummyDataResult {
   clients: number;
   employees: number;
@@ -287,6 +411,7 @@ export interface LoadAllDummyDataResult {
   salesReps: number;
   commissions: number;
   quotations: number;
+  contracts: number;
   errors: string[];
 }
 
@@ -299,6 +424,7 @@ export async function loadAllDummyData(): Promise<LoadAllDummyDataResult> {
     salesReps: 0,
     commissions: 0,
     quotations: 0,
+    contracts: 0,
     errors: [],
   };
 
@@ -463,6 +589,25 @@ export async function loadAllDummyData(): Promise<LoadAllDummyDataResult> {
     });
     if (res.success) result.quotations += 1;
     else result.errors.push(`Quotation "${seed.companyName}": ${res.error}`);
+  }
+
+  // 8. Contract (Bab 49) -- lihat catatan di SEED_CONTRACTS di atas
+  // soal kenapa contractNumber di-hardcode & product bebas teks.
+  for (const seed of SEED_CONTRACTS) {
+    const res = await contractsRepository.create({
+      contractNumber: seed.contractNumber,
+      clientName: seed.clientName,
+      company: seed.company,
+      product: seed.product,
+      value: seed.value,
+      startDate: daysFromNow(seed.startDateDays),
+      endDate: daysFromNow(seed.endDateDays),
+      status: seed.status,
+      signedBy: seed.signedBy,
+      salesPerson: seed.salesPerson,
+    });
+    if (res.success) result.contracts += 1;
+    else result.errors.push(`Contract "${seed.company}": ${res.error}`);
   }
 
   return result;
