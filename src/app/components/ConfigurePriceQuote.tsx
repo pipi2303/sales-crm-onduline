@@ -80,6 +80,7 @@ export function ConfigurePriceQuote() {
   const [isCreateQuoteOpen, setIsCreateQuoteOpen] = useState(false);
   const [isViewQuoteOpen, setIsViewQuoteOpen] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
+  const [quoteDialogMode, setQuoteDialogMode] = useState<'quote' | 'proposal'>('quote');
   // Data source: productsRepository (localStorage-backed, unified Product model) --
   // the same catalog ProductCatalog.tsx reads/writes, so a quote always prices
   // against real stock/SKU data instead of this component's own disconnected mock list.
@@ -189,7 +190,12 @@ export function ConfigurePriceQuote() {
       setQuotes([fromApiQuote(result.data), ...quotes]);
       setIsCreateQuoteOpen(false);
       setSelectedProducts([]);
-      toast.success('Quote created successfully!');
+      if (quoteDialogMode === 'proposal') {
+        toast.success('Proposal berhasil dibuat! Kelola statusnya dari tab Quote.');
+        setActiveTab('quote');
+      } else {
+        toast.success('Quote created successfully!');
+      }
     } else {
       toast.error(result.error || 'Gagal membuat quote');
     }
@@ -284,16 +290,18 @@ export function ConfigurePriceQuote() {
         </div>
         <Dialog open={isCreateQuoteOpen} onOpenChange={setIsCreateQuoteOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-[#013E37] hover:bg-[#013d38] text-white">
+            <Button className="bg-[#013E37] hover:bg-[#013d38] text-white" onClick={() => setQuoteDialogMode('quote')}>
               <Plus className="h-4 w-4 mr-2" />
               Create New Quote
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-4xl max-h-[calc(100%-2rem)] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Create New Quote</DialogTitle>
+              <DialogTitle>{quoteDialogMode === 'proposal' ? 'Create Proposal' : 'Create New Quote'}</DialogTitle>
               <DialogDescription>
-                Fill in the details below to create a new quote for your client
+                {quoteDialogMode === 'proposal'
+                  ? 'Buat proposal draft berdasarkan konfigurasi produk. Proposal akan tersimpan sebagai quotation berstatus draft yang bisa dikelola dari tab Quote.'
+                  : 'Fill in the details below to create a new quote for your client'}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleCreateQuote} className="space-y-4 mt-4">
@@ -372,7 +380,7 @@ export function ConfigurePriceQuote() {
                   Cancel
                 </Button>
                 <Button type="submit" className="bg-[#013E37] hover:bg-[#013d38]" disabled={selectedProducts.length === 0}>
-                  Create Quote
+                  {quoteDialogMode === 'proposal' ? 'Create Proposal' : 'Create Quote'}
                 </Button>
               </div>
             </form>
@@ -534,7 +542,13 @@ export function ConfigurePriceQuote() {
                   <p className="text-gray-600 mb-6">
                     Create professional proposals based on your product configurations
                   </p>
-                  <Button className="bg-[#013E37] hover:bg-[#013d38]">
+                  <Button
+                    className="bg-[#013E37] hover:bg-[#013d38]"
+                    onClick={() => {
+                      setQuoteDialogMode('proposal');
+                      setIsCreateQuoteOpen(true);
+                    }}
+                  >
                     <Plus className="h-4 w-4 mr-2" />
                     Create Proposal
                   </Button>
