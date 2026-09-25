@@ -4639,3 +4639,71 @@ otomatis dipakai oleh dialog "New Quotation" yang sudah ada (dialog
 itu masih minta user isi `validUntil` manual, dan `quoteNumber` masih
 selalu auto-generate server-side) -- menyambungkan Settings ke
 perilaku form itu adalah pekerjaan terpisah, belum diminta.
+
+## 47. Fitur Create Proposal di tab Propose (Configure, Propose & Quote)
+
+**Permintaan user**: "buatkan fitur create proposal di menu Configure,
+Propose & Quote, tabmenu propose" -- tombol "Create Proposal" di tab
+Propose sebelumnya adalah dead button, sama sekali tidak punya
+`onClick` handler.
+
+### Kendala & keputusan desain
+Membuat model `Proposal` Prisma baru yang terpisah TIDAK memungkinkan
+di sesi ini -- `binaries.prisma.sh` diblokir (403), jadi migration
+baru tidak bisa dijalankan (kendala yang sama sejak awal sesi). Ada
+juga komponen legacy `ProposalHistory.tsx` yang sekilas relevan, tapi
+setelah diperiksa ternyata orphan/mati total: tidak terdaftar di
+`menuConfig.ts` (tidak ada satupun referensi menu ke sana) dan
+memanggil backend mock Supabase palsu (`mock-project-id.supabase.co`)
+yang pasti selalu gagal -- peninggalan era sebelum migrasi ke Prisma,
+tidak dipakai.
+
+Solusi: manfaatkan kembali `quotationsRepository` yang sudah nyata dan
+dipakai bersama oleh `QuotationManagement.tsx` & tab "Quote" di file
+ini sendiri (lihat catatan Bab 30 di kode). Sebuah "Proposal" secara
+teknis adalah Quotation berstatus `draft` -- tidak butuh model baru.
+
+### Implementasi
+Dialog "Create New Quote" yang sudah ada (dirender sekali di level
+halaman, di luar `<Tabs>`, dipakai bersama oleh tombol header) diberi
+mode baru lewat state `quoteDialogMode: 'quote' | 'proposal'`:
+- Tombol header "Create New Quote": `onClick` set mode ke `'quote'`
+  sebelum dialog terbuka (via `DialogTrigger asChild`, Radix `Slot`
+  menggabungkan `onClick`) -- perilaku lama tidak berubah.
+- Tombol "Create Proposal" di tab Propose (sebelumnya dead): sekarang
+  `onClick` set mode ke `'proposal'` lalu `setIsCreateQuoteOpen(true)`
+  langsung (tanpa `DialogTrigger`, karena dialog dikontrol oleh state
+  boolean yang sama).
+- `DialogTitle`, `DialogDescription`, dan label tombol submit jadi
+  kondisional berdasarkan `quoteDialogMode` ("Create Proposal" +
+  deskripsi Bahasa Indonesia yang menjelaskan proposal tersimpan
+  sebagai draft quotation, vs "Create New Quote" seperti semula).
+- Di `handleCreateQuote`, setelah submit sukses: jika mode
+  `'proposal'`, toast pesan berbeda ("Proposal berhasil dibuat! Kelola
+  statusnya dari tab Quote.") DAN `setActiveTab('quote')` otomatis
+  supaya user langsung melihat hasilnya; jika mode `'quote'`, perilaku
+  lama dipertahankan persis (toast lama, tidak pindah tab).
+- Card dekoratif "Template Library" dan "Collaboration" di tab Propose
+  sengaja TIDAK disentuh -- di luar scope permintaan ini.
+
+### Catatan tambahan: dummy data tab Quote
+Di tengah pengerjaan fitur ini, user juga minta "tambahkan juga data
+dummy yang relevan di tabmenu Quote". Setelah dicek, tab "Quote" di
+file ini membaca dari `quotationsRepository` yang PERSIS SAMA dengan
+yang dipakai `QuotationManagement.tsx` (endpoint `/api/quotations`
+yang sama) -- artinya 7 data dummy quotation yang sudah ditambahkan di
+Bab 45 akan otomatis muncul juga di tab ini begitu "Load Dummy Data"
+ditekan di production. Tidak ada kode tambahan yang diperlukan untuk
+permintaan ini.
+
+### Verifikasi
+`npx tsc --noEmit`: 131 error sebelum & sesudah, identik persis
+(`diff` kosong). `npx vite build`: sukses. `npx vitest run`: 11/11
+tetap lulus.
+
+### Status
+Dikomit (`956caa92`). `git push` masih perlu dilakukan user sendiri.
+Proposal yang dibuat lewat tombol ini akan muncul di tab "Quote" (dan
+di menu Quotation Management) berstatus "Draft", bisa diproses lebih
+lanjut (send/approve/reject/duplicate) dari sana seperti quotation
+biasa -- tidak ada state "Proposal" terpisah yang dilacak.
