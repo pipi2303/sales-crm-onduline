@@ -995,7 +995,7 @@ export async function loadAllDummyData(): Promise<LoadAllDummyDataResult> {
       description: seed.description,
       closeReason: seed.closeReason,
       ownerName: seed.ownerName,
-    } as any);
+    });
     if (res.success) result.opportunities += 1;
     else result.errors.push(`Opportunity "${seed.name}": ${res.error}`);
   }
