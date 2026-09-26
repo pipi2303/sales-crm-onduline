@@ -5063,3 +5063,69 @@ perlu: `git push`, tunggu Vercel redeploy, lalu hard refresh browser
 Service Workers > Unregister, supaya SW baru langsung aktif) sebelum
 mengecek ulang tab Quote/Quotation/Contract/Opportunity/Task/Discount
 Approval yang tadinya kosong.
+
+
+## Bab 53 (26 Sep 2026): Fix header tabmenu tidak aktif jadi putih saat hover
+
+**Laporan user** (tanpa screenshot kali ini): "jika mouse di geser ke
+tabmenu yang tidak aktif maka warna header tabmenu tersebut dengan
+warna putih". Dikonfirmasi via AskUserQuestion: terjadi di menu
+**Configure, Propose & Quote** -- yaitu 3 tab Configure/Propose/Quote
+(`ConfigurePriceQuote.tsx`, TabsList satu-satunya di file itu).
+
+**Analisis**: `src/app/components/ui/tabs.tsx` (komponen `TabsTrigger`
+bersama, dipakai di seluruh aplikasi) untuk tab tidak aktif hanya
+punya `text-gray-600 hover:text-gray-900` -- TIDAK ADA kelas
+`hover:bg-*` sama sekali, di kondisi aktif maupun hover. Sudah dicek
+menyeluruh: tidak ada CSS global (`theme.css`, `index.css`) yang
+menargetkan `[data-slot="tabs-trigger"]:hover` atau semacamnya, dan
+`ConfigurePriceQuote.tsx` sendiri juga tidak menambahkan style hover.
+Kesimpulan: tab tidak aktif tidak punya kontrol eksplisit atas
+background saat hover, sehingga jatuh ke default tampilan `<button>`
+browser (Radix merender elemen `<button>` asli) -- beberapa
+browser/engine menampilkan overlay terang/putih bawaan untuk button
+polos saat hover, yang kemungkinan besar inilah yang terlihat sebagai
+"header jadi putih".
+
+**Percobaan reproduksi visual**: dicoba jalankan `vite` dev server
+lokal via `device_bash` (di komputer user) lalu buka di built-in
+browser (`Claude_Browser__preview_start`) supaya tidak perlu
+menyentuh domain produksi (yang memang tidak boleh diotomasi) --
+tapi gagal terhubung: dev server yang dijalankan lewat `device_bash`
+rupanya berjalan di VM/sandbox terpisah dari built-in browser,
+sehingga `localhost` tidak bisa saling dijangkau. Jadi fix ini
+murni berdasarkan analisis kode, tidak divalidasi visual langsung.
+
+**Fix** (`src/app/components/ui/tabs.tsx`, komponen bersama --
+otomatis berlaku ke semua pemakaian Tabs di seluruh app):
+```
+"appearance-none bg-transparent
+ data-[state=active]:bg-[#013E37] data-[state=active]:text-white
+ ... (kelas lain tetap) ...
+ text-gray-600
+ data-[state=inactive]:hover:bg-gray-200/70
+ data-[state=inactive]:hover:text-gray-900"
+```
+- `bg-transparent` + `appearance-none`: default eksplisit, mematikan
+  kemungkinan gaya bawaan `<button>` milik browser.
+- `data-[state=inactive]:hover:bg-gray-200/70`: hover jadi abu-abu
+  lembut (konsisten dengan warna TabsList `bg-gray-100/80`), bukan
+  putih.
+- Di-scope ke `data-[state=inactive]` (bukan `hover:` polos) supaya
+  TIDAK BISA bentrok dengan style tab aktif (`data-[state=active]:
+  bg-[#013E37]`) dalam kondisi apapun -- selector-nya secara literal
+  tidak match saat `data-state="active"`, jadi aman dari masalah
+  urutan/specificity Tailwind.
+
+**Verifikasi**: `tsc --noEmit` sebelum/sesudah identik 89 error (nol
+regresi), `vite build` sukses, `vitest run` 11/11 lulus. Dikomit
+`7d874b0f`.
+
+**Status**: karena tidak bisa direproduksi visual langsung, user
+perlu `git push`, tunggu deploy, lalu cek langsung di menu Configure,
+Propose & Quote apakah hover ke tab tidak aktif sekarang menampilkan
+abu-abu lembut (bukan putih). Kalau ternyata masalahnya masih ada
+atau warnanya masih terlihat putih/salah, tolong kirim screenshot
+before/after hover supaya bisa ditelusuri lebih presisi (kemungkinan
+lain: browser/OS tertentu, atau ada override CSS lain yang belum
+ketemu).
