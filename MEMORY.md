@@ -4919,3 +4919,67 @@ lulus.
 
 ### Status
 Dikomit (`150c226c`). `git push` masih perlu dilakukan user sendiri.
+
+## 51. Fix: 304 Not Modified di semua GET /api/* -- root cause "menu masih kosong"
+
+**Laporan user**: setelah Bab 45-50 (data dummy Quotation, Contract,
+Opportunity, Discount Approval, Task), user melaporkan berturut-turut
+bahwa tab Quotations di Quotation Management masih kosong, lalu
+dikonfirmasi SEMUA menu masih kosong setelah "Load Dummy Data"
+ditekan, tanpa toast error sama sekali -- lalu tab Quote di Configure/
+Propose/Quote juga dilaporkan kosong. Gejala ini membingungkan karena
+seluruh kode pembuatan data dummy sudah lolos verifikasi lokal
+(tsc/build/vitest) di Bab 45-50 dan deployment Vercel dikonfirmasi
+"Ready" dengan commit terbaru.
+
+### Diagnosis
+Karena browser automation ke domain production (`sales-crm.intramedika.co.id`)
+tetap tidak dilakukan (standing constraint sesi ini), pengecekan dilakukan
+lewat dashboard Vercel (`vercel.com`, domain terpisah, sudah dipakai
+sebelumnya di Bab 40 untuk cek error chunk-loading) -- bukan browser
+automation ke domain production. Deployment dikonfirmasi "Ready", commit
+`a96b9d7`, 13 menit sebelumnya. Tapi di halaman **Logs** project
+`salesappv20`, SEMUA request GET ke `/api/*` (quotations, contracts,
+opportunities, tasks, territories, leads, products, auth/me -- request
+nyata dari browser bawaan Claude desktop app yang sedang dipakai user
+untuk melihat app-nya) menunjukkan status **304 Not Modified**, bukan
+200 -- padahal "Function Invocation" menunjukkan function-nya BENAR-BENAR
+dieksekusi (42ms), bukan dilayani dari cache CDN Vercel (`Cache: BYPASS`).
+
+Ini berarti server sendiri yang memutuskan mengirim 304, bukan CDN.
+Root cause: `api/handler.ts`'s `handler()` (satu-satunya entry point,
+dipakai baik oleh Vercel serverless function maupun `server.ts`/VPS --
+lihat komentar di `server.ts`) tidak pernah mengirim header
+`Cache-Control` eksplisit apapun. Tanpa itu, platform (Vercel) dan/atau
+browser boleh melakukan conditional-GET caching (`If-None-Match`) pada
+response API yang sebenarnya dinamis (baca langsung dari Postgres tiap
+request) -- begitu ETag ter-cache di sisi client SEKALI (misalnya saat
+database masih kosong, jauh sebelum sesi ini dimulai), setiap request
+berikutnya dari browser yang sama terus-menerus mendapat 304 dan
+memakai body kosong dari cache lama, WALAUPUN data di database
+sungguhan sudah bertambah banyak lewat "Load Dummy Data". Ini
+menjelaskan kenapa tidak ada toast error sama sekali -- dari sudut
+pandang frontend, request berhasil (dianggap "tidak berubah"), cuma
+datanya kosong karena diambil dari cache lama.
+
+### Fix
+Satu baris di `api/handler.ts`, di baris pertama fungsi `handler()`
+(sebelum dispatch ke resource manapun):
+```ts
+res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+```
+Berlaku untuk SEMUA resource sekaligus (satu titik pusat, bukan
+per-handler) -- konsisten dengan pola "satu perbaikan untuk semua"
+yang sudah dipakai berkali-kali di sesi ini (Refresh button, page
+title style, dst).
+
+### Verifikasi
+`npx tsc --noEmit`: 131 error sebelum & sesudah, identik. `npx vite
+build`: sukses. `npx vitest run`: 11/11 tetap lulus.
+
+### Status
+Dikomit (`45b09b1c`). `git push` masih perlu dilakukan user sendiri.
+**Setelah deploy, user perlu hard refresh (Cmd/Ctrl+Shift+R) sekali**
+untuk membuang response 304 lama yang sudah ter-cache di browser --
+setelah itu, dengan header `no-store` yang baru, masalah ini seharusnya
+tidak akan terulang lagi untuk siapapun/kapanpun.
