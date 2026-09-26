@@ -5284,3 +5284,68 @@ punya bentuk yang sama persis dengan Custom Report Builder (ghost icon
 transparan di kanan atas, badge icon kecil berwarna, angka besar,
 caption di bawah), dengan konten/label/warna masing-masing menu tetap
 seperti semula.
+
+## Bab 56 (26 Sep 2026): Root cause "data di quote belum ada" -- enum status DB salah case
+
+**Laporan user**: "data di quote belum ada" -- tab Quote di menu
+Configure, Propose & Quote masih kosong padahal fix Bab 51/52 (304
+caching + Service Worker) sudah live dan GET /api/quotations sudah
+konfirmasi 200 (bukan 304 lagi).
+
+**Investigasi**: karena domain production tidak boleh diotomasi
+langsung, diagnosis dilakukan lewat Vercel dashboard (Logs page,
+filter `level:error`). Ditemukan cluster ~33 error POST 500 di sekitar
+08:52 (waktu lokal) pada endpoint `/api/contracts` DAN `/api/quotations`
+sekaligus -- pola waktu (banyak request beruntun dalam hitungan detik)
+konsisten dengan proses "Load Dummy Data" yang gagal berulang kali.
+
+Isi error yang sama di kedua endpoint:
+```
+PrismaClientUnknownRequestError: Invalid `prisma.contract.create()` invocation:
+ConnectorError ... PostgresError { code: "22P02", message: "invalid input
+value for enum \"ContractStatus\": \"draft\"" }
+```
+(dan versi yang sama untuk `QuotationStatus`, dengan berbagai value:
+draft/pending/active/expired/terminated untuk Contract,
+draft/sent/approved/rejected/expired/cancelled untuk Quotation).
+
+**Root cause**: migration `20260924020000_add_contracts` dan
+`20260924030000_add_quotations` membuat tipe enum Postgres dengan value
+UPPERCASE (`CREATE TYPE "ContractStatus" AS ENUM ('DRAFT', 'PENDING',
+...)`). Tapi `prisma/schema.prisma` sudah lebih dulu diubah (dengan
+comment yang secara eksplisit bilang "harus di-apply manual dari mesin
+dengan akses jaringan penuh") untuk memetakan value-value itu ke
+lowercase lewat `@map("draft")` dkk -- migration koreksinya ternyata
+belum pernah benar-benar dijalankan ke database production. Hasilnya:
+Prisma Client yang di-generate dari schema terbaru SELALU mengirim
+string lowercase ke Postgres, padahal enum di DB production masih
+uppercase -- jadi SETIAP `contract.create()`/`quotation.create()` gagal,
+tidak peduli apa yang dikirim dari sisi client (yang justru sudah benar
+mengirim uppercase lewat STATUS_OUT mapping di masing-masing
+repository, sebelum di-translate lagi jadi lowercase oleh @map Prisma).
+
+Dicek juga: apakah enum lain di schema.prisma punya drift yang sama
+(script cross-check @map value vs CREATE TYPE tiap migration, untuk
+semua 20 enum) -- hanya `ContractStatus` dan `QuotationStatus` yang
+bermasalah, enum lain (ProductStatus, CommissionStatus,
+DiscountApprovalStatus, dst) sudah benar sejak migration awal.
+
+**Fix**: migration baru `20260926070000_fix_contract_quotation_status_enum_case`
+pakai `ALTER TYPE ... RENAME VALUE` (bukan DROP+CREATE) untuk mengganti
+label enum dari UPPERCASE ke lowercase di kedua tipe. RENAME VALUE aman
+untuk baris yang sudah ada (Postgres simpan value enum sebagai OID
+internal, rename cuma ganti label teks-nya).
+
+**PENTING -- belum selesai**: migration file sudah ada di repo dan
+sudah di-commit, TAPI belum ter-apply ke database production. Sandbox
+Claude ini tidak bisa menjalankan `prisma migrate deploy` (network ke
+`binaries.prisma.sh` diblokir) atau query DB production langsung
+(binary Prisma engine mismatch, sudah didokumentasikan di bab-bab
+sebelumnya). User HARUS menjalankan salah satu dari:
+1. `npx prisma migrate deploy` dari mesin dengan akses jaringan penuh
+   ke database production, ATAU
+2. Menjalankan isi SQL di file migration tsb langsung lewat SQL console
+   provider database (mis. Neon SQL Editor).
+
+Setelah migration ter-apply, baru "Load Dummy Data" akan berhasil
+mengisi tabel Contract & Quotation, dan tab Quote akan terisi.
