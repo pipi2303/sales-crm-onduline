@@ -3678,6 +3678,23 @@ async function handleQuotations(id: string | undefined, req: ApiRequest, res: Ap
 }
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
+  // Bab 51 (26 Sep 2026): ditemukan lewat Vercel request logs -- SEMUA
+  // GET /api/* (quotations, contracts, opportunities, tasks, dst)
+  // mengembalikan 304 Not Modified, bukan 200, meskipun datanya di
+  // database sudah berubah (root cause laporan user "semua menu masih
+  // kosong padahal sudah Load Dummy Data & tidak ada error"). Tanpa
+  // Cache-Control eksplisit di sini, platform/browser boleh melakukan
+  // conditional-GET caching (If-None-Match/If-Modified-Since) terhadap
+  // response API yang sifatnya dinamis -- begitu ETag pertama kali
+  // ter-cache (mis. saat database masih kosong), request berikutnya
+  // dari browser yang sama terus menerus mendapat 304 + body kosong
+  // dari cache lama, walau data sungguhan sudah bertambah. Endpoint API
+  // di aplikasi ini semuanya dinamis (baca langsung dari Postgres tiap
+  // request), jadi tidak pernah aman untuk di-cache atau di-conditional-
+  // GET oleh browser/CDN mana pun -- no-store mencegah ini terjadi lagi
+  // untuk SEMUA resource sekaligus (satu titik, bukan per-handler).
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+
   const resource = getParam(req, 'resource');
   const sub = getParam(req, 'id'); // for resource === 'auth', this is the action
 
