@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Users as UsersIcon, Key, FileText, Plus, Search, Edit2, Trash2, Eye, UserPlus, Settings, Activity, Lock, Unlock, RefreshCw, Palette, Globe, Server, Database, BellRing, Smartphone, Cloud, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/app/components/ui/card';
+import { StatCard, type StatCardData } from '@/app/components/ui/stat-card';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Badge } from '@/app/components/ui/badge';
@@ -370,25 +371,13 @@ export function AdminSystem() {
 
       {/* Stats Dashboard */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
+        {([
           { label: 'Total Pengguna', value: users.length, icon: UsersIcon, color: 'text-blue-600', bg: 'bg-blue-50' },
           { label: 'User Aktif', value: users.filter(u => u.isActive).length, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
           { label: 'System Health', value: '99.9%', icon: Activity, color: 'text-amber-600', bg: 'bg-amber-50' },
           { label: 'Audit Log 24h', value: auditLogs.filter((l) => Date.now() - l.timestamp.getTime() < 86400000).length, icon: FileText, color: 'text-[#013E37]', bg: 'bg-[#EEF7F5]' },
-        ].map((stat, i) => (
-          <Card key={i} className="border-none shadow-sm hover:shadow-md transition-all duration-300">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">{stat.label}</p>
-                  <p className="text-2xl font-black text-gray-800">{stat.value}</p>
-                </div>
-                <div className={`h-12 w-12 rounded-2xl ${stat.bg} flex items-center justify-center`}>
-                  <stat.icon className={`h-6 w-6 ${stat.color}`} />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        ] as StatCardData[]).map((stat, i) => (
+          <StatCard key={stat.label} stat={stat} index={i} />
         ))}
       </div>
 

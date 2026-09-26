@@ -4,6 +4,7 @@ import { Button } from '@/app/components/ui/button';
 import { Badge } from '@/app/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/app/components/ui/card';
+import { StatCard, type StatCardData } from '@/app/components/ui/stat-card';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
@@ -90,46 +91,14 @@ export function KnowledgeBase() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-4">
-        <Card className="border-gray-100 shadow-sm overflow-hidden group hover:border-[#013E37]/30 transition-all">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gray-50/50">
-            <CardTitle className="text-[10px] font-black uppercase tracking-widest text-gray-400">Total Articles</CardTitle>
-            <Book className="h-4 w-4 text-[#013E37]" />
-          </CardHeader>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-black text-gray-900">{articles.length}</div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Items available</p>
-          </CardContent>
-        </Card>
-        <Card className="border-gray-100 shadow-sm overflow-hidden group hover:border-[#013E37]/30 transition-all">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gray-50/50">
-            <CardTitle className="text-[10px] font-black uppercase tracking-widest text-gray-400">Total Views</CardTitle>
-            <Eye className="h-4 w-4 text-[#013E37]" />
-          </CardHeader>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-black text-[#013E37]">{articles.reduce((sum, a) => sum + a.views, 0)}</div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">All time reach</p>
-          </CardContent>
-        </Card>
-        <Card className="border-gray-100 shadow-sm overflow-hidden group hover:border-[#013E37]/30 transition-all">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gray-50/50">
-            <CardTitle className="text-[10px] font-black uppercase tracking-widest text-gray-400">Avg Rating</CardTitle>
-            <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
-          </CardHeader>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-black text-amber-600">{(articles.reduce((sum, a) => sum + a.rating, 0) / articles.length).toFixed(1)}</div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Sales satisfaction</p>
-          </CardContent>
-        </Card>
-        <Card className="border-gray-100 shadow-sm overflow-hidden group hover:border-[#013E37]/30 transition-all">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gray-50/50">
-            <CardTitle className="text-[10px] font-black uppercase tracking-widest text-gray-400">Active Topics</CardTitle>
-            <FileText className="h-4 w-4 text-[#013E37]" />
-          </CardHeader>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-black text-gray-900">6</div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Categorized domains</p>
-          </CardContent>
-        </Card>
+        {([
+          { label: 'Total Articles', value: articles.length, sub: 'Items available', icon: Book, color: 'text-[#013E37]', bg: 'bg-[#EEF7F5]' },
+          { label: 'Total Views', value: articles.reduce((sum, a) => sum + a.views, 0), sub: 'All time reach', icon: Eye, color: 'text-[#013E37]', bg: 'bg-[#EEF7F5]' },
+          { label: 'Avg Rating', value: (articles.reduce((sum, a) => sum + a.rating, 0) / articles.length).toFixed(1), sub: 'Sales satisfaction', icon: Star, color: 'text-amber-600', bg: 'bg-amber-50' },
+          { label: 'Active Topics', value: 6, sub: 'Categorized domains', icon: FileText, color: 'text-[#013E37]', bg: 'bg-[#EEF7F5]' },
+        ] as StatCardData[]).map((stat, i) => (
+          <StatCard key={stat.label} stat={stat} index={i} />
+        ))}
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">

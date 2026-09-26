@@ -8,6 +8,7 @@ import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/card';
+import { StatCard, type StatCardData } from '@/app/components/ui/stat-card';
 import { toast } from 'sonner';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
@@ -336,26 +337,13 @@ export function CommissionCalculator() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
+        {([
           { label: 'Total Payout', value: formatCurrency(stats.totalCommission), icon: Wallet, color: 'text-[#013E37]', bg: 'bg-emerald-50' },
           { label: 'Pending Approval', value: formatCurrency(stats.pending), icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
           { label: 'Approved Ready', value: formatCurrency(stats.approved), icon: CheckCircle, color: 'text-blue-600', bg: 'bg-blue-50' },
           { label: 'Avg Achievement', value: `${stats.avgRate.toFixed(1)}%`, icon: TrendingUp, color: 'text-[#013E37]', bg: 'bg-[#EEF7F5]' },
-        ].map((stat, i) => (
-          <Card key={i} className="border-none shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden group">
-            <div className={`h-1 w-full ${stat.bg.replace('bg-', 'bg-')}`} style={{backgroundColor: i === 0 ? '#013E37' : undefined}}></div>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{stat.label}</p>
-                  <p className="text-2xl font-black text-gray-800">{stat.value}</p>
-                </div>
-                <div className={`h-12 w-12 rounded-2xl ${stat.bg} flex items-center justify-center transition-transform group-hover:scale-110`}>
-                  <stat.icon className={`h-6 w-6 ${stat.color}`} />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        ] as StatCardData[]).map((stat, i) => (
+          <StatCard key={stat.label} stat={stat} index={i} />
         ))}
       </div>
 

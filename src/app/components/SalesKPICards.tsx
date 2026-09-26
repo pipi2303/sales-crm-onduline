@@ -1,6 +1,6 @@
 import React from 'react';
 import { DollarSign, Users, Target, BarChart3, TrendingUp } from 'lucide-react';
-import { Card, CardContent } from '@/app/components/ui/card';
+import { StatCard, type StatCardData } from '@/app/components/ui/stat-card';
 import { formatCurrency, formatNumber } from '@/utils/formatters';
 
 interface SalesKPICardsProps {
@@ -17,135 +17,80 @@ interface SalesKPICardsProps {
 }
 
 export function SalesKPICards({ stats }: SalesKPICardsProps) {
+  // Bab 55: diseragamkan ke desain StatCard bersama (badge icon + ghost icon +
+  // angka besar), menggantikan icon bulat gradient yang lama.
+  const items: StatCardData[] = [
+    {
+      label: 'Total Revenue',
+      value: formatCurrency(stats.totalRevenue),
+      sub: '+23.5% vs last month',
+      icon: DollarSign,
+      color: 'text-green-600',
+      bg: 'bg-green-50',
+    },
+    {
+      label: 'Pipeline Value',
+      value: formatCurrency(stats.pipelineValue),
+      sub: 'Strong pipeline',
+      icon: DollarSign,
+      color: 'text-[#013E37]',
+      bg: 'bg-[#EEF7F5]',
+    },
+    {
+      label: 'Upside',
+      value: formatCurrency(stats.upside),
+      sub: 'Potential growth',
+      icon: TrendingUp,
+      color: 'text-cyan-600',
+      bg: 'bg-cyan-50',
+    },
+    {
+      label: 'Strong Upside',
+      value: formatCurrency(stats.strongUpside),
+      sub: 'High confidence',
+      icon: TrendingUp,
+      color: 'text-[#013E37]',
+      bg: 'bg-[#EEF7F5]',
+    },
+    {
+      label: 'Forecast',
+      value: formatCurrency(stats.forecast),
+      sub: 'Predicted revenue',
+      icon: TrendingUp,
+      color: 'text-[#013E37]',
+      bg: 'bg-[#EEF7F5]',
+    },
+    {
+      label: 'Total Leads',
+      value: formatNumber(stats.totalLeads),
+      sub: '+12 new this week',
+      icon: Users,
+      color: 'text-blue-600',
+      bg: 'bg-blue-50',
+    },
+    {
+      label: 'Active Contracts',
+      value: formatNumber(stats.totalContracts),
+      sub: '68% conversion rate',
+      icon: BarChart3,
+      color: 'text-[#013E37]',
+      bg: 'bg-[#EEF7F5]',
+    },
+    {
+      label: 'Avg Deal Size',
+      value: formatCurrency(stats.avgDealSize),
+      sub: '+15% vs last month',
+      icon: Target,
+      color: 'text-orange-600',
+      bg: 'bg-orange-50',
+    },
+  ];
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      {/* 1. Total Revenue */}
-      <Card className="hover:shadow-lg transition-shadow">
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
-              <DollarSign className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Total Revenue</p>
-              <p className="text-xl font-bold mt-1">{formatCurrency(stats.totalRevenue)}</p>
-              <p className="text-xs text-green-600 mt-0.5">+23.5% vs last month</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 2. Pipeline Value - NEW */}
-      <Card className="hover:shadow-lg transition-shadow">
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#EEF7F5]0 to-[#EEF7F5]0 flex items-center justify-center">
-              <DollarSign className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Pipeline Value</p>
-              <p className="text-xl font-bold mt-1">{formatCurrency(stats.pipelineValue)}</p>
-              <p className="text-xs text-[#013E37] mt-0.5">Strong pipeline</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 3. Upside - NEW */}
-      <Card className="hover:shadow-lg transition-shadow">
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#013E37] to-blue-500 flex items-center justify-center">
-              <TrendingUp className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Upside</p>
-              <p className="text-xl font-bold mt-1">{formatCurrency(stats.upside)}</p>
-              <p className="text-xs text-cyan-600 mt-0.5">Potential growth</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 4. Strong Upside - NEW */}
-      <Card className="hover:shadow-lg transition-shadow">
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#EEF7F5]0 to-pink-500 flex items-center justify-center">
-              <TrendingUp className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Strong Upside</p>
-              <p className="text-xl font-bold mt-1">{formatCurrency(stats.strongUpside)}</p>
-              <p className="text-xs text-[#013E37] mt-0.5">High confidence</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 5. Forecast - NEW */}
-      <Card className="hover:shadow-lg transition-shadow">
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-full bg-[#013E37] flex items-center justify-center">
-              <TrendingUp className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Forecast</p>
-              <p className="text-xl font-bold mt-1">{formatCurrency(stats.forecast)}</p>
-              <p className="text-xs text-[#013E37] mt-0.5">Predicted revenue</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 6. Total Leads */}
-      <Card className="hover:shadow-lg transition-shadow">
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-500 to-[#013E37] flex items-center justify-center">
-              <Users className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Total Leads</p>
-              <p className="text-xl font-bold mt-1">{formatNumber(stats.totalLeads)}</p>
-              <p className="text-xs text-blue-600 mt-0.5">+12 new this week</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 7. Active Contracts */}
-      <Card className="hover:shadow-lg transition-shadow">
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#013E37] to-[#025C52] flex items-center justify-center">
-              <BarChart3 className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Active Contracts</p>
-              <p className="text-xl font-bold mt-1">{formatNumber(stats.totalContracts)}</p>
-              <p className="text-xs text-[#013E37] mt-0.5">68% conversion rate</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 8. Avg Deal Size */}
-      <Card className="hover:shadow-lg transition-shadow">
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
-              <Target className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Avg Deal Size</p>
-              <p className="text-xl font-bold mt-1">{formatCurrency(stats.avgDealSize)}</p>
-              <p className="text-xs text-orange-600 mt-0.5">+15% vs last month</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {items.map((stat, index) => (
+        <StatCard key={stat.label} stat={stat} index={index} />
+      ))}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { Button } from '@/app/components/ui/button';
 import { Badge } from '@/app/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/card';
+import { StatCard, type StatCardData } from '@/app/components/ui/stat-card';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
@@ -306,62 +307,15 @@ export function TerritoryManagement() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <Card className="border-gray-100 shadow-sm overflow-hidden group hover:border-[#013E37]/30 transition-all">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gray-50/50">
-            <CardTitle className="text-[10px] font-black uppercase tracking-widest text-gray-400">Total Territories</CardTitle>
-            <MapPin className="h-4 w-4 text-[#013E37]" />
-          </CardHeader>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-black text-gray-900">{stats.total}</div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Active regions</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-gray-100 shadow-sm overflow-hidden group hover:border-[#013E37]/30 transition-all">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gray-50/50">
-            <CardTitle className="text-[10px] font-black uppercase tracking-widest text-gray-400">Total Revenue</CardTitle>
-            <TrendingUp className="h-4 w-4 text-[#013E37]" />
-          </CardHeader>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-black text-[#013E37]">{formatCurrency(stats.totalRevenue)}</div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">YTD performance</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-gray-100 shadow-sm overflow-hidden group hover:border-[#013E37]/30 transition-all">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gray-50/50">
-            <CardTitle className="text-[10px] font-black uppercase tracking-widest text-gray-400">Target Achievement</CardTitle>
-            <Target className="h-4 w-4 text-emerald-500" />
-          </CardHeader>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-black text-emerald-600">
-              {stats.totalTarget > 0 ? ((stats.totalRevenue / stats.totalTarget) * 100).toFixed(1) : '0.0'}%
-            </div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Average attainment</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-gray-100 shadow-sm overflow-hidden group hover:border-[#013E37]/30 transition-all">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gray-50/50">
-            <CardTitle className="text-[10px] font-black uppercase tracking-widest text-gray-400">Avg Coverage</CardTitle>
-            <MapPin className="h-4 w-4 text-amber-500" />
-          </CardHeader>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-black text-amber-600">{stats.avgCoverage.toFixed(1)}%</div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Market share</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-gray-100 shadow-sm overflow-hidden group hover:border-[#013E37]/30 transition-all">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gray-50/50">
-            <CardTitle className="text-[10px] font-black uppercase tracking-widest text-gray-400">Top Performer</CardTitle>
-            <Award className="h-4 w-4 text-[#EEF7F5]0" />
-          </CardHeader>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-black text-[#013E37] truncate">{stats.topPerformer.name}</div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">{stats.topPerformer.achievement.toFixed(1)}% Attainment</p>
-          </CardContent>
-        </Card>
+        {([
+          { label: 'Total Territories', value: stats.total, sub: 'Active regions', icon: MapPin, color: 'text-[#013E37]', bg: 'bg-[#EEF7F5]' },
+          { label: 'Total Revenue', value: formatCurrency(stats.totalRevenue), sub: 'YTD performance', icon: TrendingUp, color: 'text-[#013E37]', bg: 'bg-[#EEF7F5]' },
+          { label: 'Target Achievement', value: `${stats.totalTarget > 0 ? ((stats.totalRevenue / stats.totalTarget) * 100).toFixed(1) : '0.0'}%`, sub: 'Average attainment', icon: Target, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'Avg Coverage', value: `${stats.avgCoverage.toFixed(1)}%`, sub: 'Market share', icon: MapPin, color: 'text-amber-600', bg: 'bg-amber-50' },
+          { label: 'Top Performer', value: stats.topPerformer.name, sub: `${stats.topPerformer.achievement.toFixed(1)}% Attainment`, icon: Award, color: 'text-[#013E37]', bg: 'bg-[#EEF7F5]' },
+        ] as StatCardData[]).map((stat, i) => (
+          <StatCard key={stat.label} stat={stat} index={i} />
+        ))}
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">

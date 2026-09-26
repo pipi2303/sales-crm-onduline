@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
+import { StatCard, type StatCardData } from '@/app/components/ui/stat-card';
 import { Button } from '@/app/components/ui/button';
 import { useConfirm } from '@/app/components/ui/confirm-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
@@ -360,113 +361,17 @@ export function OpportunityManagement() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Open Deals</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">{stats.open}</p>
-              </div>
-              <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Target className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Pipeline Value</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">
-                  Rp {(stats.totalValue / 1000000).toFixed(0)}M
-                </p>
-              </div>
-              <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <DollarSign className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Upside</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">
-                  Rp {(stats.upside / 1000000).toFixed(0)}M
-                </p>
-              </div>
-              <div className="h-12 w-12 bg-cyan-100 rounded-lg flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-cyan-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Strong Upside</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">
-                  Rp {(stats.strongUpside / 1000000).toFixed(0)}M
-                </p>
-              </div>
-              <div className="h-12 w-12 bg-[#DFF0EC] rounded-lg flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-[#013E37]" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Forecast</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">
-                  Rp {(stats.forecast / 1000000).toFixed(0)}M
-                </p>
-              </div>
-              <div className="h-12 w-12 bg-[#EEF7F5] rounded-lg flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-[#013E37]" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Weighted Value</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">
-                  Rp {(stats.weightedValue / 1000000).toFixed(0)}M
-                </p>
-              </div>
-              <div className="h-12 w-12 bg-[#DFF0EC] rounded-lg flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-[#013E37]" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Win Rate</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">{stats.winRate}%</p>
-              </div>
-              <div className="h-12 w-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-orange-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {([
+          { label: 'Open Deals', value: stats.open, icon: Target, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'Pipeline Value', value: `Rp ${(stats.totalValue / 1000000).toFixed(0)}M`, icon: DollarSign, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'Upside', value: `Rp ${(stats.upside / 1000000).toFixed(0)}M`, icon: TrendingUp, color: 'text-cyan-600', bg: 'bg-cyan-50' },
+          { label: 'Strong Upside', value: `Rp ${(stats.strongUpside / 1000000).toFixed(0)}M`, icon: TrendingUp, color: 'text-[#013E37]', bg: 'bg-[#EEF7F5]' },
+          { label: 'Forecast', value: `Rp ${(stats.forecast / 1000000).toFixed(0)}M`, icon: TrendingUp, color: 'text-[#013E37]', bg: 'bg-[#EEF7F5]' },
+          { label: 'Weighted Value', value: `Rp ${(stats.weightedValue / 1000000).toFixed(0)}M`, icon: TrendingUp, color: 'text-[#013E37]', bg: 'bg-[#EEF7F5]' },
+          { label: 'Win Rate', value: `${stats.winRate}%`, icon: TrendingUp, color: 'text-orange-600', bg: 'bg-orange-50' },
+        ] as StatCardData[]).map((stat, i) => (
+          <StatCard key={stat.label} stat={stat} index={i} />
+        ))}
       </div>
 
       {/* Reminders */}

@@ -120,36 +120,43 @@ const fmt = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}M` : `${n}jt`;
 const fmtPct = (n: number) => `${n > 0 ? '+' : ''}${n.toFixed(1)}%`;
 
 // ─── Sub Components ───────────────────────────────────────────────
+// Bab 55: diseragamkan ke bahasa visual StatCard bersama (ghost icon,
+// badge icon di header, angka besar) -- tetap komponen lokal (bukan
+// <StatCard>) karena palet warnanya berbasis hex dinamis (style={{color}}),
+// bukan className Tailwind seperti StatCardData, dan tetap mempertahankan
+// baris delta naik/turun yang tidak ada di desain referensi.
 const KPICard = ({
   title, value, sub, delta, icon: Icon, color, prefix = '', suffix = ''
 }: {
   title: string; value: string | number; sub?: string; delta?: number;
   icon: React.ElementType; color: string; prefix?: string; suffix?: string;
 }) => (
-  <Card className="hover:shadow-md transition-shadow duration-200 border border-gray-100">
-    <CardContent className="p-5">
-      <div className="flex items-start justify-between">
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{title}</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1.5">{prefix}{value}{suffix}</p>
-          {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
-          {delta !== undefined && (
-            <div className="flex items-center gap-1 mt-2">
-              {delta >= 0
-                ? <ArrowUpRight className="h-3.5 w-3.5 text-emerald-600" />
-                : <ArrowDownRight className="h-3.5 w-3.5 text-red-500" />}
-              <span className={`text-xs font-semibold ${delta >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                {fmtPct(delta)}
-              </span>
-              <span className="text-xs text-gray-400">vs periode lalu</span>
-            </div>
-          )}
+  <Card className="border-none shadow-sm hover:shadow-md transition-all bg-white group overflow-hidden relative">
+    <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-110 transition-transform" style={{ color }}>
+      <Icon size={64} />
+    </div>
+    <CardHeader className="pb-2">
+      <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 flex items-center gap-2">
+        <div className="p-1.5 rounded-lg" style={{ backgroundColor: `${color}18`, color }}>
+          <Icon className="h-4 w-4" />
         </div>
-        <div className={`h-11 w-11 rounded-xl flex items-center justify-center flex-shrink-0 ml-3`}
-          style={{ backgroundColor: `${color}18` }}>
-          <Icon className="h-5 w-5" style={{ color }} />
+        {title}
+      </CardTitle>
+    </CardHeader>
+    <CardContent>
+      <div className="text-2xl font-black text-gray-900">{prefix}{value}{suffix}</div>
+      {sub && <p className="text-xs text-gray-500 font-medium mt-1 uppercase tracking-tighter">{sub}</p>}
+      {delta !== undefined && (
+        <div className="flex items-center gap-1 mt-2">
+          {delta >= 0
+            ? <ArrowUpRight className="h-3.5 w-3.5 text-emerald-600" />
+            : <ArrowDownRight className="h-3.5 w-3.5 text-red-500" />}
+          <span className={`text-xs font-semibold ${delta >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+            {fmtPct(delta)}
+          </span>
+          <span className="text-xs text-gray-400">vs periode lalu</span>
         </div>
-      </div>
+      )}
     </CardContent>
   </Card>
 );

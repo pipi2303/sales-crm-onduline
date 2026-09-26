@@ -4,6 +4,7 @@ import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Badge } from '@/app/components/ui/badge';
 import { Card, CardContent } from '@/app/components/ui/card';
+import { StatCard, type StatCardData } from '@/app/components/ui/stat-card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
 import { Contract as ContractType } from '@/app/data/dummyData';
 import { ContractFormModal } from '@/app/components/forms/ContractForm';
@@ -160,61 +161,10 @@ export function Contract() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-[#013E37] flex items-center justify-center">
-                <FileText className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Total Kontrak</p>
-                <p className="text-2xl font-bold">{stats.total}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
-                <FileText className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Active</p>
-                <p className="text-2xl font-bold">{stats.active}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center">
-                <FileText className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Pending</p>
-                <p className="text-2xl font-bold">{stats.pending}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-[#013E37] to-[#025C52] flex items-center justify-center">
-                <DollarSign className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Total Value</p>
-                <p className="text-xl font-bold">{formatCurrency(stats.totalValue)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard index={0} stat={{ label: 'Total Kontrak', value: stats.total, icon: FileText, color: 'text-blue-600', bg: 'bg-blue-50' }} />
+        <StatCard index={1} stat={{ label: 'Active', value: stats.active, icon: FileText, color: 'text-emerald-600', bg: 'bg-emerald-50' }} />
+        <StatCard index={2} stat={{ label: 'Pending', value: stats.pending, icon: FileText, color: 'text-amber-600', bg: 'bg-amber-50' }} />
+        <StatCard index={3} stat={{ label: 'Total Value', value: formatCurrency(stats.totalValue), icon: DollarSign, color: 'text-[#013E37]', bg: 'bg-[#EEF7F5]' }} />
       </div>
 
       {/* TOP 8 ENHANCEMENTS - Quick Action Bar */}

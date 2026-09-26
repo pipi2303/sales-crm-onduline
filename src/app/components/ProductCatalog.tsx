@@ -5,6 +5,7 @@ import { useConfirm } from '@/app/components/ui/confirm-dialog';
 import { Input } from '@/app/components/ui/input';
 import { Badge } from '@/app/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
+import { StatCard } from '@/app/components/ui/stat-card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/app/components/ui/tabs';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/app/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/app/components/ui/tooltip';
@@ -229,66 +230,33 @@ export function ProductCatalog() {
       {/* Stats */}
       <TooltipProvider>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-full bg-[#013E37] flex items-center justify-center">
-                  <Package className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Total Products</p>
-                  <p className="text-2xl font-bold text-gray-900">{products.length}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <StatCard index={0} stat={{ label: 'Total Products', value: products.length, icon: Package, color: 'text-[#013E37]', bg: 'bg-[#EEF7F5]' }} />
+          <StatCard index={1} stat={{ label: 'Total Terjual', value: stats.totalSold, icon: Plus, color: 'text-emerald-600', bg: 'bg-emerald-50' }} />
+          <StatCard index={2} stat={{ label: 'Total Revenue', value: formatRevenue(stats.totalRevenue), icon: DollarSign, color: 'text-[#013E37]', bg: 'bg-[#EEF7F5]' }} />
 
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
-                  <Plus className="h-6 w-6 text-white" />
+          {/* Best Seller -- disusun manual (bukan StatCard) karena isi
+              "value"-nya berupa nama produk dengan Tooltip, bukan angka */}
+          <Card className="border-none shadow-sm hover:shadow-md transition-all bg-white group overflow-hidden relative">
+            <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-110 transition-transform text-orange-600">
+              <Star size={64} />
+            </div>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-orange-50 text-orange-600">
+                  <Star className="h-4 w-4" />
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600">Total Terjual</p>
-                  <p className="text-2xl font-bold">{stats.totalSold}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-full bg-[#013E37] flex items-center justify-center">
-                  <DollarSign className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Total Revenue</p>
-                  <p className="text-xl font-bold">{formatRevenue(stats.totalRevenue)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
-                  <Star className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Best Seller</p>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <p className="text-sm font-bold line-clamp-2 cursor-help">{stats.bestSeller.name}</p>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="max-w-xs">{stats.bestSeller.name}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-              </div>
+                Best Seller
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <p className="text-lg font-black text-gray-900 line-clamp-2 cursor-help">{stats.bestSeller.name}</p>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="max-w-xs">{stats.bestSeller.name}</p>
+                </TooltipContent>
+              </Tooltip>
             </CardContent>
           </Card>
         </div>

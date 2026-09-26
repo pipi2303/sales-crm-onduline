@@ -15,6 +15,7 @@ import { Label } from '@/app/components/ui/label';
 import { Textarea } from '@/app/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/app/components/ui/card';
+import { StatCard, type StatCardData } from '@/app/components/ui/stat-card';
 import { Separator } from '@/app/components/ui/separator';
 import { toast } from 'sonner';
 import { formatCurrency, formatDate } from '@/utils/formatters';
@@ -311,25 +312,13 @@ export function QuotationManagement() {
         <TabsContent value="list" className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
           {/* Quick Stats Dashboard */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {[
+            {([
               { label: 'Total Quotations', value: String(kpiStats.total), icon: FileText, color: 'text-blue-600', bg: 'bg-blue-50' },
               { label: 'Approved Value', value: formatCurrency(kpiStats.approvedValue), icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
               { label: 'Pending Approval', value: String(kpiStats.pendingApproval), icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
               { label: 'Conversion Rate', value: `${kpiStats.conversionRate}%`, icon: Percent, color: 'text-[#013E37]', bg: 'bg-[#EEF7F5]' },
-            ].map((stat, i) => (
-              <Card key={i} className="border-none shadow-sm bg-white overflow-hidden group hover:shadow-md transition-all">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div className={`p-3 rounded-xl ${stat.bg} ${stat.color}`}>
-                      <stat.icon className="h-6 w-6" />
-                    </div>
-                    <div className="flex flex-col items-end">
-                      <span className="text-xs font-black text-gray-400 uppercase tracking-widest">{stat.label}</span>
-                      <span className="text-2xl font-black text-gray-900 mt-1">{stat.value}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            ] as StatCardData[]).map((stat, i) => (
+              <StatCard key={stat.label} stat={stat} index={i} />
             ))}
           </div>
 

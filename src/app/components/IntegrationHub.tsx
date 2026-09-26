@@ -28,6 +28,7 @@ import { Button } from '@/app/components/ui/button';
 import { Badge } from '@/app/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/card';
+import { StatCard, type StatCardData } from '@/app/components/ui/stat-card';
 import { Switch } from '@/app/components/ui/switch';
 import { Label } from '@/app/components/ui/label';
 import { Input } from '@/app/components/ui/input';
@@ -163,36 +164,13 @@ export function IntegrationHub() {
 
       {/* Stats Overview */}
       <div className="grid gap-6 md:grid-cols-4">
-        {[
+        {([
           { label: 'Total App', value: stats.total, sub: 'Tersedia di library', icon: Link2, color: 'text-blue-600', bg: 'bg-blue-50' },
           { label: 'Terhubung', value: stats.connected, sub: 'Koneksi aktif', icon: ShieldCheck, color: 'text-emerald-600', bg: 'bg-emerald-50' },
           { label: 'Webhooks', value: stats.activeWebhooks, sub: 'Titik akhir aktif', icon: Zap, color: 'text-amber-600', bg: 'bg-amber-50' },
           { label: 'Pengguna', value: stats.totalUsers, sub: 'Integrasi terpakai', icon: Settings2, color: 'text-[#013E37]', bg: 'bg-[#EEF7F5]' },
-        ].map((stat, idx) => (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.1 }}
-          >
-            <Card className="border-none shadow-sm hover:shadow-md transition-all bg-white group overflow-hidden relative">
-              <div className={`absolute top-0 right-0 p-3 opacity-10 group-hover:scale-110 transition-transform ${stat.color}`}>
-                <stat.icon size={64} />
-              </div>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
-                  <div className={`p-1.5 rounded-lg ${stat.bg} ${stat.color}`}>
-                    <stat.icon className="h-4 w-4" />
-                  </div>
-                  {stat.label}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-black text-gray-900">{stat.value}</div>
-                <p className="text-xs text-gray-500 font-medium mt-1 uppercase tracking-tighter">{stat.sub}</p>
-              </CardContent>
-            </Card>
-          </motion.div>
+        ] as StatCardData[]).map((stat, idx) => (
+          <StatCard key={stat.label} stat={stat} index={idx} />
         ))}
       </div>
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, Users, Target, DollarSign, Calendar, FileText, Award, Activity, RefreshCw, CheckCircle2, Database } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
+import { StatCard, type StatCardData } from '@/app/components/ui/stat-card';
 import { Button } from '@/app/components/ui/button';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
@@ -252,71 +253,74 @@ export function Home() {
     return `${diffDays} hari lalu`;
   };
 
-  const statsDisplay = [
+  // Bab 55: bentuk data disederhanakan ke StatCardData (label/value/sub/icon/
+  // color/bg) supaya bisa langsung dipakai StatCard -- gradient lama (color/
+  // textColor) tidak diperlukan lagi karena desain baru pakai badge solid.
+  const statsDisplay: StatCardData[] = [
     {
-      title: 'Total Sales',
+      label: 'Total Sales',
       value: formatCurrency(stats.totalSales),
-      change: '+23.5%',
+      sub: '+23.5%',
       icon: DollarSign,
-      color: 'from-green-500 to-emerald-500',
-      textColor: 'text-green-600'
+      color: 'text-green-600',
+      bg: 'bg-green-50',
     },
     {
-      title: 'Active Leads',
+      label: 'Active Leads',
       value: formatNumber(stats.activeLeads),
-      change: '+12 new',
+      sub: '+12 new',
       icon: Users,
-      color: 'from-blue-500 to-[#013E37]',
-      textColor: 'text-blue-600'
+      color: 'text-blue-600',
+      bg: 'bg-blue-50',
     },
     {
-      title: 'Meeting & Demo Scheduled',
+      label: 'Meeting & Demo Scheduled',
       value: formatNumber(stats.demosScheduled),
-      change: '5 this week',
+      sub: '5 this week',
       icon: Calendar,
-      color: 'from-green-500 to-emerald-500',
-      textColor: 'text-green-600'
+      color: 'text-green-600',
+      bg: 'bg-green-50',
     },
     {
-      title: 'Total Revenue',
+      label: 'Total Revenue',
       value: formatCurrency(stats.totalRevenue),
-      change: '+18.2%',
+      sub: '+18.2%',
       icon: DollarSign,
-      color: 'from-emerald-500 to-[#013E37]',
-      textColor: 'text-emerald-600'
+      color: 'text-emerald-600',
+      bg: 'bg-emerald-50',
     },
     // Row 2 starts here
     {
-      title: 'Pipeline Value',
+      label: 'Pipeline Value',
       value: formatCurrency(stats.pipelineValue),
-      change: 'Strong pipeline',
+      sub: 'Strong pipeline',
       icon: TrendingUp,
-      color: 'from-[#EEF7F5]0 to-[#EEF7F5]0',
-      textColor: 'text-[#013E37]'
+      color: 'text-[#013E37]',
+      bg: 'bg-[#EEF7F5]',
     },
     {
-      title: 'Upside',
+      label: 'Upside',
       value: formatCurrency(stats.upside),
-      change: 'Potential growth',
+      sub: 'Potential growth',
       icon: TrendingUp,
-      color: 'from-[#013E37] to-blue-500',
-      textColor: 'text-cyan-600'
+      color: 'text-cyan-600',
+      bg: 'bg-cyan-50',
     },
     {
-      title: 'Strong Upside',
+      label: 'Strong Upside',
       value: formatCurrency(stats.strongUpside),
-      change: 'High confidence',
+      sub: 'High confidence',
       icon: TrendingUp,
-      color: 'from-[#EEF7F5]0 to-pink-500',
-      textColor: 'text-[#013E37]'
+      color: 'text-[#013E37]',
+      bg: 'bg-[#EEF7F5]',
     },
     {
-      title: 'Forecast',
+      label: 'Forecast',
       value: formatCurrency(stats.forecast),
-      change: 'Predicted revenue',
+      sub: 'Predicted revenue',
       icon: Target,
-      color: 'from-[#013E37] to-emerald-500',
-      textColor: 'text-[#013E37]'
+      color: 'text-[#013E37]',
+      bg: 'bg-[#EEF7F5]',
     },
   ];
 
@@ -364,22 +368,7 @@ export function Home() {
       {/* Stats Grid - 2 Rows: 4 cards + 4 cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {statsDisplay.map((stat, index) => (
-          <Card key={index} className="hover:shadow-lg transition-shadow">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className={`h-10 w-10 rounded-full bg-gradient-to-br ${stat.color} flex items-center justify-center flex-shrink-0`}>
-                  <stat.icon className="h-5 w-5 text-white" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  {/* No truncate here - uppercase + tracking-wide labels like "Total Revenue"
-                      need to wrap to 2 lines rather than get cut off ("TOTAL REV..."). */}
-                  <p className="text-xs text-gray-500 uppercase tracking-wide leading-snug">{stat.title}</p>
-                  <p className="text-xl font-bold mt-1 truncate">{stat.value}</p>
-                  <p className={`text-xs ${stat.textColor} mt-0.5 truncate`}>{stat.change}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <StatCard key={stat.label} stat={stat} index={index} />
         ))}
       </div>
 
@@ -392,46 +381,10 @@ export function Home() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-500 to-[#013E37] flex items-center justify-center flex-shrink-0">
-                  <DollarSign className="h-5 w-5 text-white" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide leading-snug">Revenue MTD</p>
-                  <p className="text-xl font-bold mt-1 truncate">{formatCurrency(bab13.revenueMTD)}</p>
-                  <p className="text-xs text-gray-400 mt-0.5 truncate">Bulan berjalan, deal WON</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#013E37] to-emerald-500 flex items-center justify-center flex-shrink-0">
-                  <DollarSign className="h-5 w-5 text-white" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide leading-snug">Revenue YTD</p>
-                  <p className="text-xl font-bold mt-1 truncate">{formatCurrency(bab13.revenueYTD)}</p>
-                  <p className="text-xs text-gray-400 mt-0.5 truncate">Tahun berjalan, deal WON</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-[#013E37] flex items-center justify-center flex-shrink-0">
-                  <TrendingUp className="h-5 w-5 text-white" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide leading-snug">Win Rate</p>
-                  <p className="text-xl font-bold mt-1 truncate">{bab13.winRate.toFixed(1)}%</p>
-                  <p className="text-xs text-gray-400 mt-0.5 truncate">{bab13.wonCount} won / {bab13.lostCount} lost</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-amber-500 to-[#013E37] flex items-center justify-center flex-shrink-0">
-                  <CheckCircle2 className="h-5 w-5 text-white" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide leading-snug">Kepatuhan Visit Toko</p>
-                  <p className="text-xl font-bold mt-1 truncate">{bab13.visitCompliance.toFixed(1)}%</p>
-                  <p className="text-xs text-gray-400 mt-0.5 truncate">{bab13.visitCompliantCount} check-in / {bab13.visitDueCount} jadwal</p>
-                </div>
-              </div>
+              <StatCard index={0} stat={{ label: 'Revenue MTD', value: formatCurrency(bab13.revenueMTD), sub: 'Bulan berjalan, deal WON', icon: DollarSign, color: 'text-emerald-600', bg: 'bg-emerald-50' }} />
+              <StatCard index={1} stat={{ label: 'Revenue YTD', value: formatCurrency(bab13.revenueYTD), sub: 'Tahun berjalan, deal WON', icon: DollarSign, color: 'text-[#013E37]', bg: 'bg-[#EEF7F5]' }} />
+              <StatCard index={2} stat={{ label: 'Win Rate', value: `${bab13.winRate.toFixed(1)}%`, sub: `${bab13.wonCount} won / ${bab13.lostCount} lost`, icon: TrendingUp, color: 'text-blue-600', bg: 'bg-blue-50' }} />
+              <StatCard index={3} stat={{ label: 'Kepatuhan Visit Toko', value: `${bab13.visitCompliance.toFixed(1)}%`, sub: `${bab13.visitCompliantCount} check-in / ${bab13.visitDueCount} jadwal`, icon: CheckCircle2, color: 'text-amber-600', bg: 'bg-amber-50' }} />
             </div>
           )}
         </CardContent>
