@@ -4983,3 +4983,83 @@ Dikomit (`45b09b1c`). `git push` masih perlu dilakukan user sendiri.
 untuk membuang response 304 lama yang sudah ter-cache di browser --
 setelah itu, dengan header `no-store` yang baru, masalah ini seharusnya
 tidak akan terulang lagi untuk siapapun/kapanpun.
+
+
+## Bab 52 (26 Sep 2026): Investigasi window.demoDebug + perbaikan Service Worker untuk /api/*
+
+**Screenshot terbaru dari user** (tanpa teks): tab Quote di menu
+Configure, Propose & Quote (`sales-crm.intramedika.co.id`) masih kosong,
+dengan console DevTools terbuka menampilkan:
+```
+Demo Debug Utilities loaded! Use window.demoDebug
+- demoDebug.view()/stats()/reset()/clear()
+SW registered: ... scope: 'https://sales-crm.intramedika.co.id/'
+Demo data already exists (8 demos)
+```
+
+### Temuan 1: `window.demoDebug` -- TIDAK terkait, ini fitur lain
+
+Ditelusuri via `grep -rn "demoDebug"` ke `src/utils/demoDebug.ts` dan
+`src/utils/initializeDemos.ts`. Ini adalah utilitas debug console untuk
+fitur **Demo Scheduler** (jadwal demo produk ke calon klien -- field
+"leadName/company/presenter/attendees/resources" dsb, bukan quotation),
+disimpan terpisah di localStorage key `sales_monitoring_demos`. Angka
+"8 demos" adalah panjang array `demosDummyData` di `initializeDemos.ts`,
+sama sekali tidak berhubungan dengan data Quotation/CPQ yang dilaporkan
+kosong. **Kesimpulan: ini red herring, bukan bug baru.**
+
+### Temuan 2: Service Worker (`public/sw.js`) -- terkait, memperkuat diagnosis Bab 51
+
+`public/sw.js` pakai strategi network-first untuk SEMUA request GET
+same-origin (termasuk `/api/*`), lalu meng-cache dan mengembalikan
+response APA ADANYA -- tanpa mengecek `response.ok`/status dulu:
+```js
+fetch(request).then((response) => {
+  caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
+  return response;
+}).catch(() => caches.match(request));
+```
+Ini berarti response 304 Not Modified (bug Bab 51, sebelum fix) yang
+datang dari server ikut di-cache dan diteruskan APA ADANYA ke kode
+frontend (`apiFetch()`), yang membacanya sebagai "tidak ada data" tanpa
+melempar error -- persis gejala yang dilaporkan user
+("tetap kosong dan tidak ada error"). Fix Bab 51 (`Cache-Control:
+no-store`) sudah menghentikan akar masalahnya di server, tapi Service
+Worker ini tetap berisiko menutupi masalah serupa di masa depan kalau
+header itu pernah lupa/hilang lagi.
+
+**Fix**: `public/sw.js` diubah agar request ke `/api/*` SELALU pure
+network pass-through -- tidak pernah ditulis ke Cache Storage, dan tidak
+pernah di-fallback ke cache saat network gagal:
+```js
+const url = new URL(request.url);
+if (url.pathname.startsWith('/api/')) {
+  event.respondWith(fetch(request));
+  return;
+}
+```
+Cache Storage Service Worker sekarang hanya dipakai untuk asset statis
+(`index.html`, JS/CSS bundle) seperti tujuan awalnya (fallback offline),
+bukan untuk data dinamis dari Postgres. `CACHE_NAME` dinaikkan ke
+`sales-monitoring-v3` supaya browser yang sudah menginstall SW versi
+lama mendeteksi perubahan file dan mem-purge cache lama saat `activate`.
+
+**Verifikasi**: `node --check public/sw.js` (sintaks OK), `npx tsc
+--noEmit` dibandingkan sebelum/sesudah via `git stash` -- 89 error
+identik persis (nol regresi; `public/sw.js` di luar `src/` jadi memang
+tidak disentuh tsc, ini konfirmasi eksplisit). `npx vite build` sukses,
+`dist/sw.js` terkonfirmasi berisi versi v3 + blok `/api/`. `npx vitest
+run` -- 11/11 test lulus.
+
+(Catatan: jumlah error tsc baseline saat ini 89, bukan 131 seperti
+tercatat di bab-bab sebelumnya -- kemungkinan berubah karena pekerjaan
+lain di antara sesi, di luar cakupan investigasi bab ini. Yang penting
+dikonfirmasi: sebelum dan sesudah perubahan `public/sw.js` menghasilkan
+set error yang IDENTIK, jadi perubahan ini terbukti nol-regresi.)
+
+**Status**: kode sudah benar secara lokal, siap dikomit. User masih
+perlu: `git push`, tunggu Vercel redeploy, lalu hard refresh browser
+(atau unregister Service Worker lama lewat DevTools > Application >
+Service Workers > Unregister, supaya SW baru langsung aktif) sebelum
+mengecek ulang tab Quote/Quotation/Contract/Opportunity/Task/Discount
+Approval yang tadinya kosong.
