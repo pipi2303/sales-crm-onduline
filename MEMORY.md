@@ -5129,3 +5129,68 @@ atau warnanya masih terlihat putih/salah, tolong kirim screenshot
 before/after hover supaya bisa ditelusuri lebih presisi (kemungkinan
 lain: browser/OS tertentu, atau ada override CSS lain yang belum
 ketemu).
+
+
+## Bab 54 (26 Sep 2026): Insight + standarisasi warna background tabmenu aktif jadi hijau
+
+**Permintaan user**: "rubah warna background aktif tabmenu menjadi
+warna hijau (warna sesuai dengan aplikasi), kondisi saat ini banyak
+yang background yang masih warna putih. berikan insight ke saya"
+
+**Insight/audit** (30 file pakai `TabsTrigger`, 90 kemunculan
+`data-[state=active]:bg-white`): ditemukan 2 pola berbeda untuk
+tabmenu aktif yang selama ini tidak konsisten:
+- **Pola A** -- background hijau solid (`bg-[#013E37]`) + teks putih.
+  Ini pola default di `ui/tabs.tsx` (base component) dan satu-satunya
+  yang dipakai eksplisit di `ConfigurePriceQuote.tsx` (Configure/
+  Propose/Quote).
+- **Pola B** (24 file lain, mayoritas) -- background PUTIH (gaya
+  "pill" mengambang di atas track abu-abu) + teks hijau + `shadow-sm`.
+  Dari pola ini ada 2 varian warna hijau yang berbeda: `#013E37`
+  (16 file, warna brand yang sama dengan tombol2 di seluruh app) dan
+  `emerald-700` (9 file: SalesTeam, DealsDetailDialog,
+  RevenueDetailDialog, SettingsPanel, ContractAnalytics, DemoScheduler,
+  ClientDetailDialog, ContractDetailView, KPIAIEnhanced -- warna
+  Tailwind standar, BUKAN warna brand resmi aplikasi).
+
+Dikonfirmasi ke user via AskUserQuestion: (1) cakupan -- SEMUA
+tabmenu (bukan cuma menu utama, termasuk tab di dialog detail seperti
+Client/Contract/Revenue Detail); (2) standarisasi -- satu warna brand
+`#013E37` untuk semuanya, bukan dibiarkan campur dengan `emerald-700`.
+
+**Fix**: 93 penggantian di 25 file (via script Python, bukan per-file
+manual, supaya konsisten persis):
+- `data-[state=active]:bg-white` -> `data-[state=active]:bg-[#013E37]`
+- `data-[state=active]:text-[#013E37]` / `text-emerald-700` ->
+  `data-[state=active]:text-white`
+- `group-data-[state=active]:text-[#013E37]/70` (3 titik: subteks di
+  TaskManagement, KnowledgeBase, QuotationManagement) ->
+  `text-white/70` -- kalau tidak ikut diubah, subteks kecil ini jadi
+  hijau gelap di atas background hijau gelap = nyaris tidak terbaca.
+
+**Sengaja TIDAK disentuh**: `OpportunityFormNew.tsx` (tabmenu wizard/
+step form) -- polanya terbalik dari yang lain (background putih untuk
+step AKTIF, putih transparan 20% untuk step tidak aktif), karena
+TabsList di situ duduk di atas header yang sudah berwarna hijau/gelap.
+Kalau ikut diseragamkan akan berisiko step aktif jadi tidak kontras
+dengan background di belakangnya sendiri. `ConversionDetailDialog.tsx`,
+`AccountManagerDetailDialog.tsx` dan file lain yang tidak override
+className juga tidak disentuh -- sudah otomatis pakai Pola A (hijau)
+dari base `ui/tabs.tsx`.
+
+**Verifikasi**: `tsc --noEmit` sebelum/sesudah identik 89 error (nol
+regresi); `vite build` sukses; `vitest run` 11/11 lulus; dicek nol
+sisa `data-[state=active]:bg-white` di manapun; dicek juga tidak ada
+trailing whitespace BARU yang ditambahkan (847 baris trailing
+whitespace yang ada di file2 ini semuanya sudah ada sebelum perubahan,
+dikonfirmasi dengan `git show HEAD:<file>` vs isi setelah edit).
+Dikomit `158ec842`.
+
+**Status**: siap `git push` + deploy. Setelah live, cek semua menu
+yang tab-nya kena perubahan (Quotation Management, Task, Opportunity,
+Discount Approval, Custom Report, Sales Reports, Commission
+Calculator, Admin System, Advanced Analytics, Territory Management,
+Knowledge Base, Integration Hub, Product Catalog, Performance Hub,
+Sales Team, dan dialog detail seperti Contract/Client/Revenue/Deals/
+Demo Scheduler/Settings/KPI AI) -- tabmenu aktif sekarang harus solid
+hijau `#013E37` dengan teks putih, bukan lagi pill putih.
