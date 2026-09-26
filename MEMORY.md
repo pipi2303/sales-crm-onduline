@@ -5194,3 +5194,93 @@ Knowledge Base, Integration Hub, Product Catalog, Performance Hub,
 Sales Team, dan dialog detail seperti Contract/Client/Revenue/Deals/
 Demo Scheduler/Settings/KPI AI) -- tabmenu aktif sekarang harus solid
 hijau `#013E37` dengan teks putih, bukan lagi pill putih.
+
+
+## Bab 55 (26 Sep 2026): Seragamkan desain KPI/info card ke seluruh app
+
+**Permintaan user**: mengirim screenshot 4 card ("Total Laporan 3 /
+Laporan Tersimpan", "Terjadwal 2 / Otomatisasi Aktif", "Penerima 16 /
+Total Langganan", "Exported 1.2k / Bulan Ini") dan minta "ganti semua
+design kpi card atau card information ... sesuai dengan gambar yang
+saya upload, content, tulisan, dll mengikuti menu masing-masing.
+berikan insight ke saya".
+
+**Insight kunci**: setelah ditelusuri, screenshot itu ternyata BUKAN
+referensi eksternal -- itu adalah desain yang SUDAH ADA di
+`CustomReportBuilder.tsx` sendiri (menu Custom Report Builder). Jadi
+permintaannya adalah menyeragamkan desain card statistik itu ke SEMUA
+menu lain, bukan membuat desain baru dari nol.
+
+**Audit** (grep `TabsTrigger`-adjacent stat blocks, `grid-cols-N` di
+30 file): ditemukan setiap menu punya bentuk card sendiri-sendiri
+(khas app yang dibangun lewat Figma Make tanpa design system
+terpusat), dikelompokkan jadi beberapa keluarga:
+- Icon BULAT gradient + baris horizontal (Home.tsx 2 blok,
+  SalesKPICards.tsx, Contract.tsx, ProductCatalog.tsx)
+- Icon KOTAK di kanan + label/value di kiri, tanpa ghost icon
+  (QuotationManagement.tsx, AdminSystem.tsx, CommissionCalculator.tsx,
+  OpportunityManagement.tsx -- 7 card)
+- `CardHeader` polos + icon kanan atas, tanpa badge warna
+  (TerritoryManagement.tsx -- 5 card, KnowledgeBase.tsx)
+- `IntegrationHub.tsx` sudah HAMPIR identik dengan referensi (beda
+  tipis di ukuran font label)
+- `AdvancedAnalytics.tsx` punya komponen lokal `KPICard` dengan warna
+  HEX dinamis (bukan className Tailwind) + fitur delta naik/turun
+  yang tidak ada di desain referensi
+
+Dikonfirmasi ke user via AskUserQuestion (2 pertanyaan): (1) fitur
+delta di AdvancedAnalytics -- **dipertahankan**, tampilan disesuaikan
+ke desain baru; (2) card Performance Hub yang punya progress bar/badge
+-- **dibiarkan seperti sekarang** karena kontennya beda dari KPI card
+biasa.
+
+**Implementasi**: dibuat komponen bersama
+`src/app/components/ui/stat-card.tsx` (`StatCard` + `StatCardData`)
+yang mereplikasi persis desain `CustomReportBuilder.tsx`: `motion.div`
+stagger animation, ghost icon transparan (opacity-10) di pojok kanan
+atas yang membesar saat hover, badge icon kecil berwarna di
+`CardHeader`/`CardTitle`, angka besar (`text-2xl font-black`), caption
+kecil di bawahnya, plus slot `children` opsional untuk konten ekstra
+(dipakai untuk baris delta di AdvancedAnalytics).
+
+Diterapkan ke 12 file (list detail ada di commit `6c162c94`): Home.tsx
+(2 blok -- stats utama + Revenue MTD/YTD/Win Rate/Kepatuhan Visit),
+SalesKPICards.tsx (ditulis ulang total), Contract.tsx,
+ProductCatalog.tsx (1 card -- Best Seller -- dibuat manual karena
+isinya Tooltip nama produk, bukan angka polos), QuotationManagement.tsx,
+AdminSystem.tsx, CommissionCalculator.tsx, OpportunityManagement.tsx
+(7 card jadi satu array + `.map`), TerritoryManagement.tsx (5 card),
+KnowledgeBase.tsx, IntegrationHub.tsx (migrasi penuh ke `<StatCard>`,
+sebelumnya sudah punya JSX yang nyaris sama tapi terduplikasi),
+AdvancedAnalytics.tsx (`KPICard` lokal di-restyle in-place, prop API
+tidak berubah, jadi 4 titik pemakaiannya otomatis ikut berubah tanpa
+disentuh).
+
+**Sengaja TIDAK disentuh** (dikonfirmasi user untuk kasus Performance
+Hub, saya putuskan sendiri untuk TeamKPICards & DiscountApproval
+dengan alasan yang sama seperti precedent Bab 54):
+- `TeamKPICards.tsx`: mini-card padat (`size='sm'|'md'`, border-2,
+  bukan `Card` penuh) dipakai berulang kali untuk drill-down
+  per-manager di dalam tabel `SalesReports.tsx` -- bukan info card
+  level halaman, mengubahnya ke bentuk besar akan merusak kepadatan
+  tampilan tabel.
+- `PerformanceHub.tsx`: card di tab Activity Metrics & Product Push
+  berisi progress bar dan Badge, bukan sekadar angka+label --
+  dikonfirmasi user untuk dibiarkan.
+- `DiscountApprovalSystem.tsx`: tidak punya info card level halaman
+  sama sekali -- grid yang sempat ditemukan adalah field detail
+  per-request di dalam list/dialog (Final Value, Diskon %, dst),
+  desain berbeda dan tetap sesuai untuk konteksnya.
+
+**Verifikasi**: `tsc --noEmit` sebelum/sesudah identik 89 error (diff
+yang muncul murni pergeseran nomor baris karena baris ditambahkan,
+pesan errornya sama persis -- pola false-alarm yang sudah didokumentasikan
+sejak Bab 45); `vite build` sukses; `vitest run` 11/11 lulus; nol
+baris baru dengan trailing whitespace. Dikomit `6c162c94`.
+
+**Status**: siap `git push` + deploy. Setelah live, cek tampilan card
+statistik di semua menu yang kena perubahan -- semuanya sekarang harus
+punya bentuk yang sama persis dengan Custom Report Builder (ghost icon
+transparan di kanan atas, badge icon kecil berwarna, angka besar,
+caption di bawah), dengan konten/label/warna masing-masing menu tetap
+seperti semula.
