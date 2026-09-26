@@ -201,21 +201,21 @@ export function IntegrationHub() {
         <TabsList className="w-full h-auto p-1 bg-gray-100/50 backdrop-blur-sm rounded-xl border border-gray-200 grid grid-cols-3">
           <TabsTrigger 
             value="integrations" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-bold text-sm uppercase tracking-tight">Katalog Aplikasi</span>
             <span className="text-[10px] text-gray-500 font-medium uppercase tracking-widest">Konektivitas 3rd Party</span>
           </TabsTrigger>
           <TabsTrigger 
             value="webhooks" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-bold text-sm uppercase tracking-tight">Webhooks</span>
             <span className="text-[10px] text-gray-500 font-medium uppercase tracking-widest">Otomasi Event Real-time</span>
           </TabsTrigger>
           <TabsTrigger 
             value="api" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-bold text-sm uppercase tracking-tight">API Management</span>
             <span className="text-[10px] text-gray-500 font-medium uppercase tracking-widest">Keamanan & Akses Data</span>

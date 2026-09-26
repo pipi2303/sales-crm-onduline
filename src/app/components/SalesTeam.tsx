@@ -256,25 +256,25 @@ export function SalesTeam() {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-4 lg:w-[820px] h-14 bg-gray-100/50 p-1">
-          <TabsTrigger value="client" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700">
+          <TabsTrigger value="client" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-[#013E37] data-[state=active]:shadow-sm data-[state=active]:text-white">
             <div className="flex items-center gap-2">
               <Building2 className="h-4 w-4" />
               <span className="font-bold text-sm">Client</span>
             </div>
           </TabsTrigger>
-          <TabsTrigger value="distributor" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700">
+          <TabsTrigger value="distributor" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-[#013E37] data-[state=active]:shadow-sm data-[state=active]:text-white">
             <div className="flex items-center gap-2">
               <Truck className="h-4 w-4" />
               <span className="font-bold text-sm">Distributor</span>
             </div>
           </TabsTrigger>
-          <TabsTrigger value="toko" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700">
+          <TabsTrigger value="toko" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-[#013E37] data-[state=active]:shadow-sm data-[state=active]:text-white">
             <div className="flex items-center gap-2">
               <StoreIcon className="h-4 w-4" />
               <span className="font-bold text-sm">Toko</span>
             </div>
           </TabsTrigger>
-          <TabsTrigger value="ai-insights" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700">
+          <TabsTrigger value="ai-insights" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-[#013E37] data-[state=active]:shadow-sm data-[state=active]:text-white">
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4" />
               <span className="font-bold text-sm">AI Insights</span>

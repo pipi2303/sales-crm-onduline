@@ -968,14 +968,14 @@ export function KPIAIEnhanced() {
           {/* View Mode Tabs */}
           <Tabs value={viewMode} onValueChange={(v: any) => setViewMode(v)} className="w-full">
             <TabsList className="h-14 bg-gray-100/50 p-1 flex overflow-x-auto no-scrollbar justify-start max-w-xl">
-              <TabsTrigger value="analytics" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 min-w-[120px]">
+              <TabsTrigger value="analytics" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-[#013E37] data-[state=active]:shadow-sm data-[state=active]:text-white min-w-[120px]">
                 <div className="flex items-center gap-1.5 justify-center">
                   <LineChart className="w-4 h-4" />
                   <span className="font-bold text-sm">Analytics</span>
                 </div>
                 <span className="text-[10px] uppercase tracking-wider font-semibold opacity-60">GRAFIK & TREN</span>
               </TabsTrigger>
-              <TabsTrigger value="list" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 min-w-[120px]">
+              <TabsTrigger value="list" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-[#013E37] data-[state=active]:shadow-sm data-[state=active]:text-white min-w-[120px]">
                 <div className="flex items-center gap-1.5 justify-center">
                   <Target className="w-4 h-4" />
                   <span className="font-bold text-sm">List View</span>
@@ -1035,32 +1035,32 @@ export function KPIAIEnhanced() {
                 <CardContent className="p-6">
                   <Tabs defaultValue="overview" className="w-full">
                     <TabsList className="h-14 bg-gray-100/50 p-1 flex overflow-x-auto no-scrollbar justify-start w-full">
-                      <TabsTrigger value="overview" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 min-w-[100px] flex-1">
+                      <TabsTrigger value="overview" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-[#013E37] data-[state=active]:shadow-sm data-[state=active]:text-white min-w-[100px] flex-1">
                         <span className="font-bold text-xs">Overview</span>
                         <span className="text-[8px] uppercase tracking-wider font-semibold opacity-60">RINGKASAN</span>
                       </TabsTrigger>
-                      <TabsTrigger value="insights" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 min-w-[100px] flex-1">
+                      <TabsTrigger value="insights" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-[#013E37] data-[state=active]:shadow-sm data-[state=active]:text-white min-w-[100px] flex-1">
                         <div className="flex items-center gap-1 justify-center">
                           <Brain className="w-3 h-3" />
                           <span className="font-bold text-xs">AI Insights</span>
                         </div>
                         <span className="text-[8px] uppercase tracking-wider font-semibold opacity-60">WAWASAN AI</span>
                       </TabsTrigger>
-                      <TabsTrigger value="recommendations" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 min-w-[100px] flex-1">
+                      <TabsTrigger value="recommendations" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-[#013E37] data-[state=active]:shadow-sm data-[state=active]:text-white min-w-[100px] flex-1">
                         <div className="flex items-center gap-1 justify-center">
                           <Lightbulb className="w-3 h-3" />
                           <span className="font-bold text-xs">Saran</span>
                         </div>
                         <span className="text-[8px] uppercase tracking-wider font-semibold opacity-60">REKOMENDASI</span>
                       </TabsTrigger>
-                      <TabsTrigger value="predictions" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 min-w-[100px] flex-1">
+                      <TabsTrigger value="predictions" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-[#013E37] data-[state=active]:shadow-sm data-[state=active]:text-white min-w-[100px] flex-1">
                         <div className="flex items-center gap-1 justify-center">
                           <TrendingUp className="w-3 h-3" />
                           <span className="font-bold text-xs">Predictions</span>
                         </div>
                         <span className="text-[8px] uppercase tracking-wider font-semibold opacity-60">PREDIKSI</span>
                       </TabsTrigger>
-                      <TabsTrigger value="alerts" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 min-w-[100px] flex-1">
+                      <TabsTrigger value="alerts" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-[#013E37] data-[state=active]:shadow-sm data-[state=active]:text-white min-w-[100px] flex-1">
                         <div className="flex items-center gap-1 justify-center">
                           <Bell className="w-3 h-3" />
                           <span className="font-bold text-xs">Alerts ({alerts.length})</span>

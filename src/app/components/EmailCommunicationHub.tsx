@@ -367,23 +367,23 @@ export function EmailCommunicationHub() {
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="w-full h-auto p-1 bg-gray-100/50 backdrop-blur-sm rounded-xl border border-gray-200 grid grid-cols-5">
-          <TabsTrigger value="inbox" className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
+          <TabsTrigger value="inbox" className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
             <span className="font-bold text-sm uppercase tracking-tight">Inbox</span>
             <span className="text-[10px] text-gray-400 font-medium uppercase tracking-widest">Received</span>
           </TabsTrigger>
-          <TabsTrigger value="sent" className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
+          <TabsTrigger value="sent" className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
             <span className="font-bold text-sm uppercase tracking-tight">Sent</span>
             <span className="text-[10px] text-gray-400 font-medium uppercase tracking-widest">Outgoing</span>
           </TabsTrigger>
-          <TabsTrigger value="templates" className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
+          <TabsTrigger value="templates" className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
             <span className="font-bold text-sm uppercase tracking-tight">Templates</span>
             <span className="text-[10px] text-gray-400 font-medium uppercase tracking-widest">Ready to Use</span>
           </TabsTrigger>
-          <TabsTrigger value="campaigns" className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
+          <TabsTrigger value="campaigns" className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
             <span className="font-bold text-sm uppercase tracking-tight">Campaigns</span>
             <span className="text-[10px] text-gray-400 font-medium uppercase tracking-widest">Bulk Emails</span>
           </TabsTrigger>
-          <TabsTrigger value="analytics" className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
+          <TabsTrigger value="analytics" className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
             <span className="font-bold text-sm uppercase tracking-tight">Analytics</span>
             <span className="text-[10px] text-gray-400 font-medium uppercase tracking-widest">Performance</span>
           </TabsTrigger>

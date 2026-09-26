@@ -268,7 +268,7 @@ export function AdvancedAnalytics() {
             { value: 'products', label: 'Produk', icon: ShoppingBag },
           ].map(tab => (
             <TabsTrigger key={tab.value} value={tab.value}
-              className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-2 flex items-center gap-1.5 transition-all text-xs font-semibold">
+              className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-2 flex items-center gap-1.5 transition-all text-xs font-semibold">
               <tab.icon className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">{tab.label}</span>
             </TabsTrigger>

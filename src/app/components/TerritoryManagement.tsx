@@ -368,21 +368,21 @@ export function TerritoryManagement() {
         <TabsList className="w-full h-auto p-1 bg-gray-100/50 backdrop-blur-sm rounded-xl border border-gray-200 grid grid-cols-3">
           <TabsTrigger 
             value="territories" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-bold text-sm uppercase tracking-tight">Wilayah</span>
             <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Territories</span>
           </TabsTrigger>
           <TabsTrigger 
             value="analytics" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-bold text-sm uppercase tracking-tight">Analitik</span>
             <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Market Insights</span>
           </TabsTrigger>
           <TabsTrigger 
             value="map" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-bold text-sm uppercase tracking-tight">Visual Map</span>
             <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Geospatial</span>

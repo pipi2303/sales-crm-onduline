@@ -764,21 +764,21 @@ export function ClientDetailDialog({ open, onOpenChange, client, onEdit }: Clien
                 <div className="px-6 pb-6 pt-2">
                   <Tabs defaultValue="lead-scoring" className="space-y-4">
                     <TabsList className="h-14 bg-gray-100/50 p-1 flex overflow-x-auto no-scrollbar justify-start w-full">
-                      <TabsTrigger value="lead-scoring" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 flex-1">
+                      <TabsTrigger value="lead-scoring" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-[#013E37] data-[state=active]:shadow-sm data-[state=active]:text-white flex-1">
                         <div className="flex items-center gap-1.5 justify-center">
                           <Target className="h-4 w-4" />
                           <span className="font-bold text-sm">Lead Scoring</span>
                         </div>
                         <span className="text-[10px] uppercase tracking-wider font-semibold opacity-60">SKOR PROSPEK</span>
                       </TabsTrigger>
-                      <TabsTrigger value="recommendations" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 flex-1">
+                      <TabsTrigger value="recommendations" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-[#013E37] data-[state=active]:shadow-sm data-[state=active]:text-white flex-1">
                         <div className="flex items-center gap-1.5 justify-center">
                           <Lightbulb className="h-4 w-4" />
                           <span className="font-bold text-sm">Recommendations</span>
                         </div>
                         <span className="text-[10px] uppercase tracking-wider font-semibold opacity-60">SARAN CERDAS</span>
                       </TabsTrigger>
-                      <TabsTrigger value="actions" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 flex-1">
+                      <TabsTrigger value="actions" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-[#013E37] data-[state=active]:shadow-sm data-[state=active]:text-white flex-1">
                         <div className="flex items-center gap-1.5 justify-center">
                           <Sparkles className="h-4 w-4" />
                           <span className="font-bold text-sm">Quick Actions</span>

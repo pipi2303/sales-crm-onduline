@@ -205,35 +205,35 @@ export function SalesReports() {
         <TabsList className="w-full h-auto p-1 bg-gray-100/50 backdrop-blur-sm rounded-xl border border-gray-200 grid grid-cols-3 md:grid-cols-5 gap-1">
           <TabsTrigger 
             value="overview" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-bold text-sm uppercase tracking-tight">Overview</span>
             <span className="text-[10px] text-gray-500 font-medium uppercase tracking-widest">Ringkasan Eksekutif</span>
           </TabsTrigger>
           <TabsTrigger 
             value="sales" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-bold text-sm uppercase tracking-tight">Sales Analysis</span>
             <span className="text-[10px] text-gray-500 font-medium uppercase tracking-widest">Analisis Pendapatan</span>
           </TabsTrigger>
           <TabsTrigger 
             value="performance" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-bold text-sm uppercase tracking-tight">Team Performance</span>
             <span className="text-[10px] text-gray-500 font-medium uppercase tracking-widest">Evaluasi Tim Sales</span>
           </TabsTrigger>
           <TabsTrigger 
             value="products" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-bold text-sm uppercase tracking-tight">Product Analysis</span>
             <span className="text-[10px] text-gray-500 font-medium uppercase tracking-widest">Performa Produk</span>
           </TabsTrigger>
           <TabsTrigger 
             value="regional" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-bold text-sm uppercase tracking-tight">Regional Analysis</span>
             <span className="text-[10px] text-gray-500 font-medium uppercase tracking-widest">Sebaran Wilayah</span>

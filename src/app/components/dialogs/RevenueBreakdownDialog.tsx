@@ -116,15 +116,15 @@ export function RevenueBreakdownDialog({
 
           <Tabs value={tab} onValueChange={(v: any) => onTabChange(v)} className="space-y-6">
             <TabsList className="h-auto bg-gray-100/80 p-1 grid grid-cols-3 gap-1 rounded-xl">
-              <TabsTrigger value="projek" className="flex flex-col gap-0.5 py-2.5 data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg border-transparent">
+              <TabsTrigger value="projek" className="flex flex-col gap-0.5 py-2.5 data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg border-transparent">
                 <span className="font-bold text-sm">Proyek</span>
                 <span className="text-[10px] uppercase tracking-wider font-bold opacity-50">KONTRAKTOR & DEVELOPER</span>
               </TabsTrigger>
-              <TabsTrigger value="retail" className="flex flex-col gap-0.5 py-2.5 data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg border-transparent">
+              <TabsTrigger value="retail" className="flex flex-col gap-0.5 py-2.5 data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg border-transparent">
                 <span className="font-bold text-sm">Retail</span>
                 <span className="text-[10px] uppercase tracking-wider font-bold opacity-50">PASAR RITEL</span>
               </TabsTrigger>
-              <TabsTrigger value="distributor" className="flex flex-col gap-0.5 py-2.5 data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg border-transparent">
+              <TabsTrigger value="distributor" className="flex flex-col gap-0.5 py-2.5 data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg border-transparent">
                 <span className="font-bold text-sm">Distributor</span>
                 <span className="text-[10px] uppercase tracking-wider font-bold opacity-50">JALUR DISTRIBUTOR</span>
               </TabsTrigger>

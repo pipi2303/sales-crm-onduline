@@ -280,28 +280,28 @@ export function QuotationManagement() {
         <TabsList className="w-full h-auto p-1.5 bg-gray-100/80 backdrop-blur-md rounded-2xl border border-gray-200 grid grid-cols-4 gap-1.5">
           <TabsTrigger 
             value="list" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-xl py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-xl py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-black text-xs uppercase tracking-tight">Quotations</span>
-            <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest group-data-[state=active]:text-[#013E37]/70">Daftar Penawaran</span>
+            <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest group-data-[state=active]:text-white/70">Daftar Penawaran</span>
           </TabsTrigger>
           <TabsTrigger 
             value="analytics" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-xl py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-xl py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-black text-xs uppercase tracking-tight">Analytics</span>
             <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Metrik Performa</span>
           </TabsTrigger>
           <TabsTrigger 
             value="templates" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-xl py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-xl py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-black text-xs uppercase tracking-tight">Templates</span>
             <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Master Dokumen</span>
           </TabsTrigger>
           <TabsTrigger 
             value="settings" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-xl py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-xl py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-black text-xs uppercase tracking-tight">Settings</span>
             <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Konfigurasi</span>

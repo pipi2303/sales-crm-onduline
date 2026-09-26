@@ -218,21 +218,21 @@ export function CustomReportBuilder() {
         <TabsList className="w-full h-auto p-1 bg-gray-100/50 backdrop-blur-sm rounded-xl border border-gray-200 grid grid-cols-3">
           <TabsTrigger 
             value="reports" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-bold text-sm uppercase tracking-tight">Laporan Saya</span>
             <span className="text-[10px] text-gray-500 font-medium uppercase tracking-widest">Akses & Kelola</span>
           </TabsTrigger>
           <TabsTrigger 
             value="builder" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-bold text-sm uppercase tracking-tight">Report Designer</span>
             <span className="text-[10px] text-gray-500 font-medium uppercase tracking-widest">Kustomisasi Visual</span>
           </TabsTrigger>
           <TabsTrigger 
             value="templates" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-bold text-sm uppercase tracking-tight">Katalog Template</span>
             <span className="text-[10px] text-gray-500 font-medium uppercase tracking-widest">Siap Pakai</span>

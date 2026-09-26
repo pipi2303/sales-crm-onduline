@@ -349,15 +349,15 @@ export function DiscountApprovalSystem() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="w-full h-auto p-1 bg-gray-100/50 backdrop-blur-sm rounded-xl border border-gray-200 grid grid-cols-3">
-          <TabsTrigger value="requests" className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
+          <TabsTrigger value="requests" className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
             <span className="font-bold text-sm uppercase tracking-tight">Antrean Pengajuan</span>
             <span className="text-[10px] text-gray-400 font-medium uppercase tracking-widest">Daftar Aktif</span>
           </TabsTrigger>
-          <TabsTrigger value="policies" className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
+          <TabsTrigger value="policies" className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
             <span className="font-bold text-sm uppercase tracking-tight">Kebijakan & Matriks</span>
             <span className="text-[10px] text-gray-400 font-medium uppercase tracking-widest">Aturan Berjenjang</span>
           </TabsTrigger>
-          <TabsTrigger value="analytics" className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
+          <TabsTrigger value="analytics" className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
             <span className="font-bold text-sm uppercase tracking-tight">Insight Performa</span>
             <span className="text-[10px] text-gray-400 font-medium uppercase tracking-widest">Tren & Analitik</span>
           </TabsTrigger>

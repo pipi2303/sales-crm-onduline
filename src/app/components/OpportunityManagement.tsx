@@ -507,7 +507,7 @@ export function OpportunityManagement() {
         <TabsList className="w-full h-auto p-1 bg-gray-100/50 backdrop-blur-sm rounded-xl border border-gray-200 grid grid-cols-3">
           <TabsTrigger 
             value="pipeline" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <div className="flex items-center gap-1.5 justify-center">
               <LayoutGrid className="h-4 w-4" />
@@ -517,7 +517,7 @@ export function OpportunityManagement() {
           </TabsTrigger>
           <TabsTrigger 
             value="list" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <div className="flex items-center gap-1.5 justify-center">
               <List className="h-4 w-4" />
@@ -527,7 +527,7 @@ export function OpportunityManagement() {
           </TabsTrigger>
           <TabsTrigger 
             value="forecast" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <div className="flex items-center gap-1.5 justify-center">
               <TrendingUp className="h-4 w-4" />

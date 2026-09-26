@@ -134,23 +134,23 @@ export function KnowledgeBase() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="w-full h-auto p-1 bg-gray-100/50 backdrop-blur-sm rounded-xl border border-gray-200 grid grid-cols-5">
-          <TabsTrigger value="all" className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
+          <TabsTrigger value="all" className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
             <span className="font-bold text-sm uppercase tracking-tight">Semua</span>
-            <span className="text-[10px] text-gray-400 font-medium uppercase tracking-widest group-data-[state=active]:text-[#013E37]/70">Library</span>
+            <span className="text-[10px] text-gray-400 font-medium uppercase tracking-widest group-data-[state=active]:text-white/70">Library</span>
           </TabsTrigger>
-          <TabsTrigger value="documents" className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
+          <TabsTrigger value="documents" className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
             <span className="font-bold text-sm uppercase tracking-tight">Dokumen</span>
             <span className="text-[10px] text-gray-400 font-medium uppercase tracking-widest">PDF & Guides</span>
           </TabsTrigger>
-          <TabsTrigger value="videos" className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
+          <TabsTrigger value="videos" className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
             <span className="font-bold text-sm uppercase tracking-tight">Video</span>
             <span className="text-[10px] text-gray-400 font-medium uppercase tracking-widest">Training</span>
           </TabsTrigger>
-          <TabsTrigger value="faq" className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
+          <TabsTrigger value="faq" className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
             <span className="font-bold text-sm uppercase tracking-tight">FAQ</span>
             <span className="text-[10px] text-gray-400 font-medium uppercase tracking-widest">Solusi Cepat</span>
           </TabsTrigger>
-          <TabsTrigger value="upload" className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
+          <TabsTrigger value="upload" className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5">
             <span className="font-bold text-sm uppercase tracking-tight">Internal</span>
             <span className="text-[10px] text-gray-400 font-medium uppercase tracking-widest">Contributor</span>
           </TabsTrigger>

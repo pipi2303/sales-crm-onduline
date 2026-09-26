@@ -183,28 +183,28 @@ export function PerformanceHub() {
         <TabsList className="w-full h-auto p-1 bg-gray-100/50 backdrop-blur-sm rounded-xl border border-gray-200 grid grid-cols-4">
           <TabsTrigger 
             value="activity" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-bold text-sm uppercase tracking-tight">Activity Metrics</span>
             <span className="text-[10px] text-gray-500 font-medium uppercase tracking-widest">Metrik Aktivitas</span>
           </TabsTrigger>
           <TabsTrigger 
             value="results" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-bold text-sm uppercase tracking-tight">Output Results</span>
             <span className="text-[10px] text-gray-500 font-medium uppercase tracking-widest">Hasil Pencapaian</span>
           </TabsTrigger>
           <TabsTrigger 
             value="products" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-bold text-sm uppercase tracking-tight">Product Push</span>
             <span className="text-[10px] text-gray-500 font-medium uppercase tracking-widest">Penjualan Produk</span>
           </TabsTrigger>
           <TabsTrigger 
             value="quality" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-bold text-sm uppercase tracking-tight">Quality & Retention</span>
             <span className="text-[10px] text-gray-500 font-medium uppercase tracking-widest">Kualitas & Retensi</span>

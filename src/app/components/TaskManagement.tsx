@@ -608,28 +608,28 @@ export function TaskManagement() {
         <TabsList className="w-full h-auto p-1 bg-gray-100/50 backdrop-blur-sm rounded-xl border border-gray-200 grid grid-cols-4">
           <TabsTrigger 
             value="my-tasks" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-bold text-sm uppercase tracking-tight">My Tasks</span>
-            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest group-data-[state=active]:text-[#013E37]/70">Daftar Tugas Saya</span>
+            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest group-data-[state=active]:text-white/70">Daftar Tugas Saya</span>
           </TabsTrigger>
           <TabsTrigger 
             value="team-tasks" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-bold text-sm uppercase tracking-tight">Team Tasks</span>
             <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Aktivitas Tim</span>
           </TabsTrigger>
           <TabsTrigger 
             value="calendar" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-bold text-sm uppercase tracking-tight">Calendar</span>
             <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Timeline Jadwal</span>
           </TabsTrigger>
           <TabsTrigger 
             value="completed" 
-            className="data-[state=active]:bg-white data-[state=active]:text-[#013E37] data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
+            className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-lg py-3 flex flex-col gap-0.5 transition-all duration-300"
           >
             <span className="font-bold text-sm uppercase tracking-tight">Completed</span>
             <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Riwayat Tugas</span>

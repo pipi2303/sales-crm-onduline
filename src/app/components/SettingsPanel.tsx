@@ -124,21 +124,21 @@ export function SettingsPanel() {
 
       <Tabs defaultValue="branding" className="space-y-6">
         <TabsList className="h-14 bg-gray-100/50 p-1 flex overflow-x-auto no-scrollbar justify-start w-full lg:w-[600px]">
-          <TabsTrigger value="branding" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 flex-1">
+          <TabsTrigger value="branding" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-[#013E37] data-[state=active]:shadow-sm data-[state=active]:text-white flex-1">
             <div className="flex items-center gap-1.5 justify-center">
               <Palette className="h-4 w-4" />
               <span className="font-bold text-sm">Branding</span>
             </div>
             <span className="text-[10px] uppercase tracking-wider font-semibold opacity-60">IDENTITAS VISUAL</span>
           </TabsTrigger>
-          <TabsTrigger value="notifications" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 flex-1">
+          <TabsTrigger value="notifications" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-[#013E37] data-[state=active]:shadow-sm data-[state=active]:text-white flex-1">
             <div className="flex items-center gap-1.5 justify-center">
               <Bell className="h-4 w-4" />
               <span className="font-bold text-sm">Notifikasi</span>
             </div>
             <span className="text-[10px] uppercase tracking-wider font-semibold opacity-60">PENGATURAN ALERTA</span>
           </TabsTrigger>
-          <TabsTrigger value="collaboration" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-700 flex-1">
+          <TabsTrigger value="collaboration" className="flex flex-col gap-0.5 py-1.5 data-[state=active]:bg-[#013E37] data-[state=active]:shadow-sm data-[state=active]:text-white flex-1">
             <div className="flex items-center gap-1.5 justify-center">
               <Building2 className="h-4 w-4" />
               <span className="font-bold text-sm">Kolaborasi</span>
