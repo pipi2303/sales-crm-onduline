@@ -5570,3 +5570,49 @@ pola yang sudah ada di `DistributorStoreMap.tsx` (pin custom lewat
 yang diubah; `tsc --noEmit` sebelum/sesudah (via `git stash`) hasilnya
 identik (0 error baru); `vite build` sukses (chunk `leaflet` ikut
 ter-bundle terpisah); `vitest run` 11/11 test tetap lulus.
+
+## Bab 60 & 61 (27 Sep 2026): Insight otomatis di grafik Discount Approval & Territory Management
+
+**Laporan user**: (1) "dimenu Discount Approval, tabmenu insight
+performa, berikan insight di masing-masing grafik"; (2) "di Territory
+Management, tabmenu analitik, berikan insight di masing-masing grafik".
+
+Kedua tabmenu ini sebelumnya cuma menampilkan grafik mentah (Recharts)
+tanpa narasi -- pengguna harus baca sendiri chart-nya untuk menyimpulkan
+apa yang penting. Pola fix untuk keduanya sama: tambahkan box kecil
+"Insight" (ikon Lightbulb, background hijau muda) di bawah tiap grafik,
+isinya kalimat yang dihitung otomatis dari data yang sedang ditampilkan
+grafik itu -- bukan teks statis -- jadi ikut berubah kalau filter/data
+berubah.
+
+**`DiscountApprovalSystem.tsx`, tabmenu Insight Performa** (2 grafik):
+- Margin vs Diskon Per Wilayah: sebut kategori dengan diskon terdalam +
+  penurunan margin (poin), plus rata-rata diskon untuk wilayah yang
+  sedang difilter.
+- Dampak Revenue: arah & besaran perubahan revenue dari minggu pertama
+  ke minggu terakhir, minggu dengan revenue puncak, total estimasi
+  margin terselamatkan. Sekalian dibereskan: data dummy grafik ini
+  sebelumnya array literal langsung di JSX yang di-generate ulang tiap
+  render lewat `Math.random()` (nilai baru tiap re-render, tidak
+  konsisten) -- dipindah ke `useMemo` (key `selectedRegion`) supaya
+  stabil dan teks insight-nya konsisten dengan angka yang benar-benar
+  tampil di grafik.
+
+**`TerritoryManagement.tsx`, tabmenu Analitik** (2 grafik):
+- Revenue vs Target: total pencapaian seluruh wilayah vs target
+  (persentase + nominal via `formatCurrency`), wilayah dengan
+  pencapaian tertinggi (`stats.topPerformer`) & yang paling tertinggal.
+- Market Concentration: region dengan konsentrasi wilayah terbanyak
+  (dari `regionData`) beserta persentase share, dan jumlah region
+  berbeda yang tercatat.
+
+Kedua insight di Territory Management dihitung langsung dari
+`territories`/`regionData`/`stats` yang sudah ada di komponen (bukan
+state baru), jadi otomatis ikut berubah begitu data wilayah
+ditambah/diedit -- tidak perlu wiring tambahan.
+
+**Verifikasi**: tidak ada trailing whitespace baru di kedua berkas;
+`tsc --noEmit` sebelum/sesudah identik (hanya 1 baris pre-existing error
+yang nomor barisnya bergeser karena kode baru ditambahkan di atasnya,
+bukan error baru); `vite build` sukses; `vitest run` 11/11 test tetap
+lulus.
