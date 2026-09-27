@@ -5764,3 +5764,122 @@ kolom lain atau baris karyawan lain.
 sebelum/sesudah identik (hanya 1 baris pre-existing error yang nomor
 barisnya bergeser, sudah diverifikasi bukan error baru); `vite build`
 sukses; `vitest run` 11/11 test tetap lulus.
+
+## Bab 65 (27 Sep 2026): Data dummy Commission Records selalu kosong (Commission Control)
+
+**Laporan user**: "ke menu Commission Control, tabmenu Commission
+records, saat ini data belum ada, tambahkan data dummy."
+
+**Root cause**: `SEED_COMMISSIONS` di `src/utils/loadAllDummyData.ts`
+cuma berisi periode `2024-01-01`/`2024-02-01` (tanggal absolut,
+hardcode). Sejak fix Bab 34, `CommissionCalculator.tsx` defaultnya
+membuka periode BULAN BERJALAN -- `PERIOD_OPTIONS[0]`, dihitung rolling
+dari `new Date()` saat layar dibuka (lihat `buildPeriodOptions()`), lalu
+`currentPeriodCommissions` memfilter `commissions` berdasarkan periode
+yang sedang dipilih itu. Jadi walau tombol "Load Dummy Data" sudah
+ditekan dan record komisi Jan/Feb 2024 berhasil dibuat, tab Commission
+Records akan SELALU terlihat kosong di tampilan default -- baru muncul
+kalau user secara manual mengganti dropdown periode ke "Feb 2024".
+Bug ini seharusnya sudah bisa dihindari sejak Bab 34 (yang sudah
+membuat `PERIOD_OPTIONS` rolling), tapi `SEED_COMMISSIONS`-nya sendiri
+tidak ikut diperbarui saat itu.
+
+**Fix**: tambah helper `monthsAgoIso(monthsBack)` (pola sama dengan
+`daysFromNow()` yang sudah ada di file yang sama) dan 12 record baru
+untuk 3 bulan rolling terakhir (bulan berjalan + 2 bulan sebelumnya,
+dihitung relatif terhadap kapan tombol "Load Dummy Data" ditekan) untuk
+4 sales rep yang sama di `SEED_REPS` (Budi Santoso, Ani Wijaya, Dewi
+Kartika, Eko Prasetyo -- roster ini dipakai konsisten di banyak modul
+lain: Territory Management, Sales Forecast, dll, jadi sengaja TIDAK
+ditambah nama baru supaya tidak menyimpang). Target per rep disamakan
+dengan target wilayahnya di `SEED_TERRITORIES`. Status campuran
+(Pending/Approved/Paid) supaya begitu dummy data di-load, tab langsung
+terlihat berisi dengan variasi status yang realistis tanpa perlu ganti
+periode manual. 5 record legacy (Jan/Feb 2024) TETAP dipertahankan
+sebagai data historis (masih bisa dilihat dengan mengganti dropdown
+periode).
+
+**Catatan yang masih berlaku (bukan regresi dari commit ini)**: seperti
+sudah didokumentasikan sejak Bab 39/59, kategori SalesRep & Commission
+di alur "Load Dummy Data" gabungan MASIH belum idempotent -- menekan
+tombolnya berkali-kali akan menggandakan seluruh `SEED_REPS` +
+`SEED_COMMISSIONS` (termasuk 12 record baru ini), bukan cuma yang lama.
+Di luar scope laporan ini.
+
+## Bab 66 (27 Sep 2026): Simulation Tool "Kalkulasi Proyeksi" statis + redesign Payout Analytics (Commission Control)
+
+**Laporan user**: "lanjut ke tabmenu simulation tool, perbaiki
+kalkulasi proyeksi. ke tabmenu payout analytics, re-design grafik
+Payout Distribution by Sales Rep dan Payout Status. saat ini grafik
+tidak muncul dan terpotong dan tambahkan insight dari ke 2 grafik
+tersebut."
+
+**Simulation Tool -- root cause**: grafik "Kalkulasi Proyeksi" di
+sebelah simulator memakai array literal statis 5 titik
+(`{sales:0,comm:0}, ..., {sales:1000000000,comm:55250000}`),
+dihitung manual satu kali dan ditulis langsung sebagai angka --
+sama sekali tidak terhubung ke `tiers` (konfigurasi persentase di
+tabmenu Structure & Tiers) maupun ke `simAmount`/`simResults` yang
+baru saja dihitung user lewat simulator di sebelahnya. Kelas bug yang
+sama seperti `Math.random()` di grafik Dampak Revenue, Discount
+Approval (Bab 60): tampilan bisa diam-diam menyimpang dari kalkulasi
+sebenarnya kapan pun skema tier berubah, dan sama sekali tidak
+merefleksikan input simulasi yang sedang dilihat user.
+
+**Fix**: logika tier progresif di `calculateSim()` dipindah ke fungsi
+murni `computeCommissionForAmount(amount, tierList)`, dipakai ulang
+oleh `calculateSim()` sendiri DAN oleh `projectionData` (useMemo baru)
+yang menghasilkan titik-titik grafik dari batas-batas `tiers` yang
+sama persis + titik hasil `simAmount` user saat ini (kalau berupa
+angka valid). Titik simulasi user ditandai `ReferenceDot` di kurva,
+dan caption di bawah grafik berubah menjadi kalimat yang menyebutkan
+nilai simulasi tersebut (bukan caption statis generik).
+
+**Payout Analytics -- 2 bug ditemukan**:
+
+1. *Grafik "terpotong"*: kartu Payout Status meletakkan `PieChart`
+   (`ResponsiveContainer height="100%"`) DAN grid breakdown status di
+   bawahnya dalam satu `CardContent` `h-[350px] flex flex-col
+   items-center justify-center`, tanpa satu pun anak flex diberi
+   `flex-grow` eksplisit. Tinggi efektif `ResponsiveContainer` jadi
+   tidak stabil/kepotong tergantung browser karena harus berbagi
+   350px dengan elemen breakdown di bawahnya lewat `justify-center`
+   (bukan `stretch`). Fix: chart sekarang dapat wrapper div tinggi
+   tetap sendiri (`h-[240px]`), breakdown + insight box diletakkan di
+   luar box itu (card jadi tinggi natural, bukan dipaksa 350px).
+2. *Data tidak konsisten antar-periode*: `statusDistributionData`
+   menghitung potongan "Paid" dari `commissions` (SEMUA periode, tidak
+   difilter) sementara "Pending"/"Approved" dari
+   `currentPeriodCommissions` (periode yang sedang dipilih di
+   dropdown) -- 3 potongan pie yang sama tapi cakupan waktunya beda,
+   sama persis dengan bug `handleApproveAll` yang sudah diperbaiki di
+   Bab 34. Bug yang sama juga ada di `stats.paid`. Kedua tempat
+   sekarang konsisten discope ke `currentPeriodCommissions`.
+
+Selain itu ditambahkan insight otomatis (pola Lightbulb yang sama
+dengan Discount Approval/Territory Management, Bab 60-61) di kedua
+grafik: Payout Distribution by Sales Rep (sales rep dengan payout
+tertinggi periode ini + proporsi bonus) dan Payout Status (status
+paling dominan periode ini + nilai komisi yang masih pending).
+
+**Verifikasi -- catatan environment penting**: `npx tsc --noEmit`
+biasa CRASH (`RangeError: Maximum call stack size exceeded`) di putaran
+ini karena `@prisma/client` baru saja dinaikkan ke `7.10.0` di
+package.json/package-lock.json milik user (perubahan belum di-commit,
+BUKAN dari perubahan chapter ini) -- generated types Prisma v7 bikin
+compiler TypeScript stack overflow. Workaround yang berhasil:
+`node --stack-size=65500 ./node_modules/typescript/bin/tsc --noEmit -p
+tsconfig.json`. Baseline (tanpa perubahan chapter ini, via `git stash`)
+vs sesudah perubahan dibandingkan -- keduanya menunjukkan pre-existing
+error yang sama di file lain (tidak terkait, beberapa berubah baris
+antar-run karena flakiness resolusi tipe Prisma yang sama), TIDAK ADA
+satu pun error yang menyebut `CommissionCalculator.tsx` atau
+`loadAllDummyData.ts`. `vite build` dan `vitest run` sama sekali tidak
+bisa dijalankan saat ini (`Cannot find module
+'@rollup/rollup-linux-arm64-gnu'`, bug npm optional-dependencies resmi
+https://github.com/npm/cli/issues/4828, juga tidak terkait chapter
+ini) -- butuh `npm install` bersih (atau hapus `node_modules` +
+`package-lock.json` lalu install ulang) di Mac user untuk memperbaiki,
+tidak dijalankan dari sandbox ini sesuai batasan yang berlaku (lihat
+insiden Bab 58). Tidak ada trailing whitespace baru pada kedua file
+yang diubah.
