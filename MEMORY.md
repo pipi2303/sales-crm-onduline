@@ -5349,3 +5349,40 @@ sebelumnya). User HARUS menjalankan salah satu dari:
 
 Setelah migration ter-apply, baru "Load Dummy Data" akan berhasil
 mengisi tabel Contract & Quotation, dan tab Quote akan terisi.
+
+## Bab 57 (27 Sep 2026): Fix tombol terpotong di dialog Pengajuan Baru (Discount Approval)
+
+**Laporan user**: "di menu Discount Approval, tabmenu antrean
+pengajuan, re-design pengajuan, saat ini ada button yang terpotong".
+
+**Investigasi**: di tab "Antrean Pengajuan" ada dua dialog custom-
+styled (bukan dialog default): dialog "New Request" (header gradient
+hijau "Draft Request"/"New Submission" -- ini yang dimaksud "pengajuan"
+oleh user) dan dialog "Detail" (dibuka lewat klik card pengajuan).
+
+Dialog Detail sudah punya pola layout yang benar: wrapper eksplisit
+`<div className="flex flex-col h-full max-h-[95vh]">` yang membungkus
+header/body/footer, dengan header & footer `shrink-0` dan body sebagai
+satu-satunya bagian yang scroll (`overflow-y-auto`).
+
+Dialog New Request TIDAK punya wrapper ini -- header, body (dibatasi
+sendiri dengan `max-h-[70vh] overflow-y-auto`), dan footer jadi
+children langsung dari `DialogContent` (yang basenya cuma `grid` +
+`max-h-[calc(100%-2rem)]`, dan di-override jadi `overflow-hidden` oleh
+className custom-nya). Kalau total tinggi header + body(70vh) + footer
+melebihi batas tinggi dialog itu sendiri (gampang terjadi di layar
+laptop yang tidak terlalu tinggi), bagian yang kelebihan kepotong oleh
+`overflow-hidden` -- yang paling bawah (footer, isinya tombol Cancel &
+Submit Request) jadi yang kepotong duluan. Ini match persis dengan
+laporan "ada button yang terpotong".
+
+**Fix**: terapkan pola yang sama dengan dialog Detail -- bungkus
+header+body+footer dialog New Request dalam
+`<div className="flex flex-col h-full max-h-[90vh]">`, dan hapus
+`max-h-[70vh]` yang konflik di body (cukup `overflow-y-auto`, tingginya
+sekarang otomatis mengikuti sisa ruang flex setelah header & footer
+`shrink-0`).
+
+Diverifikasi: tsc --noEmit (diff kosong vs baseline sebelum patch),
+vite build sukses, vitest 11/11 lulus, tidak ada trailing whitespace
+baru.
