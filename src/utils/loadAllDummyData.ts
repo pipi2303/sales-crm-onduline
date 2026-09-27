@@ -74,6 +74,28 @@ function daysFromNow(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+// Bab 65 (27 Sep 2026): "Commission Records tabmenu Commission records,
+// saat ini data belum ada, tambahkan data dummy". Root cause: SEED_COMMISSIONS
+// sebelum ini cuma berisi periode Jan/Feb 2024 (hardcode absolut), padahal
+// CommissionCalculator.tsx (sejak fix Bab 34) defaultnya membuka periode
+// BULAN BERJALAN (rolling, dihitung dari `new Date()` saat layar dibuka --
+// lihat buildPeriodOptions() di sana). Jadi walau tombol "Load Dummy Data"
+// sudah ditekan, tab Commission Records akan SELALU terlihat kosong di
+// tampilan default, karena tidak ada satu pun commission yang periodnya
+// cocok dengan bulan berjalan -- baru terlihat kalau user mengganti
+// dropdown periode ke "Feb 2024" secara manual. monthsAgoIso() dipakai
+// supaya sebagian data seed selalu jatuh di bulan berjalan & beberapa
+// bulan ke belakang (relatif terhadap kapan tombol ditekan), sama seperti
+// PERIOD_OPTIONS di CommissionCalculator.tsx sendiri -- bukan tanggal
+// absolut yang bisa basi.
+function monthsAgoIso(monthsBack: number): string {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth() - monthsBack, 1);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${yyyy}-${mm}-01`;
+}
+
 // Dipindah dari TerritoryManagement.tsx (Bab 32/33) -- 4 wilayah contoh
 // yang sudah lama dipakai layar itu, sekarang jadi bagian dari alur
 // gabungan.
@@ -102,6 +124,26 @@ const SEED_COMMISSIONS = [
   { salesPersonName: 'Dewi Kartika', periodIso: '2024-02-01', target: 300000000, totalSales: 520000000, baseCommission: 21650000, bonuses: 25000000, totalCommission: 46650000, status: 'approved' as CommissionStatus, deals: 5 },
   { salesPersonName: 'Eko Prasetyo', periodIso: '2024-02-01', target: 300000000, totalSales: 185000000, baseCommission: 5475000, bonuses: 0, totalCommission: 5475000, status: 'pending' as CommissionStatus, deals: 2 },
   { salesPersonName: 'Budi Santoso', periodIso: '2024-01-01', target: 300000000, totalSales: 420000000, baseCommission: 16250000, bonuses: 15000000, totalCommission: 31250000, status: 'paid' as CommissionStatus, deals: 6, paymentDate: '2024-02-05' },
+
+  // Bab 65: 3 bulan rolling terakhir (bulan berjalan + 2 bulan
+  // sebelumnya, dihitung dari kapan tombol ditekan) supaya tab Commission
+  // Records tidak pernah kosong di tampilan default. Target per rep
+  // disamakan dengan target wilayahnya di SEED_TERRITORIES di atas
+  // (Budi/Ani Rp 300jt, Dewi Rp 400jt, Eko Rp 250jt).
+  { salesPersonName: 'Budi Santoso', periodIso: monthsAgoIso(2), target: 300000000, totalSales: 380000000, baseCommission: 14250000, bonuses: 9000000, totalCommission: 23250000, status: 'paid' as CommissionStatus, deals: 5, paymentDate: daysFromNow(-55) },
+  { salesPersonName: 'Ani Wijaya', periodIso: monthsAgoIso(2), target: 300000000, totalSales: 250000000, baseCommission: 7750000, bonuses: 5000000, totalCommission: 12750000, status: 'paid' as CommissionStatus, deals: 3, paymentDate: daysFromNow(-55) },
+  { salesPersonName: 'Dewi Kartika', periodIso: monthsAgoIso(2), target: 400000000, totalSales: 500000000, baseCommission: 20250000, bonuses: 15000000, totalCommission: 35250000, status: 'paid' as CommissionStatus, deals: 6, paymentDate: daysFromNow(-55) },
+  { salesPersonName: 'Eko Prasetyo', periodIso: monthsAgoIso(2), target: 250000000, totalSales: 175000000, baseCommission: 5125000, bonuses: 0, totalCommission: 5125000, status: 'pending' as CommissionStatus, deals: 2 },
+
+  { salesPersonName: 'Budi Santoso', periodIso: monthsAgoIso(1), target: 300000000, totalSales: 410000000, baseCommission: 15750000, bonuses: 12000000, totalCommission: 27750000, status: 'approved' as CommissionStatus, deals: 5 },
+  { salesPersonName: 'Ani Wijaya', periodIso: monthsAgoIso(1), target: 300000000, totalSales: 300000000, baseCommission: 10250000, bonuses: 6000000, totalCommission: 16250000, status: 'paid' as CommissionStatus, deals: 4, paymentDate: daysFromNow(-25) },
+  { salesPersonName: 'Dewi Kartika', periodIso: monthsAgoIso(1), target: 400000000, totalSales: 560000000, baseCommission: 24450000, bonuses: 22000000, totalCommission: 46450000, status: 'paid' as CommissionStatus, deals: 7, paymentDate: daysFromNow(-25) },
+  { salesPersonName: 'Eko Prasetyo', periodIso: monthsAgoIso(1), target: 250000000, totalSales: 230000000, baseCommission: 7050000, bonuses: 0, totalCommission: 7050000, status: 'pending' as CommissionStatus, deals: 3 },
+
+  { salesPersonName: 'Budi Santoso', periodIso: monthsAgoIso(0), target: 300000000, totalSales: 320000000, baseCommission: 11250000, bonuses: 8000000, totalCommission: 19250000, status: 'pending' as CommissionStatus, deals: 4 },
+  { salesPersonName: 'Ani Wijaya', periodIso: monthsAgoIso(0), target: 300000000, totalSales: 260000000, baseCommission: 8250000, bonuses: 4000000, totalCommission: 12250000, status: 'pending' as CommissionStatus, deals: 3 },
+  { salesPersonName: 'Dewi Kartika', periodIso: monthsAgoIso(0), target: 400000000, totalSales: 480000000, baseCommission: 19250000, bonuses: 18000000, totalCommission: 37250000, status: 'approved' as CommissionStatus, deals: 6 },
+  { salesPersonName: 'Eko Prasetyo', periodIso: monthsAgoIso(0), target: 250000000, totalSales: 200000000, baseCommission: 6000000, bonuses: 0, totalCommission: 6000000, status: 'paid' as CommissionStatus, deals: 2, paymentDate: daysFromNow(-2) },
 ];
 
 // Bab 45 (24 Sep 2026): "tambahkan data dummy di menu Quotation
