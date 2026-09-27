@@ -5465,3 +5465,108 @@ tsc diff yang sudah berhasil didapat SEBELUM masalah environment
 muncul, dan minta user konfirmasi build lokal sendiri kalau perlu --
 jangan coba "perbaiki" node_modules/package-lock.json dengan install
 ulang.
+
+## Bab 59 (27 Sep 2026): List view Wilayah, peta asli di Visual Map, fix data Territory double
+
+**Laporan user**: (1) "di menu Territory Management, tabmenu wilayah,
+buatkan dalam bentuk list, dan cek kembali datanya, saat ini ada data
+yang double"; (2) (ditambahkan di tengah pengerjaan) "perbaiki tampilan
+tabmenu visual map dengan map yang benar".
+
+### 1. Tabmenu Wilayah -> tampilan list
+
+`TerritoryManagement.tsx`: card grid 2 kolom (`md:grid-cols-2`) diganti
+jadi list 1 kolom -- tiap wilayah 1 baris Card horizontal berisi
+ikon+nama+region, Territory Manager, jumlah Leads/Opportunities,
+Coverage %, Revenue vs Quota, dan tombol Detail/Edit di kanan (klik
+baris juga langsung buka Detail). Lebih ringkas dipindai untuk banyak
+baris data dibanding grid kartu besar sebelumnya.
+
+### 2. Root cause data Territory double + fix
+
+Model `Territory` di `prisma/schema.prisma` tidak punya `@unique` pada
+`name`. `api/handler.ts`'s `handleTerritories()` POST handler membuat
+row baru tanpa cek nama yang sama sudah ada atau belum. Sumber duplikat
+paling mungkin: tombol "Load Dummy Data" gabungan (`loadAllDummyData.ts`,
+lihat Bab 39) yang SENGAJA tidak idempotent untuk semua 6 kategori
+resource (kecuali PerformanceTarget-per-rep) -- menekannya berkali-kali
+menggandakan SEMUA kategori, termasuk Territory (4 nama:
+Jakarta Pusat, Jakarta Selatan, Bandung, Surabaya).
+
+**Fix (scope: Territory saja)**: section Territory di
+`loadAllDummyData.ts` sekarang cek dulu daftar wilayah yang sudah ada
+(by name, case-insensitive, dari `territoriesRepository.getAll()`)
+sebelum `create()` -- nama yang sudah ada di-skip. 5 kategori lain
+(Client, Employee, Lead, SalesRep, Commission) BELUM diubah -- masih
+known limitation yang sama, di luar scope laporan user kali ini, sudah
+ditandai di komentar kode `loadAllDummyData.ts` untuk transparansi
+kalau mau ditangani di putaran berikutnya.
+
+**Cleanup data duplikat yang SUDAH ADA di production** (tidak bisa
+dijalankan dari sandbox ini -- tidak ada koneksi langsung ke DB
+production; user perlu jalankan sendiri lewat Neon SQL console atau
+`psql`):
+
+```sql
+-- 1) Cek dulu wilayah mana saja yang double (jalankan ini duluan untuk review)
+SELECT lower(trim(name)) AS name_key, count(*) AS jumlah,
+       array_agg(id ORDER BY created_at ASC) AS ids
+FROM territories
+GROUP BY lower(trim(name))
+HAVING count(*) > 1;
+
+-- 2) Hapus duplikat, SISAKAN baris yang paling lama (created_at paling awal)
+-- untuk tiap nama wilayah (case-insensitive). Aman berdasarkan FK di
+-- migration.sql: performance_targets ikut terhapus (ON DELETE CASCADE),
+-- leads & opportunities yang terhubung ke wilayah terhapus territory_id-nya
+-- jadi NULL (ON DELETE SET NULL) -- lead/opportunity itu sendiri TIDAK ikut
+-- terhapus, cuma kehilangan link wilayahnya.
+WITH ranked AS (
+  SELECT id, row_number() OVER (
+    PARTITION BY lower(trim(name)) ORDER BY created_at ASC
+  ) AS rn
+  FROM territories
+)
+DELETE FROM territories
+WHERE id IN (SELECT id FROM ranked WHERE rn > 1);
+```
+
+Disarankan jalankan query #1 dulu untuk review manual (pastikan baris
+yang mau dihapus benar duplikat, bukan wilayah beda yang kebetulan mirip
+namanya) sebelum menjalankan DELETE di query #2.
+
+### 3. Tabmenu Visual Map -> peta asli (Leaflet/OpenStreetMap)
+
+`TerritoryMap.tsx` sebelumnya menggambar "peta" pulau Jawa manual pakai
+SVG hardcode dengan 4 titik posisi piksel -- bukan peta sungguhan (tidak
+bisa zoom/pan/geser), dan wilayah dengan nama di luar 4 itu otomatis
+tidak digambar sama sekali (silent drop, sudah pernah diperbaiki
+sebagian di Bab 32/33 untuk soal id-vs-name matching, tapi keterbatasan
+4-nama-hardcode-nya sendiri belum pernah dibereskan).
+
+Ditulis ulang total pakai `react-leaflet` + tile OpenStreetMap, mengikuti
+pola yang sudah ada di `DistributorStoreMap.tsx` (pin custom lewat
+`L.divIcon`, bukan default marker Leaflet):
+
+- Pin warna sesuai attainment (hijau terang jika >=100%, hijau tua brand
+  jika di bawahnya).
+- Auto-fit zoom & center ke semua wilayah yang berhasil dipetakan
+  (`bounds` + `boundsOptions`), tidak perlu tebak-tebak center/zoom manual.
+- Klik pin -> popup berisi region/nama/attainment/revenue vs target/
+  Territory Manager, plus tombol "Lihat Detail" yang membuka dialog
+  detail yang sama dengan tabmenu Wilayah.
+- Karena `Territory` tidak punya kolom lat/lng di database (cuma
+  `name`/`region` bebas teks), ditambahkan tabel lookup koordinat: per
+  nama kota (25 kota umum di Jabodetabek/Jabar/Jatim/Jateng/DIY) dengan
+  fallback ke level region (mis. "Jawa Barat") untuk nama wilayah yang
+  tidak persis cocok di tabel kota.
+- Wilayah yang tetap tidak bisa dipetakan (nama & region-nya sama-sama
+  tidak dikenali tabel lookup) tidak digambar sebagai pin, tapi
+  dimunculkan sebagai badge counter di pojok peta ("N wilayah belum
+  punya lokasi peta") -- supaya tidak lagi silent drop seperti peta
+  lama, dan gampang ketahuan kalau perlu tambah entry lookup baru.
+
+**Verifikasi**: tidak ada trailing whitespace baru di ketiga berkas
+yang diubah; `tsc --noEmit` sebelum/sesudah (via `git stash`) hasilnya
+identik (0 error baru); `vite build` sukses (chunk `leaflet` ikut
+ter-bundle terpisah); `vitest run` 11/11 test tetap lulus.
