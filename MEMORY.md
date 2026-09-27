@@ -5616,3 +5616,77 @@ ditambah/diedit -- tidak perlu wiring tambahan.
 yang nomor barisnya bergeser karena kode baru ditambahkan di atasnya,
 bukan error baru); `vite build` sukses; `vitest run` 11/11 test tetap
 lulus.
+
+## Bab 62 (27 Sep 2026): Fix modal "Lihat Detail" tampil di belakang peta
+
+**Laporan user** (screenshot): di Territory Management tabmenu Visual
+Map, klik pin di peta -> popup "Lihat Detail" -> dialog detail wilayah
+kebuka tapi kepotong/muncul di BELAKANG kotak peta, bukan di depan.
+
+**Root cause**: aplikasi ini portal Dialog ke elemen `#modal-portal-root`
+di dalam `.content-area` (bukan `document.body` -- lihat komentar di
+`ui/dialog.tsx` & `App.tsx`, sengaja dibuat begitu supaya modal tidak
+menutupi sidebar/header). `#modal-portal-root` diberi `z-40`. Sementara
+itu, Leaflet mengatur z-index panes internalnya sendiri sampai 700, dan
+kontrol zoom bawaan (`.leaflet-top`/`.leaflet-bottom` dari leaflet.css)
+sampai 1000 -- ditambah badge custom kita sendiri di `TerritoryMap.tsx`
+yang juga `z-[1000]`. Wrapper div peta sebelumnya cuma `position:
+relative` TANPA z-index sendiri, artinya TIDAK membentuk stacking
+context baru -- akibatnya semua z-index internal Leaflet itu "bocor" ke
+stacking context yang sama dengan `#modal-portal-root` (karena tidak
+ada ancestor lain di antaranya yang membentuk stacking context), dan
+1000 > 40, jadi peta selalu menang render di depan Dialog.
+
+**Fix**: tambahkan class Tailwind `isolate` (CSS `isolation:isolate`) di
+wrapper div peta. Ini membentuk stacking context baru di titik itu,
+jadi semua z-index Leaflet (200-1000) dan badge custom kita terkunci
+"lokal" di dalam div tersebut -- tidak pernah bisa bocor ke luar dan
+menutupi Dialog aplikasi lagi.
+
+Diterapkan di `TerritoryMap.tsx` (sumber laporan) dan sekalian di
+`DistributorStoreMap.tsx` (peta Sebaran Distributor/Toko di menu CRM) --
+pola bug yang identik (wrapper div peta juga tanpa isolate/stacking
+context), belum ada laporan tapi berpotensi sama begitu ada Dialog
+dibuka bersamaan peta tampil di layar yang sama.
+
+## Bab 63 (27 Sep 2026): Tabmenu List di CRM Distributor & Toko + insight
+
+**Laporan user**: "di menu CRM, tabmenu Distributor, buatkan 2 tabmenu
+untuk 'Peta Sebaran' dan 'list distributor'. dan implementasikan juga
+di tabmenu toko. berikan insight ke saya".
+
+Sebelumnya `DistributorStoreMap.tsx` (dipakai untuk tabmenu Distributor
+& Toko di `SalesTeam.tsx`/menu CRM) hanya render Peta Sebaran -- tidak
+ada tampilan list/tabel master data sama sekali, dan entri tanpa
+koordinat GPS tidak pernah terlihat kecuali sesaat di kartu Antrean
+Approval selagi masih pending (karena `toPoints()`/`allPoints` yang
+dipakai peta memang GPS-only by design).
+
+Ditambahkan tabmenu kedua "List Distributor"/"List Toko" (pola sama
+dengan Wilayah/Visual Map di Territory Management, Bab 59): tabel
+seluruh Distributor/Toko sebagai master data lengkap, dibangun langsung
+dari state `distributors`/`stores` mentah (bukan dari `MapPoint` yang
+GPS-only) supaya entri tanpa GPS ATAU yang statusnya rejected tetap
+kelihatan. Kolom: Kode, Nama, Alamat, Distributor Induk (khusus Toko),
+PIC Sales Rep, status GPS (Ada/Tidak Ada), Status Approval, dan Aksi
+Setujui/Tolak untuk approver pada baris pending (reuse
+`handleApprove`/`openReject` yang sudah ada). Filter status + pencarian
+di tab ini independen dari filter Peta Sebaran (tidak di-share, demi
+kesederhanaan).
+
+Insight otomatis (pola sama dengan Bab 60/61): breakdown approved/
+pending/rejected, jumlah entri tanpa GPS (dan karena itu tidak muncul
+di Peta Sebaran), serta PIC sales rep dengan beban terbanyak (reuse
+`salesRepWorkload` yang sudah dihitung untuk kartu "Distribusi Beban
+Sales Rep").
+
+Peta Sebaran beserta 3 kartu insight yang sudah ada sebelumnya
+(Distribusi Beban Sales Rep, Coverage Gap Wilayah, Penetrasi Kategori
+Produk -- lihat komentar Fase 3/Bab 12 follow-up di kepala berkas) TIDAK
+diubah konten/perilakunya sama sekali, cuma dipindah ke dalam tabmenu
+"Peta Sebaran".
+
+**Verifikasi (Bab 62 & 63)**: tidak ada trailing whitespace baru;
+`tsc --noEmit` sebelum/sesudah identik (hanya 1 baris pre-existing
+error yang nomor barisnya bergeser, sudah diverifikasi bukan error
+baru); `vite build` sukses; `vitest run` 11/11 test tetap lulus.
