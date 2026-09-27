@@ -30,6 +30,15 @@
 // gabungan ini dua kali akan menggandakan SEMUA kategori sekaligus,
 // bukan cuma satu -- catatan ini didokumentasikan di MEMORY.md, bukan
 // diperbaiki di putaran ini (di luar scope permintaan konsolidasi).
+//
+// UPDATE Bab 59 (27 Sep 2026): user melaporkan data Territory Management
+// double di production. Khusus untuk Territory, sekarang DIKECUALIKAN
+// dari catatan di atas -- section Territory di bawah sudah dicek dulu
+// terhadap nama yang sudah ada (case-insensitive) sebelum create, jadi
+// menekan tombol berkali-kali tidak lagi menggandakan wilayah. Lima
+// kategori lain (Client, Employee, Lead, SalesRep, Commission) MASIH
+// belum idempotent seperti dijelaskan di atas -- di luar scope laporan
+// ini, lihat MEMORY.md Bab 59 kalau ingin diperbaiki juga.
 
 import { clientsRepository } from '@/services/clientsRepository';
 import { employeesRepository } from '@/services/employeesRepository';
@@ -828,9 +837,28 @@ export async function loadAllDummyData(): Promise<LoadAllDummyDataResult> {
   }
 
   // 3. Territory + PerformanceTarget (dari TerritoryManagement.tsx)
+  //
+  // Bab 59 (27 Sep 2026): berbeda dari resource lain di fungsi ini (yang
+  // sengaja TIDAK idempotent, lihat catatan di kepala berkas ini) --
+  // khusus Territory sekarang dicek dulu terhadap data yang SUDAH ADA
+  // (by name, case-insensitive) sebelum membuat, supaya menekan "Load
+  // Dummy Data" berkali-kali tidak lagi menggandakan wilayah yang sama
+  // (dilaporkan user: data di menu Territory Management double). Nama
+  // wilayah yang belum ada tetap dibuat seperti biasa. Resource lain
+  // (Client, Lead, dst) belum diubah -- known limitation yang sama,
+  // di luar scope laporan ini (masih didokumentasikan di atas).
   const period = getCurrentPeriod();
   const territoryIdByName = new Map<string, string>();
+  const existingTerritoriesNow = await territoriesRepository.getAll();
+  const existingTerritoryNamesLower = new Set<string>();
+  for (const t of existingTerritoriesNow.data ?? []) {
+    territoryIdByName.set(t.name, t.id);
+    existingTerritoryNamesLower.add(t.name.trim().toLowerCase());
+  }
   for (const seed of SEED_TERRITORIES) {
+    if (existingTerritoryNamesLower.has(seed.name.trim().toLowerCase())) {
+      continue; // sudah ada -- jangan dobel
+    }
     const created = await territoriesRepository.create({
       name: seed.name,
       region: seed.region,
@@ -840,6 +868,7 @@ export async function loadAllDummyData(): Promise<LoadAllDummyDataResult> {
     if (created.success && created.data) {
       result.territories += 1;
       territoryIdByName.set(seed.name, created.data.id);
+      existingTerritoryNamesLower.add(seed.name.trim().toLowerCase());
       await performanceTargetsRepository.create({
         territoryId: created.data.id,
         period,
@@ -848,16 +877,6 @@ export async function loadAllDummyData(): Promise<LoadAllDummyDataResult> {
       } as any);
     } else {
       result.errors.push(`Wilayah "${seed.name}": ${created.error}`);
-    }
-  }
-  // Fallback: kalau pembuatan wilayah di atas gagal semua (mis. role
-  // user ini tidak diizinkan backend, lihat TERRITORY_MANAGE_ROLES di
-  // TerritoryManagement.tsx) tapi wilayahnya sudah ada dari sebelumnya,
-  // tetap resolve by name supaya Lead di bawah bisa dapat territoryId.
-  if (territoryIdByName.size === 0) {
-    const existing = await territoriesRepository.getAll();
-    if (existing.success && existing.data) {
-      for (const t of existing.data) territoryIdByName.set(t.name, t.id);
     }
   }
 
