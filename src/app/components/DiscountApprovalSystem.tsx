@@ -31,7 +31,8 @@ import {
   MapPin,
   Globe,
   Info,
-  CheckSquare
+  CheckSquare,
+  Lightbulb
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Badge } from '@/app/components/ui/badge';
@@ -162,6 +163,37 @@ export function DiscountApprovalSystem() {
     if (selectedRegion === 'all') return baseData;
     return baseData.filter(d => d.region === selectedRegion);
   }, [selectedRegion]);
+
+  // Bab 60 (27 Sep 2026): data dummy dampak revenue dipindah ke useMemo
+  // (sebelumnya array literal langsung di JSX, di-generate ulang tiap
+  // render lewat Math.random()) supaya nilainya STABIL selama filter
+  // wilayah tidak berubah -- diperlukan agar teks insight di bawah ini
+  // selalu konsisten dengan angka yang ditampilkan di grafik (dua-duanya
+  // baca dari objek yang sama, bukan dua panggilan Math.random() terpisah).
+  const revenueImpactData = useMemo(() => [
+    { name: 'W1', revenue: 400 + (Math.random() * 200), saved: 40 + (Math.random() * 20) },
+    { name: 'W2', revenue: 600 + (Math.random() * 200), saved: 80 + (Math.random() * 20) },
+    { name: 'W3', revenue: 500 + (Math.random() * 200), saved: 120 + (Math.random() * 20) },
+    { name: 'W4', revenue: 800 + (Math.random() * 200), saved: 150 + (Math.random() * 20) },
+  ], [selectedRegion]);
+
+  const marginInsight = useMemo(() => {
+    if (marginData.length === 0) return 'Tidak ada data margin untuk wilayah ini.';
+    const deepest = marginData.reduce((a, b) => (b.discount > a.discount ? b : a));
+    const avgDiscount = marginData.reduce((sum, d) => sum + d.discount, 0) / marginData.length;
+    const marginDrop = deepest.original - deepest.proposed;
+    return `Diskon terdalam ada di ${deepest.category} (${deepest.discount}%), menggerus margin dari ${deepest.original}% jadi ${deepest.proposed}% (-${marginDrop} poin). Rata-rata diskon ${selectedRegion === 'all' ? 'seluruh wilayah' : selectedRegion} saat ini ${avgDiscount.toFixed(1)}%.`;
+  }, [marginData, selectedRegion]);
+
+  const revenueInsight = useMemo(() => {
+    const first = revenueImpactData[0];
+    const last = revenueImpactData[revenueImpactData.length - 1];
+    const growthPct = ((last.revenue - first.revenue) / first.revenue) * 100;
+    const totalSaved = revenueImpactData.reduce((sum, d) => sum + d.saved, 0);
+    const peak = revenueImpactData.reduce((a, b) => (b.revenue > a.revenue ? b : a));
+    const trendWord = growthPct >= 0 ? 'naik' : 'turun';
+    return `Revenue ${trendWord} ${Math.abs(growthPct).toFixed(0)}% dari ${first.name} ke ${last.name}, puncak tertinggi di ${peak.name}. Estimasi margin yang berhasil diselamatkan lewat kontrol diskon sepanjang periode ini sekitar ${totalSaved.toFixed(0)} juta.`;
+  }, [revenueImpactData]);
 
   const filteredRequests = discountRequests.filter(r => 
     (r.clientName.toLowerCase().includes(searchQuery.toLowerCase()) || r.requestNumber.toLowerCase().includes(searchQuery.toLowerCase())) &&
@@ -552,32 +584,41 @@ export function DiscountApprovalSystem() {
                    Margin vs Diskon Per Wilayah
                 </CardTitle>
               </CardHeader>
-              <CardContent className="h-[400px] p-6">
-                <AnimatePresence mode="wait">
-                  <motion.div 
-                    key={selectedRegion}
-                    initial={{ opacity: 0, scale: 0.98 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 1.02 }}
-                    className="h-full w-full"
-                  >
-                    <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={marginData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID} />
-                        <XAxis dataKey="category" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 'bold' }} />
-                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 'bold' }} unit="%" />
-                        <Tooltip 
-                          cursor={CHART_TOOLTIP_CURSOR}
-                          contentStyle={CHART_TOOLTIP_STYLE}
-                        />
-                        <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }} />
-                        <Bar name="Original Margin" dataKey="original" fill="var(--border)" radius={[4, 4, 0, 0]} barSize={30} />
-                        <Bar name="Proposed Margin" dataKey="proposed" fill={CHART_PRIMARY} radius={[4, 4, 0, 0]} barSize={30} />
-                        <Line name="Discount %" type="monotone" dataKey="discount" stroke={CHART_STATUS.critical} strokeWidth={3} dot={{ r: 4, fill: CHART_STATUS.critical, strokeWidth: 2, stroke: '#fff' }} />
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  </motion.div>
-                </AnimatePresence>
+              <CardContent className="p-6 space-y-4">
+                <div className="h-[300px]">
+                  <AnimatePresence mode="wait">
+                    <motion.div 
+                      key={selectedRegion}
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 1.02 }}
+                      className="h-full w-full"
+                    >
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart data={marginData}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID} />
+                          <XAxis dataKey="category" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 'bold' }} />
+                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 'bold' }} unit="%" />
+                          <Tooltip 
+                            cursor={CHART_TOOLTIP_CURSOR}
+                            contentStyle={CHART_TOOLTIP_STYLE}
+                          />
+                          <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }} />
+                          <Bar name="Original Margin" dataKey="original" fill="var(--border)" radius={[4, 4, 0, 0]} barSize={30} />
+                          <Bar name="Proposed Margin" dataKey="proposed" fill={CHART_PRIMARY} radius={[4, 4, 0, 0]} barSize={30} />
+                          <Line name="Discount %" type="monotone" dataKey="discount" stroke={CHART_STATUS.critical} strokeWidth={3} dot={{ r: 4, fill: CHART_STATUS.critical, strokeWidth: 2, stroke: '#fff' }} />
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+                <div className="flex items-start gap-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4">
+                  <Lightbulb className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                    <p className="text-xs font-semibold text-gray-700 leading-relaxed">{marginInsight}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -588,34 +629,40 @@ export function DiscountApprovalSystem() {
                    Dampak Revenue {selectedRegion !== 'all' ? `- ${selectedRegion}` : ''}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="h-[400px] p-6 flex flex-col items-center justify-center">
-                {marginData.length === 0 ? (
-                  <div className="text-center space-y-2">
-                    <AlertCircle className="h-12 w-12 text-gray-200 mx-auto" />
-                    <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">Tidak ada data untuk wilayah ini</p>
+              <CardContent className="p-6 space-y-4">
+                <div className="h-[300px] flex flex-col items-center justify-center">
+                  {marginData.length === 0 ? (
+                    <div className="text-center space-y-2">
+                      <AlertCircle className="h-12 w-12 text-gray-200 mx-auto" />
+                      <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">Tidak ada data untuk wilayah ini</p>
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={revenueImpactData}>
+                        <defs>
+                          <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={CHART_PRIMARY} stopOpacity={AREA_GRADIENT_STOPS.from}/>
+                            <stop offset="95%" stopColor={CHART_PRIMARY} stopOpacity={AREA_GRADIENT_STOPS.to}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID} />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 'bold' }} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 'bold' }} />
+                        <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+                        <Area type="monotone" dataKey="revenue" stroke={CHART_PRIMARY} fillOpacity={1} fill="url(#colorRev)" strokeWidth={3} />
+                        <Area type="monotone" dataKey="saved" stroke={CHART_STATUS.critical} fill={CHART_STATUS.critical} fillOpacity={0.05} strokeWidth={2} strokeDasharray="5 5" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+                {marginData.length > 0 && (
+                  <div className="flex items-start gap-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4">
+                    <Lightbulb className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <div className="space-y-0.5">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                      <p className="text-xs font-semibold text-gray-700 leading-relaxed">{revenueInsight}</p>
+                    </div>
                   </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={[
-                      { name: 'W1', revenue: 400 + (Math.random() * 200), saved: 40 + (Math.random() * 20) },
-                      { name: 'W2', revenue: 600 + (Math.random() * 200), saved: 80 + (Math.random() * 20) },
-                      { name: 'W3', revenue: 500 + (Math.random() * 200), saved: 120 + (Math.random() * 20) },
-                      { name: 'W4', revenue: 800 + (Math.random() * 200), saved: 150 + (Math.random() * 20) },
-                    ]}>
-                      <defs>
-                        <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor={CHART_PRIMARY} stopOpacity={AREA_GRADIENT_STOPS.from}/>
-                          <stop offset="95%" stopColor={CHART_PRIMARY} stopOpacity={AREA_GRADIENT_STOPS.to}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID} />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 'bold' }} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 'bold' }} />
-                      <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
-                      <Area type="monotone" dataKey="revenue" stroke={CHART_PRIMARY} fillOpacity={1} fill="url(#colorRev)" strokeWidth={3} />
-                      <Area type="monotone" dataKey="saved" stroke={CHART_STATUS.critical} fill={CHART_STATUS.critical} fillOpacity={0.05} strokeWidth={2} strokeDasharray="5 5" />
-                    </AreaChart>
-                  </ResponsiveContainer>
                 )}
               </CardContent>
             </Card>
