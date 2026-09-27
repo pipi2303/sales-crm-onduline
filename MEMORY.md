@@ -5690,3 +5690,77 @@ diubah konten/perilakunya sama sekali, cuma dipindah ke dalam tabmenu
 `tsc --noEmit` sebelum/sesudah identik (hanya 1 baris pre-existing
 error yang nomor barisnya bergeser, sudah diverifikasi bukan error
 baru); `vite build` sukses; `vitest run` 11/11 test tetap lulus.
+
+## Bab 64 (27 Sep 2026): Data dummy Sales Representative diperbaiki & dilengkapi
+
+**Laporan user**: "ke menu Sales Representative, tambahkan data dummy
+di Data Sales Representative, cek yang ada di aplikasi, agar data
+sesuai, berikan insight ke saya".
+
+**Root cause**: cross-check `salesRepresentativeDummyData`
+(`src/utils/populateCRMData.ts`) terhadap dropdown Select sungguhan di
+`KaryawanForm.tsx`/`SalesRepresentative.tsx` menemukan mismatch nyata,
+bukan cuma kurang variasi:
+
+- `level_jabatan`: 5 entri lama pakai `'Senior'`/`'Mid'`/`'Junior'`/
+  `'Manager'` -- dropdown Select KaryawanForm.tsx cuma punya opsi
+  Staff/Lead/Manager/Director. 3 dari 4 nilai lama TIDAK ADA di opsi
+  itu -- Radix Select tidak menampilkan apapun sebagai terpilih kalau
+  value tidak cocok persis salah satu SelectItem, jadi field ini
+  tampil KOSONG begitu form edit karyawan dummy manapun dibuka.
+- `level_akses`: 5 entri lama pakai `'Sales Executive'`/`'Manager'` --
+  dropdown-nya cuma No Access/Read Only/Editor/Admin. TIDAK SATUPUN
+  nilai lama cocok -- field ini SELALU kosong saat form edit dibuka.
+- `divisi`: seluruh 5 entri lama cuma `'Sales & Marketing'`, padahal
+  filter & form punya 6 opsi (+IT Developer/Customer Success/Finance/
+  Legal/HR) -- memfilter salah satu dari 5 opsi lain selalu kosong.
+- `status_karyawan`: 5 entri lama cuma Tetap/Kontrak, 2 dari 4 opsi
+  filter (Probation/Freelance) tidak pernah punya data.
+
+**Fix**: 5 entri lama diperbaiki `level_jabatan`/`level_akses`-nya ke
+nilai valid yang paling sesuai konteks jabatannya (staf senior individual
+contributor -> Lead, manager -> Admin, staf biasa -> Staff, akses edit
+dasar -> Editor). Ditambahkan 9 entri baru yang melengkapi seluruh
+kombinasi Divisi (6/6) x Status Karyawan (4/4) x Level Jabatan (4/4,
+termasuk Director yang sebelumnya tidak terwakili sama sekali) x Level
+Akses (4/4) -- termasuk entri "Bambang Suryanto" (Direktur Sales) yang
+sebelumnya cuma disebut sebagai `nama_atasan` di data lama tapi tidak
+pernah benar-benar ada sebagai record karyawan.
+
+Total data dummy Sales Representative sekarang **14 entri** (dari
+sebelumnya 5).
+
+**Insight komposisi data baru**: 6/6 Divisi punya minimal 1 karyawan
+(Sales & Marketing 6, IT Developer 2, Finance 2, Customer Success 1,
+Legal 1, HR 1); 4/4 Status Karyawan terwakili (Tetap 9, Kontrak 2,
+Probation 1, Freelance 1); 4/4 Level Jabatan terwakili (Staff 7, Lead 2,
+Manager 3, Director 1, termasuk 1 posisi C-level "Direktur Sales" yang
+sebelumnya tidak ada record-nya sama sekali padahal sudah dirujuk
+sebagai atasan).
+
+**Catatan penting -- data lama yang SUDAH ADA di production tidak ikut
+diperbaiki otomatis**: perubahan di commit ini hanya memengaruhi data
+yang dibuat lewat tombol "Load Dummy Data" SETELAH commit ini di-deploy
+-- 5 karyawan dummy yang mungkin sudah ada di database production dari
+sebelum ini masih menyimpan nilai `level_jabatan`/`level_akses` lama
+yang salah/kosong di dropdown form. Kalau user ingin membetulkan data
+yang SUDAH ADA (bukan cuma load baru), jalankan sendiri lewat Neon SQL
+console (dicocokkan lewat `nik`, bukan `id`, karena `id` di-generate
+ulang random tiap kali seed dijalankan dan tidak disimpan ke DB):
+
+```sql
+UPDATE employees SET level_jabatan = 'Lead',    level_akses = 'Editor' WHERE nik = '3201012345678901'; -- Budi Santoso
+UPDATE employees SET level_jabatan = 'Staff',   level_akses = 'Editor' WHERE nik = '3201012345678902'; -- Siti Nurhaliza
+UPDATE employees SET level_jabatan = 'Manager', level_akses = 'Admin'  WHERE nik = '3201012345678903'; -- Andi Wijaya
+UPDATE employees SET level_jabatan = 'Staff',   level_akses = 'Editor' WHERE nik = '3201012345678904'; -- Dewi Lestari
+UPDATE employees SET level_jabatan = 'Lead',    level_akses = 'Editor' WHERE nik = '3201012345678905'; -- Rudi Hartono
+```
+
+Query di atas aman dijalankan berkali-kali (idempotent secara alami --
+UPDATE ke nilai yang sama tidak merusak apapun) dan tidak menyentuh
+kolom lain atau baris karyawan lain.
+
+**Verifikasi**: tidak ada trailing whitespace baru; `tsc --noEmit`
+sebelum/sesudah identik (hanya 1 baris pre-existing error yang nomor
+barisnya bergeser, sudah diverifikasi bukan error baru); `vite build`
+sukses; `vitest run` 11/11 test tetap lulus.
