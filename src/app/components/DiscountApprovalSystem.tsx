@@ -631,6 +631,8 @@ export function DiscountApprovalSystem() {
             <DialogDescription>Submit a new discount approval request for a client opportunity</DialogDescription>
           </VisuallyHidden>
 
+          <div className="flex flex-col h-full max-h-[90vh]">
+
           <div className="bg-[#013E37] p-8 text-white relative shrink-0">
             <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full -mr-24 -mt-24 blur-2xl" />
             <div className="relative z-10 space-y-2">
@@ -640,7 +642,7 @@ export function DiscountApprovalSystem() {
             </div>
           </div>
 
-          <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8 bg-white max-h-[70vh] overflow-y-auto">
+          <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8 bg-white overflow-y-auto">
             <div className="space-y-6">
               <div className="space-y-2">
                 <Label className="text-[10px] font-black uppercase tracking-widest text-gray-500">Nama Klien / Toko</Label>
@@ -804,6 +806,7 @@ export function DiscountApprovalSystem() {
             >
               {creatingRequest ? 'Mengirim...' : 'Submit Request'}
             </Button>
+          </div>
           </div>
         </DialogContent>
       </Dialog>
