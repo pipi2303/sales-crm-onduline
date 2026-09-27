@@ -153,7 +153,19 @@ export function TerritoryMap({ territories, onSelectTerritory }: TerritoryMapPro
   const bounds = useMemo<[number, number][]>(() => plotted.map((p) => p.coords), [plotted]);
 
   return (
-    <div className="relative w-full h-[500px] rounded-xl overflow-hidden border border-gray-100 shadow-inner">
+    // Bab 62 (27 Sep 2026): "isolate" (CSS isolation:isolate) di sini WAJIB.
+    // Leaflet mengatur z-index internal panes-nya sendiri sampai 700, dan
+    // kontrol zoom bawaan (.leaflet-top/.leaflet-bottom dari leaflet.css)
+    // sampai 1000. Dialog "Lihat Detail" aplikasi ini di-portal ke
+    // #modal-portal-root (lihat ui/dialog.tsx & App.tsx) yang cuma z-40 --
+    // tanpa "isolate" di sini, z-index internal Leaflet itu "bocor" ke
+    // stacking context yang sama dengan #modal-portal-root (karena tidak
+    // ada ancestor lain yang bikin stacking context baru), jadi peta
+    // selalu menang render di depan Dialog meskipun Dialog dibuka
+    // belakangan. "isolate" mengunci semua z-index Leaflet (termasuk
+    // badge custom di bawah) supaya cuma "bersaing" secara lokal di dalam
+    // div ini, tidak pernah bocor ke luar dan menutupi modal aplikasi.
+    <div className="relative isolate w-full h-[500px] rounded-xl overflow-hidden border border-gray-100 shadow-inner">
       {plotted.length === 0 ? (
         <div className="h-full w-full flex items-center justify-center text-sm text-gray-400 bg-gray-50 text-center px-6">
           Belum ada wilayah dengan lokasi yang bisa dipetakan.

@@ -1189,7 +1189,13 @@ export function DistributorStoreMap({ fixedTypeFilter }: DistributorStoreMapProp
               Memuat data peta...
             </div>
           ) : (
-            <div className="h-[520px] rounded-xl overflow-hidden border border-gray-100">
+            // Bab 62 (27 Sep 2026): "isolate" WAJIB di sini -- lihat komentar
+            // sama di TerritoryMap.tsx untuk penjelasan lengkap. Ringkas: tanpa
+            // ini, z-index internal Leaflet (panes sampai 700, kontrol zoom
+            // sampai 1000) bisa "bocor" dan menutupi Dialog aplikasi (yang
+            // di-portal ke #modal-portal-root, cuma z-40) begitu ada dialog
+            // dibuka sementara peta ini sedang tampil di layar yang sama.
+            <div className="relative isolate h-[520px] rounded-xl overflow-hidden border border-gray-100">
               <MapContainer center={mapCenter} zoom={DEFAULT_ZOOM} scrollWheelZoom style={{ height: '100%', width: '100%' }}>
                 <TileLayer
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
