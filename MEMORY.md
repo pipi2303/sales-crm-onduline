@@ -5898,3 +5898,46 @@ chunk ter-bundle normal, 24.46 kB); `npx vitest run` 11/11 test lulus
 (termasuk test ErrorBoundary yang memang sengaja melempar error untuk
 menguji fallback UI-nya). Bab 65 & 66 di atas terkonfirmasi bersih
 dengan verifikasi standar penuh.
+
+## Bab 67 (27 Sep 2026, HOTFIX): React error #310 di Commission Control (regresi Bab 66)
+
+**Laporan user**: screenshot halaman `sales-crm.intramedika.co.id`
+dengan sidebar Commission Calculator aktif, menampilkan "Gagal
+menampilkan halaman ini -- Minified React error #310".
+
+**Root cause -- regresi dari Bab 66**: `useMemo` untuk `projectionData`
+(dan `computeCommissionForAmount` yang jadi dependensinya) diletakkan
+SESUDAH `if (loading) { return ...; }` di `CommissionCalculator.tsx` --
+pelanggaran Rules of Hooks (hook wajib dipanggil TANPA SYARAT, urutan &
+jumlah sama di setiap render). Pada render pertama (`loading=true`)
+komponen return lebih dulu, sebelum sempat memanggil `useMemo` itu;
+begitu `loadData()` selesai dan `loading` jadi `false`, React
+mendeteksi ada hook baru yang dipanggil yang TIDAK dipanggil di render
+sebelumnya -- "Rendered more hooks than during the previous render",
+persis React error #310 -- dan mengcrash seluruh halaman lewat error
+boundary aplikasi.
+
+**Fix**: `computeCommissionForAmount` + `projectionData` (`useMemo`)
+dipindah ke sebelum blok `if (loading)`, tepat sesudah deklarasi state
+`bonuses` (bersama state-state lain yang sudah ada sejak awal fungsi).
+Tidak ada perubahan logika/perilaku sama sekali -- murni relokasi
+posisi kode supaya urutan hook konsisten di setiap render.
+
+**Pelajaran untuk chapter berikutnya**: kalau menambah `useMemo`/
+`useState`/hook lain di komponen manapun yang punya early return
+berbasis state (pola `if (loading) return ...`), SELALU taruh hook
+baru SEBELUM early return itu, bukan sesudahnya -- kesalahan ini lolos
+dari verifikasi `tsc`/`vite build`/`vitest` di Bab 66 karena bug Rules
+of Hooks ini murni error RUNTIME (baru muncul saat komponen benar-benar
+di-render di browser dengan transisi loading true->false), bukan error
+tipe atau build yang bisa ditangkap compiler.
+
+**Verifikasi**: tidak ada trailing whitespace baru; `npx tsc --noEmit`
+selesai normal, 0 error baru di file ini (sama seperti sebelum hotfix).
+`vite build`/`vitest run` tidak bisa dijalankan dari sandbox
+`device_bash` (Linux VM sandbox ini kekurangan binary native
+`@rollup/rollup-linux-arm64-gnu` -- platform berbeda dari macOS asli
+user, di mana `npm install` user hanya mengunduh binary darwin-arm64) --
+user diminta menjalankan `npx vite build`/`npx vitest run` sendiri di
+Mac-nya untuk verifikasi penuh, plus reload halaman Commission Control
+di browser untuk konfirmasi error #310 sudah hilang.
