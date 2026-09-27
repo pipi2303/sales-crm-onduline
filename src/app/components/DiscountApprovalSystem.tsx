@@ -457,7 +457,7 @@ export function DiscountApprovalSystem() {
                         </div>
                       </div>
 
-                      <div className="lg:w-48 bg-gray-50 flex lg:flex-col items-center justify-center p-4 gap-3 border-t lg:border-t-0 lg:border-l border-gray-100">
+                      <div className="lg:w-48 bg-gray-50 flex flex-col items-center justify-center p-4 gap-3 border-t lg:border-t-0 lg:border-l border-gray-100">
                         <Button variant="ghost" className="w-full text-[#013E37] hover:bg-white font-bold text-xs">
                           <Eye className="h-4 w-4 mr-2" /> Detail
                         </Button>
