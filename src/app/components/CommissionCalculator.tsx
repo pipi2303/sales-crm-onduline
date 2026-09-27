@@ -133,6 +133,55 @@ export function CommissionCalculator() {
     { id: '4', name: 'Quarterly MVP', type: 'percentage', value: 15, condition: 'Performa terbaik dalam satu kuartal', icon: Award },
   ]);
 
+  // Bab 66 (27 Sep 2026): "perbaiki kalkulasi proyeksi" -- logika tier
+  // progresif dipindah ke fungsi murni (bisa dipakai ulang), supaya grafik
+  // "Kalkulasi Proyeksi" di bawah bisa dihitung dari rumus & `tiers` yang
+  // SAMA PERSIS dipakai simulator ini, bukan dua sumber kebenaran yang
+  // bisa saling menyimpang.
+  const computeCommissionForAmount = (amount: number, tierList: CommissionTier[]): { base: number; rate: number } => {
+    let total = 0;
+    let rate = 0;
+    for (const tier of tierList) {
+      if (amount >= tier.minAmount) {
+        const applicable = Math.min(amount, tier.maxAmount) - tier.minAmount;
+        total += (applicable * tier.rate) / 100;
+        rate = tier.rate;
+        if (amount <= tier.maxAmount) break;
+      }
+    }
+    return { base: total, rate };
+  };
+
+  // HOTFIX (27 Sep 2026): useMemo ini SEBELUMNYA diletakkan sesudah
+  // `if (loading) { return ... }` di bawah -- melanggar Rules of Hooks
+  // (hook tidak boleh dipanggil sesudah early return kondisional). Saat
+  // render pertama (loading=true) komponen return sebelum sempat
+  // memanggil useMemo ini; begitu loadData() selesai dan loading jadi
+  // false, React melihat ada hook baru yang dipanggil yang TIDAK
+  // dipanggil di render sebelumnya -- "Rendered more hooks than during
+  // the previous render" (React error #310), meng-crash seluruh halaman
+  // di production. Sekarang dipindah ke sini, sebelum `if (loading)`,
+  // supaya dipanggil TANPA SYARAT di setiap render.
+  //
+  // Bab 66: grafik proyeksi dulu array literal hardcode (5 titik statis,
+  // tidak pernah diperbarui) -- kelas bug yang sama seperti Math.random()
+  // di Dampak Revenue (Discount Approval, Bab 60): tampilan bisa diam-diam
+  // menyimpang dari kalkulasi yang sebenarnya kalau skema tier di atas
+  // berubah. Sekarang titik-titiknya dihasilkan dari batas tiap tier +
+  // titik hasil input simulasi user saat ini (kalau berupa angka valid),
+  // supaya grafik selalu sinkron dengan tiers & mencerminkan simulasi yang
+  // sedang dilihat user.
+  const projectionData = useMemo(() => {
+    const finiteBoundaries = tiers.map((t) => t.maxAmount).filter((m) => m < 999999999999);
+    const topBoundary = finiteBoundaries.length > 0 ? Math.max(...finiteBoundaries) : 500000000;
+    const breakpoints = new Set<number>([0, ...tiers.map((t) => t.minAmount), ...finiteBoundaries, topBoundary * 2]);
+    const simAmountNum = parseFloat(simAmount);
+    if (!isNaN(simAmountNum) && simAmountNum > 0) breakpoints.add(simAmountNum);
+    return Array.from(breakpoints)
+      .sort((a, b) => a - b)
+      .map((sales) => ({ sales, comm: computeCommissionForAmount(sales, tiers).base }));
+  }, [tiers, simAmount]);
+
   const [commissions, setCommissions] = useState<CommissionRecordView[]>([]);
 
   useEffect(() => {
@@ -315,25 +364,6 @@ export function CommissionCalculator() {
     return `Dari ${total} komisi periode ${periodLabelForInsight}, status ${dominant.name} paling dominan (${dominant.value} komisi, ${dominantPct.toFixed(0)}%).${pendingNote}`;
   })();
 
-  // Bab 66 (27 Sep 2026): "perbaiki kalkulasi proyeksi" -- logika tier
-  // progresif dipindah ke fungsi murni (bisa dipakai ulang), supaya grafik
-  // "Kalkulasi Proyeksi" di bawah bisa dihitung dari rumus & `tiers` yang
-  // SAMA PERSIS dipakai simulator ini, bukan dua sumber kebenaran yang
-  // bisa saling menyimpang.
-  const computeCommissionForAmount = (amount: number, tierList: CommissionTier[]): { base: number; rate: number } => {
-    let total = 0;
-    let rate = 0;
-    for (const tier of tierList) {
-      if (amount >= tier.minAmount) {
-        const applicable = Math.min(amount, tier.maxAmount) - tier.minAmount;
-        total += (applicable * tier.rate) / 100;
-        rate = tier.rate;
-        if (amount <= tier.maxAmount) break;
-      }
-    }
-    return { base: total, rate };
-  };
-
   const calculateSim = () => {
     const amount = parseFloat(simAmount);
     if (isNaN(amount)) return;
@@ -341,25 +371,6 @@ export function CommissionCalculator() {
     setSimResults({ base, tier: rate });
     toast.success('Simulasi kalkulasi selesai');
   };
-
-  // Bab 66: grafik proyeksi dulu array literal hardcode (5 titik statis,
-  // tidak pernah diperbarui) -- kelas bug yang sama seperti Math.random()
-  // di Dampak Revenue (Discount Approval, Bab 60): tampilan bisa diam-diam
-  // menyimpang dari kalkulasi yang sebenarnya kalau skema tier di atas
-  // berubah. Sekarang titik-titiknya dihasilkan dari batas tiap tier +
-  // titik hasil input simulasi user saat ini (kalau berupa angka valid),
-  // supaya grafik selalu sinkron dengan tiers & mencerminkan simulasi yang
-  // sedang dilihat user.
-  const projectionData = useMemo(() => {
-    const finiteBoundaries = tiers.map((t) => t.maxAmount).filter((m) => m < 999999999999);
-    const topBoundary = finiteBoundaries.length > 0 ? Math.max(...finiteBoundaries) : 500000000;
-    const breakpoints = new Set<number>([0, ...tiers.map((t) => t.minAmount), ...finiteBoundaries, topBoundary * 2]);
-    const simAmountNum = parseFloat(simAmount);
-    if (!isNaN(simAmountNum) && simAmountNum > 0) breakpoints.add(simAmountNum);
-    return Array.from(breakpoints)
-      .sort((a, b) => a - b)
-      .map((sales) => ({ sales, comm: computeCommissionForAmount(sales, tiers).base }));
-  }, [tiers, simAmount]);
 
   const simAmountForChart = parseFloat(simAmount);
   const simPointForChart = simResults && !isNaN(simAmountForChart) ? { sales: simAmountForChart, comm: simResults.base } : null;
