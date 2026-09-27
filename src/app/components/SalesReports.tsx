@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, DollarSign, Users, Target, Download, Calendar, BarChart3, PieChart as PieChartIcon, ChevronDown, ChevronRight, Building2, Store } from 'lucide-react';
+import { TrendingUp, DollarSign, Users, Target, Download, Calendar, BarChart3, PieChart as PieChartIcon, ChevronDown, ChevronRight, Building2, Store, Lightbulb } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
@@ -177,6 +177,52 @@ export function SalesReports() {
     }));
   };
 
+  const teamPerfChartData = getChartData();
+
+  // ─── Bab 68: Insight computations (dihitung dari data yang sama dengan tiap grafik) ──
+  const revenueTrendInsight = (() => {
+    const first = salesData[0];
+    const last = salesData[salesData.length - 1];
+    const pct = Math.round(((last.value - first.value) / first.value) * 100);
+    return `Revenue bulanan ${pct >= 0 ? 'tumbuh' : 'turun'} dari Rp ${first.value}jt (${first.month}) menjadi Rp ${last.value}jt (${last.month}), ${pct >= 0 ? 'naik' : 'turun'} ${Math.abs(pct)}%.`;
+  })();
+
+  const leadSourcesInsight = (() => {
+    const sorted = [...leadSourceData].sort((a, b) => b.value - a.value);
+    const top = sorted[0];
+    const second = sorted[1];
+    return `${top.name} adalah sumber leads terbesar (${top.value}%), diikuti ${second.name} (${second.value}%). Kelima sumber ini bersama-sama menyumbang seluruh leads yang masuk.`;
+  })();
+
+  const monthlySalesInsight = (() => {
+    const first = monthlyData[0];
+    const last = monthlyData[monthlyData.length - 1];
+    const leadsGrowthPct = Math.round(((last.leads - first.leads) / first.leads) * 100);
+    const revenueGrowthPct = Math.round(((last.revenue - first.revenue) / first.revenue) * 100);
+    return `Leads bulanan naik dari ${first.leads} (${first.month}) menjadi ${last.leads} (${last.month}) (+${leadsGrowthPct}%), sejalan dengan revenue yang tumbuh +${revenueGrowthPct}% menjadi Rp ${last.revenue}jt. Forecast ${last.month} diproyeksikan Rp ${last.forecast}jt.`;
+  })();
+
+  const teamPerformanceComparisonInsight = (() => {
+    if (teamPerfChartData.length === 0) return 'Belum ada data sales rep untuk manager yang dipilih.';
+    const withAttainment = teamPerfChartData.map(m => ({ ...m, attainment: m.target > 0 ? Math.round((m.achievement / m.target) * 100) : 0 }));
+    const best = [...withAttainment].sort((a, b) => b.attainment - a.attainment)[0];
+    const worst = [...withAttainment].sort((a, b) => a.attainment - b.attainment)[0];
+    return `Dari ${teamPerfChartData.length} sales rep yang ditampilkan, ${best.name} mencatat attainment tertinggi (${best.attainment}%), sementara ${worst.name} paling rendah (${worst.attainment}%).`;
+  })();
+
+  const productPerformanceInsight = (() => {
+    const topRevenue = [...productPerformance].sort((a, b) => b.revenue - a.revenue)[0];
+    const topUnits = [...productPerformance].sort((a, b) => b.sales - a.sales)[0];
+    return `${topRevenue.name} adalah produk dengan revenue tertinggi (Rp ${topRevenue.revenue}jt), sedangkan ${topUnits.name} terjual paling banyak (${topUnits.sales} unit).`;
+  })();
+
+  const regionalSalesInsight = (() => {
+    const sorted = [...regionalData].sort((a, b) => b.percentage - a.percentage);
+    const top = sorted[0];
+    const second = sorted[1];
+    return `${top.region} mendominasi revenue regional dengan kontribusi ${top.percentage}% (Rp ${top.value}jt), diikuti ${second.region} (${second.percentage}%).`;
+  })();
+
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#013E37]"></div></div>;
 
   return (
@@ -251,6 +297,13 @@ export function SalesReports() {
                     <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} /><XAxis dataKey="month" /><YAxis /><Tooltip /><Area type="monotone" dataKey="value" stroke={CHART_PRIMARY} fill="url(#colorRevenue)" />
                   </AreaChart>
                 </ResponsiveContainer>
+                <div className="mt-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 flex items-start gap-3">
+                  <Lightbulb className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                    <p className="text-xs font-semibold text-gray-700 leading-relaxed">{revenueTrendInsight}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
             <Card>
@@ -259,6 +312,13 @@ export function SalesReports() {
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart><Pie data={leadSourceData} cx="50%" cy="50%" outerRadius={100} fill={CHART_PRIMARY} dataKey="value" label={({name, percent}) => `${name} ${(percent*100).toFixed(0)}%`}>{leadSourceData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><Tooltip /></PieChart>
                 </ResponsiveContainer>
+                <div className="mt-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 flex items-start gap-3">
+                  <Lightbulb className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                    <p className="text-xs font-semibold text-gray-700 leading-relaxed">{leadSourcesInsight}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -289,6 +349,13 @@ export function SalesReports() {
                   <Line type="monotone" dataKey="forecast" stroke={CHART_COLORS[1]} strokeDasharray="5 5" />
                 </LineChart>
               </ResponsiveContainer>
+              <div className="mt-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 flex items-start gap-3">
+                <Lightbulb className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                  <p className="text-xs font-semibold text-gray-700 leading-relaxed">{monthlySalesInsight}</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -447,12 +514,19 @@ export function SalesReports() {
             <CardHeader><CardTitle>Team Performance Comparison</CardTitle></CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={getChartData()}>
+                <BarChart data={teamPerfChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} /><XAxis dataKey="name" /><YAxis /><Tooltip /><Legend />
                   <Bar dataKey="target" fill="var(--border)" radius={[8, 8, 0, 0]} />
                   <Bar dataKey="achievement" fill={CHART_PRIMARY} radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
+              <div className="mt-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 flex items-start gap-3">
+                <Lightbulb className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                  <p className="text-xs font-semibold text-gray-700 leading-relaxed">{teamPerformanceComparisonInsight}</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -465,6 +539,13 @@ export function SalesReports() {
                   <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} /><XAxis type="number" /><YAxis dataKey="name" type="category" width={150} /><Tooltip /><Bar dataKey="revenue" fill={CHART_PRIMARY} />
                 </BarChart>
               </ResponsiveContainer>
+              <div className="mt-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 flex items-start gap-3">
+                <Lightbulb className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                  <p className="text-xs font-semibold text-gray-700 leading-relaxed">{productPerformanceInsight}</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -476,6 +557,13 @@ export function SalesReports() {
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart><Pie data={regionalData} cx="50%" cy="50%" outerRadius={100} fill={CHART_PRIMARY} dataKey="value" label={({region, percentage}) => `${region} ${percentage}%`}>{regionalData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><Tooltip /></PieChart>
                 </ResponsiveContainer>
+                <div className="mt-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 flex items-start gap-3">
+                  <Lightbulb className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                    <p className="text-xs font-semibold text-gray-700 leading-relaxed">{regionalSalesInsight}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
             <Card><CardHeader><CardTitle>Regional Details</CardTitle></CardHeader>

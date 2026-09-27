@@ -3,7 +3,7 @@ import {
   BarChart3, TrendingUp, TrendingDown, Users, DollarSign, Target,
   ArrowUpRight, ArrowDownRight, Download, Filter, RefreshCw,
   ShoppingBag, Layers, Activity, Award, Zap, Globe, Calendar,
-  ChevronUp, ChevronDown, Eye, BarChart2, PieChart as PieChartIcon,
+  ChevronUp, ChevronDown, Eye, BarChart2, PieChart as PieChartIcon, Lightbulb,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
@@ -206,6 +206,102 @@ export function AdvancedAnalytics() {
     }));
   }, []);
 
+  // ─── Bab 68: Insight computations (dihitung dari data yang sama dengan tiap grafik) ──
+  const revenueTrendInsight = (() => {
+    const monthsAboveTarget = monthlyData.filter(m => m.revenue >= m.target).length;
+    return `Revenue bulan ${lastMonth.month} mencapai Rp ${fmt(lastMonth.revenue)} (${Math.round((lastMonth.revenue / lastMonth.target) * 100)}% dari target), tumbuh ${fmtPct(revGrowth)} dari bulan sebelumnya. ${monthsAboveTarget} dari ${monthlyData.length} bulan berhasil melampaui target.`;
+  })();
+
+  const leadSourcesOverviewInsight = (() => {
+    const sorted = [...leadSources].sort((a, b) => b.value - a.value);
+    const top = sorted[0];
+    const second = sorted[1];
+    return `${top.name} adalah sumber leads terbesar dengan kontribusi ${top.value}% (${top.leads} leads), diikuti ${second.name} sebesar ${second.value}%.`;
+  })();
+
+  const regionPerformanceInsight = (() => {
+    const topRevenue = [...regionData].sort((a, b) => b.revenue - a.revenue)[0];
+    const fastestGrowth = [...regionData].sort((a, b) => b.growth - a.growth)[0];
+    return `${topRevenue.region} mencatat revenue tertinggi Rp ${topRevenue.revenue}jt dari ${topRevenue.deals} deals, sementara pertumbuhan tercepat justru dari ${fastestGrowth.region} (${fmtPct(fastestGrowth.growth)}).`;
+  })();
+
+  const activityTimelineInsight = (() => {
+    const scored = activityTimeline.map(d => ({ ...d, total: d.calls + d.emails + d.meetings + d.demos }));
+    const peakDay = [...scored].sort((a, b) => b.total - a.total)[0];
+    const weekday = scored.slice(0, 5).reduce((a, c) => a + c.total, 0) / 5;
+    const weekend = scored.slice(5).reduce((a, c) => a + c.total, 0) / 2;
+    const dropPct = Math.round((1 - weekend / weekday) * 100);
+    return `Aktivitas tim memuncak pada hari ${peakDay.day} dengan ${peakDay.calls} calls dan ${peakDay.meetings} meetings. Rata-rata aktivitas akhir pekan turun ${dropPct}% dibanding hari kerja.`;
+  })();
+
+  const quarterlyRevenueInsight = (() => {
+    const first = quarterlyData[0];
+    const last = quarterlyData[quarterlyData.length - 1];
+    const bestGrowth = [...quarterlyData].sort((a, b) => b.growth - a.growth)[0];
+    const totalGrowthPct = Math.round(((last.revenue - first.revenue) / first.revenue) * 100);
+    return `Revenue tumbuh dari Rp ${first.revenue}jt (${first.quarter}) menjadi Rp ${last.revenue}jt (${last.quarter}), naik ${totalGrowthPct}% sepanjang tahun. Pertumbuhan tertinggi tercatat di ${bestGrowth.quarter} (${fmtPct(bestGrowth.growth)}).`;
+  })();
+
+  const revenueForecastInsight = (() => {
+    const lastActual = [...forecastData].reverse().find(d => d.actual != null);
+    const lastForecast = forecastData[forecastData.length - 1];
+    const pct = lastActual && lastForecast.forecast ? Math.round(((lastForecast.forecast - (lastActual.actual as number)) / (lastActual.actual as number)) * 100) : 0;
+    return `Proyeksi ${lastForecast.month} diperkirakan mencapai Rp ${lastForecast.forecast}jt (rentang Rp ${lastForecast.lower}jt–Rp ${lastForecast.upper}jt), naik ${pct}% dari aktual terakhir Rp ${lastActual?.actual}jt.`;
+  })();
+
+  const dealStatusInsight = (() => {
+    const withWinRate = teamPerformance.map(m => ({ ...m, winRate: Math.round((m.closed / (m.closed + m.inProgress + m.lost)) * 100) }));
+    const best = [...withWinRate].sort((a, b) => b.winRate - a.winRate)[0];
+    const worst = [...withWinRate].sort((a, b) => a.winRate - b.winRate)[0];
+    return `${best.name} mencatat win rate tertinggi (${best.winRate}%), sementara ${worst.name} perlu perhatian dengan win rate terendah (${worst.winRate}%) dan ${worst.lost} deal lost.`;
+  })();
+
+  const radarPerformanceInsight = (() => {
+    const reps = ['Ahmad', 'Diana', 'Budi'] as const;
+    const avgByRep = reps.map(r => ({ rep: r, avg: radarData.reduce((a, m) => a + m[r], 0) / radarData.length }));
+    const best = [...avgByRep].sort((a, b) => b.avg - a.avg)[0];
+    const quotaMetric = radarData.find(m => m.metric === 'Quota')!;
+    return `${best.rep} unggul secara keseluruhan dengan skor rata-rata ${best.avg.toFixed(0)} di 5 metrik yang dibandingkan. Pada metrik Quota, Ahmad ${quotaMetric.Ahmad}, Diana ${quotaMetric.Diana}, dan Budi ${quotaMetric.Budi} — ketiganya sudah di atas 100%.`;
+  })();
+
+  const pipelineStageInsight = (() => {
+    let maxDrop = { from: '', to: '', pct: 0 };
+    for (let i = 0; i < conversionFunnel.length - 1; i++) {
+      const drop = 100 - (conversionFunnel[i + 1].pct / conversionFunnel[i].pct) * 100;
+      if (drop > maxDrop.pct) maxDrop = { from: conversionFunnel[i].stage, to: conversionFunnel[i + 1].stage, pct: Math.round(drop) };
+    }
+    const overallConv = Math.round((conversionFunnel[conversionFunnel.length - 1].count / conversionFunnel[0].count) * 100);
+    return `Drop-off terbesar terjadi dari tahap "${maxDrop.from}" ke "${maxDrop.to}" (turun ${maxDrop.pct}%). Dari total ${conversionFunnel[0].count.toLocaleString()} leads, hanya ${overallConv}% yang berhasil closed won.`;
+  })();
+
+  const leadSourcesDetailInsight = (() => {
+    const sorted = [...leadSources].sort((a, b) => b.value - a.value);
+    const top3Share = sorted.slice(0, 3).reduce((a, c) => a + c.value, 0);
+    const smallest = sorted[sorted.length - 1];
+    return `3 sumber teratas (${sorted.slice(0, 3).map(s => s.name).join(', ')}) menyumbang ${top3Share}% dari total leads, sementara ${smallest.name} berkontribusi paling kecil (${smallest.value}%).`;
+  })();
+
+  const leadTrendInsight = (() => {
+    const first = monthlyData[0];
+    const last = monthlyData[monthlyData.length - 1];
+    const leadsGrowthPct = Math.round(((last.leads - first.leads) / first.leads) * 100);
+    const convDelta = last.conversion - first.conversion;
+    return `Leads bulanan naik dari ${first.leads} menjadi ${last.leads} (+${leadsGrowthPct}%) sepanjang tahun, dengan conversion rate membaik dari ${first.conversion}% menjadi ${last.conversion}% (+${convDelta} poin).`;
+  })();
+
+  const productRevenueInsight = (() => {
+    const totalRev = productData.reduce((a, c) => a + c.revenue, 0);
+    const top = [...productData].sort((a, b) => b.revenue - a.revenue)[0];
+    const share = Math.round((top.revenue / totalRev) * 100);
+    return `${top.product} menyumbang revenue terbesar, Rp ${top.revenue.toLocaleString()}jt atau ${share}% dari total revenue produk, dengan margin ${top.margin}%.`;
+  })();
+
+  const productGrowthMarginInsight = (() => {
+    const bestMargin = [...productData].sort((a, b) => b.margin - a.margin)[0];
+    const fastestGrowth = [...productData].sort((a, b) => b.growth - a.growth)[0];
+    return `${bestMargin.product} memiliki margin tertinggi (${bestMargin.margin}%), sedangkan ${fastestGrowth.product} tumbuh paling cepat (+${fastestGrowth.growth}%) meski margin lebih tipis (${fastestGrowth.margin}%).`;
+  })();
+
   return (
     <div className="space-y-5 pb-8">
       {/* ── Header ─────────────────────────────────────────────── */}
@@ -315,6 +411,13 @@ export function AdvancedAnalytics() {
                       fill="url(#gradTarget)" name="Target (jt)" strokeDasharray="5 4" />
                   </AreaChart>
                 </ResponsiveContainer>
+                <div className="mt-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 flex items-start gap-3">
+                  <Lightbulb className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                    <p className="text-xs font-semibold text-gray-700 leading-relaxed">{revenueTrendInsight}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -342,6 +445,13 @@ export function AdvancedAnalytics() {
                       <span className="font-semibold text-gray-800">{s.value}%</span>
                     </div>
                   ))}
+                </div>
+                <div className="mt-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 flex items-start gap-3">
+                  <Lightbulb className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                    <p className="text-xs font-semibold text-gray-700 leading-relaxed">{leadSourcesOverviewInsight}</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -402,6 +512,13 @@ export function AdvancedAnalytics() {
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
+                <div className="mt-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 flex items-start gap-3">
+                  <Lightbulb className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                    <p className="text-xs font-semibold text-gray-700 leading-relaxed">{regionPerformanceInsight}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -459,6 +576,20 @@ export function AdvancedAnalytics() {
                       yAxisId={undefined} name="Growth %" dot={{ r: 5, fill: COLORS[3] }} />
                   </ComposedChart>
                 </ResponsiveContainer>
+                <div className="mt-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 flex items-start gap-3">
+                  <Lightbulb className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                    <p className="text-xs font-semibold text-gray-700 leading-relaxed">{activityTimelineInsight}</p>
+                  </div>
+                </div>
+                <div className="mt-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 flex items-start gap-3">
+                  <Lightbulb className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                    <p className="text-xs font-semibold text-gray-700 leading-relaxed">{quarterlyRevenueInsight}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -491,8 +622,12 @@ export function AdvancedAnalytics() {
                       strokeDasharray="3 3" dot={false} name="Lower Bound" connectNulls />
                   </ComposedChart>
                 </ResponsiveContainer>
-                <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                  <p className="text-xs text-blue-700 font-semibold">AI Insight: Proyeksi Q1 2025 meningkat 20% berdasarkan tren historis dan pipeline aktif saat ini.</p>
+                <div className="mt-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 flex items-start gap-3">
+                  <Lightbulb className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                    <p className="text-xs font-semibold text-gray-700 leading-relaxed">{revenueForecastInsight}</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -582,6 +717,13 @@ export function AdvancedAnalytics() {
                     <Bar dataKey="lost" stackId="a" fill={CHART_STATUS.critical} name="Lost" radius={[3, 3, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
+                <div className="mt-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 flex items-start gap-3">
+                  <Lightbulb className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                    <p className="text-xs font-semibold text-gray-700 leading-relaxed">{dealStatusInsight}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -603,6 +745,13 @@ export function AdvancedAnalytics() {
                     <Tooltip />
                   </RadarChart>
                 </ResponsiveContainer>
+                <div className="mt-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 flex items-start gap-3">
+                  <Lightbulb className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                    <p className="text-xs font-semibold text-gray-700 leading-relaxed">{radarPerformanceInsight}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -707,6 +856,13 @@ export function AdvancedAnalytics() {
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
+                <div className="mt-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 flex items-start gap-3">
+                  <Lightbulb className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                    <p className="text-xs font-semibold text-gray-700 leading-relaxed">{pipelineStageInsight}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -779,6 +935,13 @@ export function AdvancedAnalytics() {
                     ))}
                   </div>
                 </div>
+                <div className="mt-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 flex items-start gap-3">
+                  <Lightbulb className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                    <p className="text-xs font-semibold text-gray-700 leading-relaxed">{leadSourcesDetailInsight}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -801,6 +964,13 @@ export function AdvancedAnalytics() {
                       strokeWidth={2} dot={{ r: 3 }} name="Conv. %" />
                   </ComposedChart>
                 </ResponsiveContainer>
+                <div className="mt-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 flex items-start gap-3">
+                  <Lightbulb className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                    <p className="text-xs font-semibold text-gray-700 leading-relaxed">{leadTrendInsight}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -878,6 +1048,13 @@ export function AdvancedAnalytics() {
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
+                <div className="mt-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 flex items-start gap-3">
+                  <Lightbulb className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                    <p className="text-xs font-semibold text-gray-700 leading-relaxed">{productRevenueInsight}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -910,6 +1087,13 @@ export function AdvancedAnalytics() {
                     </Scatter>
                   </ScatterChart>
                 </ResponsiveContainer>
+                <div className="mt-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 flex items-start gap-3">
+                  <Lightbulb className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                    <p className="text-xs font-semibold text-gray-700 leading-relaxed">{productGrowthMarginInsight}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
