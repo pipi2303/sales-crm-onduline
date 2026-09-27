@@ -5941,3 +5941,75 @@ user, di mana `npm install` user hanya mengunduh binary darwin-arm64) --
 user diminta menjalankan `npx vite build`/`npx vitest run` sendiri di
 Mac-nya untuk verifikasi penuh, plus reload halaman Commission Control
 di browser untuk konfirmasi error #310 sudah hilang.
+
+## Bab 68: Insight/analytic di setiap grafik -- menu Analytics & Sales Reports
+
+**Permintaan user**: "di menu Analytics tambahkan analytic dan insight untuk
+masing-masing grafik yang ada di semua tabmenu" -- lalu diperluas: "implementasikan
+juga di menu Sales Reports".
+
+**Audit awal** (via subagent, read-only): menu Analytics (`AdvancedAnalytics.tsx`,
+6 tabmenu: Overview/Revenue/Performance/Pipeline/Leads/Products) punya 13
+instance grafik recharts, hanya 1 yang sudah punya kotak insight -- dan itu
+pun dengan gaya lama (`bg-blue-50`, teks statis hardcoded "AI Insight: Proyeksi
+Q1 2025 meningkat 20%..." yang TIDAK dihitung dari `forecastData`, murni
+prosa tetap). 12 grafik lainnya tidak punya insight sama sekali. Menu Sales
+Reports (`SalesReports.tsx`, 5 tabmenu: Overview/Sales Analysis/Team
+Performance/Product Analysis/Regional Analysis) punya 6 instance grafik
+recharts, tidak satupun punya insight.
+
+**Fix**: menambahkan kotak insight dengan pola established sejak Bab 60/61/67
+(ikon `Lightbulb` + label `text-[9px] font-black uppercase tracking-widest
+text-emerald-700` "Insight" + kalimat naratif, dibungkus
+`bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 flex items-start
+gap-3`) di SEMUA grafik yang belum punya, di kedua file, ditempatkan sebagai
+elemen terakhir di dalam `CardContent` masing-masing grafik. Insight lama
+di Revenue Forecast (`AdvancedAnalytics.tsx`) dimigrasi ke pola baru dengan
+teks yang sekarang dihitung live dari `forecastData` (proyeksi bulan
+terakhir vs aktual terakhir), bukan hardcoded lagi.
+
+Setiap insight adalah IIFE (`const xInsight = (() => { ...; return \`...\`; })();`)
+yang membaca array data PERSIS SAMA dengan yang dipakai grafiknya (mis.
+`monthlyData`, `leadSources`, `regionData`, `productData` di Analytics;
+`salesData`, `leadSourceData`, `monthlyData`, `productPerformance`,
+`regionalData`, `teamPerfChartData` di Sales Reports) -- tidak ada satupun
+insight yang berupa prosa statis terpisah, menyambung konvensi "jangan
+hardcode insight yang seharusnya computed" dari Bab 60/61/66/67.
+
+**Refactor kecil di `SalesReports.tsx`**: grafik "Team Performance
+Comparison" sebelumnya memanggil `getChartData()` langsung sebagai prop
+`data={...}` di JSX (fungsi biasa, bukan `useMemo`, dipanggil ulang setiap
+render). Sekarang hasilnya disimpan sekali ke `const teamPerfChartData =
+getChartData();` sebelum `if (loading) return`, dipakai bersama oleh chart
+DAN insight-nya -- supaya keduanya tidak pernah bisa berbeda data (pola
+sama seperti `projectionData` di `CommissionCalculator.tsx`, Bab 66).
+`teamPerfChartData` sengaja ditaruh SEBELUM `if (loading) return` (bukan
+setelahnya) meski ia bukan hook -- konsisten dengan pelajaran Bab 67 soal
+selalu menaruh deklarasi baru sebelum early-return pattern, dan supaya
+tetap konsisten dengan gaya kode existing lain di file yang sama
+(`getPeriodOptions`, `getFilteredTeamMembers`, `getChartData`) yang semuanya
+juga di atas early return itu.
+
+**Cara insersi**: dua tahap python read-modify-write via `device_bash`
+(bukan Write tool, sesuai konstrain repo ini). Tahap 1: tambah import
+`Lightbulb`, sisipkan blok const insight (setelah `quotaAttainment` di
+Analytics; setelah `getChartData` di Sales Reports, sebelum early return).
+Tahap 2: untuk tiap grafik, cari teks `CardTitle` sebagai anchor unik, lalu
+sisipkan/ganti kotak insight tepat sebelum `</CardContent>` penutup grafik
+tersebut (deteksi indentasi otomatis via regex supaya cocok dengan level
+nesting yang berbeda-beda antar tab).
+
+**Verifikasi**: `npx tsc --noEmit` sebelum & sesudah tetap 89 error
+pra-existing di kedua file (nol regresi baru); `grep -cE ' +$'` dibandingkan
+baris-per-baris terhadap versi asli (via `diff`) mengonfirmasi nol baris
+trailing-whitespace BARU (baris-baris lama yang memang sudah ada trailing
+whitespace sejak sebelumnya tetap ada, hanya bergeser nomor baris karena
+insersi). `vite build`/`vitest run` TIDAK dijalankan dari sandbox
+`device_bash` (limitasi struktural platform Linux VM vs macOS asli untuk
+binary native rollup, sudah didokumentasikan sejak Bab 67) -- user perlu
+menjalankan `npx vite build` dan `npx vitest run` sendiri di Terminal Mac
+sebelum push, plus review visual tiap tabmenu di kedua halaman untuk
+memastikan kotak insight tampil rapi dan kalimatnya masuk akal.
+
+Commit: `2ad4f496` (fix, belum di-push -- menyusul di atas `5fdf756e`
+yang juga masih local-only menunggu verifikasi build/test dari user).
