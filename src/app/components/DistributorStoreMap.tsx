@@ -45,7 +45,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { MapPin, Store as StoreIcon, Truck, Clock, CheckCircle2, XCircle, Camera, CameraOff, Plus, AlertTriangle, Users, Package, MapPinOff, UserCog } from 'lucide-react';
+import { MapPin, Store as StoreIcon, Truck, Clock, CheckCircle2, XCircle, Camera, CameraOff, Plus, AlertTriangle, Users, Package, MapPinOff, UserCog, List as ListIcon, Lightbulb } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
 import { Switch } from '@/app/components/ui/switch';
@@ -62,6 +62,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/app/components/ui/dialog';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/app/components/ui/tabs';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/app/components/ui/table';
 import { toast } from 'sonner';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { distributorsRepository } from '@/services/distributorsRepository';
@@ -236,6 +238,33 @@ interface MapPoint {
   salesRepName: string | null;
 }
 
+// Bab 63 (27 Sep 2026): baris untuk tabmenu "List Distributor"/"List Toko"
+// -- BEDA dari MapPoint di atas: MapPoint cuma dibuat untuk entri yang
+// punya koordinat GPS (lihat filter di toPoints()), karena memang hanya
+// dipakai untuk taruh marker di peta. List di sini harus menampilkan
+// SEMUA Distributor/Toko sebagai master data (termasuk yang belum punya
+// GPS sama sekali, dan yang statusnya rejected) -- makanya dibangun
+// langsung dari state distributors/stores mentah, bukan dari MapPoint.
+interface ListRow {
+  kind: PointKind;
+  id: string;
+  code: string;
+  name: string;
+  address: string;
+  status: ApprovalStatus;
+  hasGps: boolean;
+  distributorName: string | null; // only meaningful for stores
+  submittedAt: Date | null;
+  rejectionNote: string;
+  salesRepName: string | null;
+}
+
+const LIST_STATUS_BADGE_CLASS: Record<ApprovalStatus, string> = {
+  approved: 'text-emerald-700 border-emerald-300 bg-emerald-50',
+  pending: 'text-amber-700 border-amber-300 bg-amber-50',
+  rejected: 'text-red-700 border-red-300 bg-red-50',
+};
+
 function divIcon(kind: PointKind, color: string): L.DivIcon {
   const size = kind === 'distributor' ? 26 : 20;
   const shape =
@@ -352,6 +381,7 @@ export function DistributorStoreMap({ fixedTypeFilter }: DistributorStoreMapProp
 
   const [typeFilter, setTypeFilter] = useState<'all' | PointKind>(fixedTypeFilter ?? 'all');
   const effectiveTypeFilter: 'all' | PointKind = fixedTypeFilter ?? typeFilter;
+  const listLabel = fixedTypeFilter === 'distributor' ? 'Distributor' : fixedTypeFilter === 'store' ? 'Toko' : 'Distributor & Toko';
   const [searchText, setSearchText] = useState('');
   const [showPending, setShowPending] = useState(false); // approver-only, default off
   const [mapMode, setMapMode] = useState<MapMode>('approval');
@@ -386,6 +416,15 @@ export function DistributorStoreMap({ fixedTypeFilter }: DistributorStoreMapProp
   // hanya approver yang bisa memanggil ini (server menolak yang lain
   // lewat DISTRIBUTOR_APPROVER_ROLES/STORE_APPROVER_ROLES).
   const [assigningId, setAssigningId] = useState<string | null>(null);
+
+  // Bab 63 (27 Sep 2026): tabmenu Peta Sebaran / List -- state pencarian
+  // & filter status di List sengaja terpisah dari searchText/showPending
+  // milik Peta Sebaran di atas (bukan di-share) supaya masing-masing tab
+  // independen dan lebih sederhana, mengikuti pola yang sama dengan
+  // tabmenu Wilayah/Analitik/Visual Map di TerritoryManagement.tsx.
+  const [viewTab, setViewTab] = useState<'map' | 'list'>('map');
+  const [listSearchText, setListSearchText] = useState('');
+  const [listStatusFilter, setListStatusFilter] = useState<'all' | ApprovalStatus>('all');
 
   useEffect(() => {
     let cancelled = false;
@@ -478,6 +517,64 @@ export function DistributorStoreMap({ fixedTypeFilter }: DistributorStoreMapProp
       .filter((p) => effectiveTypeFilter === 'all' || p.kind === effectiveTypeFilter)
       .map((p) => ({ point: p, nearby: findNearbyPoints(p, allPoints) }));
   }, [allPoints, effectiveTypeFilter]);
+
+  // Bab 63 (27 Sep 2026): data untuk tabmenu List -- dibangun langsung dari
+  // distributors/stores mentah (bukan allPoints/MapPoint yang GPS-only),
+  // supaya entri tanpa koordinat GPS tetap muncul di List meski tidak
+  // pernah muncul di Peta Sebaran.
+  const allListItems = useMemo(() => {
+    const items: ListRow[] = [];
+    if (effectiveTypeFilter !== 'store') {
+      for (const d of distributors) {
+        items.push({
+          kind: 'distributor',
+          id: d.id,
+          code: d.code,
+          name: d.name,
+          address: d.address,
+          status: d.status,
+          hasGps: d.gpsLat !== null && d.gpsLng !== null,
+          distributorName: null,
+          submittedAt: d.submittedAt,
+          rejectionNote: d.rejectionNote,
+          salesRepName: d.salesRep?.name ?? null,
+        });
+      }
+    }
+    if (effectiveTypeFilter !== 'distributor') {
+      for (const s of stores) {
+        items.push({
+          kind: 'store',
+          id: s.id,
+          code: s.code,
+          name: s.name,
+          address: s.address,
+          status: s.status,
+          hasGps: s.gpsLat !== null && s.gpsLng !== null,
+          distributorName: s.distributor?.name ?? null,
+          submittedAt: s.submittedAt,
+          rejectionNote: s.rejectionNote,
+          salesRepName: s.salesRep?.name ?? null,
+        });
+      }
+    }
+    return items;
+  }, [distributors, stores, effectiveTypeFilter]);
+
+  const filteredListItems = useMemo(() => {
+    return allListItems
+      .filter((item) => {
+        if (listStatusFilter !== 'all' && item.status !== listStatusFilter) return false;
+        if (listSearchText.trim()) {
+          const q = listSearchText.trim().toLowerCase();
+          const haystack = `${item.name} ${item.code} ${item.address}`.toLowerCase();
+          if (!haystack.includes(q)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [allListItems, listStatusFilter, listSearchText]);
+
 
   // Bab 34 fix (24 Sep 2026, review grup menu "Tim Penjualan"): distributor/
   // toko pending TANPA koordinat GPS sebelumnya tidak pernah masuk
@@ -677,6 +774,30 @@ export function DistributorStoreMap({ fixedTypeFilter }: DistributorStoreMapProp
       (a, b) => b.distributorCount + b.storeCount - (a.distributorCount + a.storeCount)
     );
   }, [distributors, stores, salesReps, effectiveTypeFilter]);
+
+  // Insight otomatis untuk tabmenu List -- pola yang sama dengan
+  // DiscountApprovalSystem.tsx (Bab 60) & TerritoryManagement.tsx (Bab 61):
+  // kalimat dihitung dari data yang sedang tampil, bukan teks statis.
+  // "PIC beban terbanyak" dari salesRepWorkload di atas (dihitung dari
+  // distributors/stores mentah juga, jadi sudah termasuk entri tanpa GPS,
+  // konsisten dengan allListItems).
+  const listInsight = useMemo(() => {
+    const total = allListItems.length;
+    if (total === 0) return `Belum ada data ${listLabel} untuk dianalisis.`;
+    const approved = allListItems.filter((i) => i.status === 'approved').length;
+    const pending = allListItems.filter((i) => i.status === 'pending').length;
+    const rejected = allListItems.filter((i) => i.status === 'rejected').length;
+    const missingGps = allListItems.filter((i) => !i.hasGps).length;
+    const topRep = salesRepWorkload[0];
+    const topRepTotal = topRep ? topRep.distributorCount + topRep.storeCount : 0;
+    const topRepLabel = topRep && topRep.rep && topRepTotal > 0
+      ? `${topRep.rep.name} (menangani ${topRepTotal} akun)`
+      : 'belum ada yang ditugaskan sebagai PIC';
+    const gpsNote = missingGps > 0
+      ? ` ${missingGps} dari ${total} entri belum punya koordinat GPS sehingga tidak muncul di tab Peta Sebaran.`
+      : ' Semua entri sudah punya koordinat GPS.';
+    return `Total ${total} ${listLabel.toLowerCase()} tercatat: ${approved} approved, ${pending} menunggu approval, ${rejected} ditolak. PIC dengan beban terbanyak saat ini: ${topRepLabel}.${gpsNote}`;
+  }, [allListItems, listLabel, salesRepWorkload]);
 
   // Daftar titik yang bisa ditugaskan PIC-nya -- semua yang belum
   // rejected, TIDAK mengikuti toggle "Tampilkan Pending" (mengelola beban
@@ -1109,6 +1230,25 @@ export function DistributorStoreMap({ fixedTypeFilter }: DistributorStoreMapProp
         </Card>
       )}
 
+      {/* Bab 63 (27 Sep 2026): dipecah jadi 2 tabmenu (Peta Sebaran & List) --
+          sebelumnya cuma peta: data tanpa koordinat GPS tidak pernah
+          terlihat di sini sama sekali (kecuali lewat kartu Antrean
+          Approval kalau kebetulan sedang pending), dan tidak ada cara
+          untuk melihat seluruh Distributor/Toko sebagai daftar/tabel. */}
+      <Tabs value={viewTab} onValueChange={(v) => setViewTab(v as 'map' | 'list')} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2 md:w-[420px] bg-gray-100/50 p-1">
+          <TabsTrigger value="map" className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm">
+            <MapPin className="w-4 h-4 mr-2" />
+            Peta Sebaran
+          </TabsTrigger>
+          <TabsTrigger value="list" className="data-[state=active]:bg-[#013E37] data-[state=active]:text-white data-[state=active]:shadow-sm">
+            <ListIcon className="w-4 h-4 mr-2" />
+            List {listLabel}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="map" className="space-y-6 mt-0">
+
       <Card>
         <CardHeader>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -1484,6 +1624,135 @@ export function DistributorStoreMap({ fixedTypeFilter }: DistributorStoreMapProp
           Belum ada Distributor/Toko dengan koordinat GPS.
         </div>
       )}
+
+        </TabsContent>
+
+        <TabsContent value="list" className="space-y-6 mt-0">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <CardTitle className="text-base">List {listLabel}</CardTitle>
+                  <CardDescription>
+                    Daftar seluruh {listLabel.toLowerCase()} (termasuk yang belum punya koordinat GPS atau belum
+                    disetujui) -- berbeda dari tab Peta Sebaran yang hanya menampilkan titik dengan lokasi.
+                  </CardDescription>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Select value={listStatusFilter} onValueChange={(v) => setListStatusFilter(v as 'all' | ApprovalStatus)}>
+                    <SelectTrigger className="w-44">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua Status</SelectItem>
+                      <SelectItem value="approved">Approved</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    placeholder="Cari nama, kode, atau alamat..."
+                    value={listSearchText}
+                    onChange={(e) => setListSearchText(e.target.value)}
+                    className="w-56"
+                  />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {loading ? (
+                <p className="text-sm text-muted-foreground">Memuat data...</p>
+              ) : filteredListItems.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Tidak ada data yang cocok dengan filter saat ini.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-gray-50/80">
+                        <TableHead>Kode</TableHead>
+                        <TableHead>Nama</TableHead>
+                        <TableHead>Alamat</TableHead>
+                        {effectiveTypeFilter !== 'distributor' && <TableHead>Distributor Induk</TableHead>}
+                        <TableHead>PIC Sales Rep</TableHead>
+                        <TableHead>GPS</TableHead>
+                        <TableHead>Status</TableHead>
+                        {isApprover && <TableHead className="text-right">Aksi</TableHead>}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredListItems.map((item) => (
+                        <TableRow key={`${item.kind}-${item.id}`}>
+                          <TableCell className="font-mono text-xs whitespace-nowrap">{item.code}</TableCell>
+                          <TableCell className="font-medium">{item.name}</TableCell>
+                          <TableCell className="max-w-[240px] truncate text-sm text-muted-foreground" title={item.address}>
+                            {item.address || '-'}
+                          </TableCell>
+                          {effectiveTypeFilter !== 'distributor' && (
+                            <TableCell className="text-sm text-muted-foreground">{item.distributorName ?? '-'}</TableCell>
+                          )}
+                          <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                            {item.salesRepName ?? 'Belum ditugaskan'}
+                          </TableCell>
+                          <TableCell>
+                            {item.hasGps ? (
+                              <Badge variant="outline" className="text-emerald-700 border-emerald-300 bg-emerald-50">Ada</Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-gray-500 border-gray-300 bg-gray-50">Tidak Ada</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={LIST_STATUS_BADGE_CLASS[item.status]}>
+                              {STATUS_LABEL[item.status]}
+                            </Badge>
+                          </TableCell>
+                          {isApprover && (
+                            <TableCell className="text-right whitespace-nowrap">
+                              {item.status === 'pending' ? (
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    size="sm"
+                                    className="bg-emerald-600 hover:bg-emerald-700"
+                                    disabled={decidingId === item.id}
+                                    onClick={() => handleApprove(item.kind, item.id)}
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                                    Setujui
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="border-red-300 text-red-700 hover:bg-red-50"
+                                    disabled={decidingId === item.id}
+                                    onClick={() => openReject(item.kind, item.id, item.name)}
+                                  >
+                                    <XCircle className="w-3.5 h-3.5 mr-1" />
+                                    Tolak
+                                  </Button>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+              {!loading && filteredListItems.length > 0 && (
+                <div className="flex items-start gap-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4">
+                  <Lightbulb className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                    <p className="text-xs font-semibold text-gray-700 leading-relaxed">{listInsight}</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
