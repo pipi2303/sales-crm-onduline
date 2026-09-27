@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Search, DollarSign, TrendingUp, Award, Calendar, User, Download, Calculator, Eye, CheckCircle, Target, Clock, ChevronRight, BarChart3, PieChart as PieChartIcon, ArrowUpRight, Percent, Zap, Wallet } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Search, DollarSign, TrendingUp, Award, Calendar, User, Download, Calculator, Eye, CheckCircle, Target, Clock, ChevronRight, BarChart3, PieChart as PieChartIcon, ArrowUpRight, Percent, Zap, Wallet, Lightbulb } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Badge } from '@/app/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app
 import { StatCard, type StatCardData } from '@/app/components/ui/stat-card';
 import { toast } from 'sonner';
 import { formatCurrency, formatDate } from '@/utils/formatters';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend, AreaChart, Area, ReferenceDot } from 'recharts';
 import { CHART_PRIMARY, CHART_COLORS, CHART_GRID, CHART_TOOLTIP_STYLE, AREA_GRADIENT_STOPS, chartColor } from '@/styles/chartTheme';
 import { salesRepsRepository } from '@/services/salesRepsRepository';
 import { commissionsRepository } from '@/services/commissionsRepository';
@@ -266,27 +266,64 @@ export function CommissionCalculator() {
     total: c.totalCommission
   }));
 
+  // Bab 67 (27 Sep 2026): "Paid" di sini dulu dihitung dari `commissions`
+  // (semua periode, tidak difilter) sementara "Pending"/"Approved" dihitung
+  // dari `currentPeriodCommissions` (periode yang sedang dipilih di layar)
+  // -- 3 potongan pie chart yang sama tapi berbeda cakupan waktu, membuat
+  // distribusinya menyesatkan (mis. "Paid" bisa tampak dominan padahal itu
+  // akumulasi seluruh riwayat, bukan periode yang sedang dilihat). Sekarang
+  // ketiganya konsisten discope ke currentPeriodCommissions, sama seperti
+  // fix Bab 34 sebelumnya untuk handleApproveAll.
   const statusDistributionData = [
     { name: 'Pending', value: currentPeriodCommissions.filter(c => c.status === 'pending').length },
     { name: 'Approved', value: currentPeriodCommissions.filter(c => c.status === 'approved').length },
-    { name: 'Paid', value: commissions.filter(c => c.status === 'paid').length },
+    { name: 'Paid', value: currentPeriodCommissions.filter(c => c.status === 'paid').length },
   ];
 
   const stats = {
     totalCommission: currentPeriodCommissions.reduce((sum, c) => sum + c.totalCommission, 0),
     pending: currentPeriodCommissions.filter(c => c.status === 'pending').reduce((sum, c) => sum + c.totalCommission, 0),
     approved: currentPeriodCommissions.filter(c => c.status === 'approved').reduce((sum, c) => sum + c.totalCommission, 0),
-    paid: commissions.filter(c => c.status === 'paid').reduce((sum, c) => sum + c.totalCommission, 0),
+    paid: currentPeriodCommissions.filter(c => c.status === 'paid').reduce((sum, c) => sum + c.totalCommission, 0),
     avgRate: currentPeriodCommissions.length > 0 ? currentPeriodCommissions.reduce((sum, c) => sum + c.achievementRate, 0) / currentPeriodCommissions.length : 0
   };
 
-  const calculateSim = () => {
-    const amount = parseFloat(simAmount);
-    if (isNaN(amount)) return;
-    
+  // Bab 67: insight otomatis untuk kedua grafik tabmenu Payout Analytics,
+  // dihitung langsung dari data yang sama persis ditampilkan grafiknya
+  // (commissionByPersonData / statusDistributionData), mengikuti pola yang
+  // sama dipakai di Discount Approval (Bab 60) & Territory Management
+  // (Bab 61).
+  const periodLabelForInsight = selectedPeriodOption?.label ?? selectedPeriod;
+
+  const payoutDistributionInsight = (() => {
+    if (commissionByPersonData.length === 0) return `Belum ada data payout untuk periode ${periodLabelForInsight}.`;
+    const top = commissionByPersonData.reduce((max, c) => (c.total > max.total ? c : max), commissionByPersonData[0]);
+    const totalAll = commissionByPersonData.reduce((sum, c) => sum + c.total, 0);
+    const totalBonus = commissionByPersonData.reduce((sum, c) => sum + c.bonus, 0);
+    const bonusShare = totalAll > 0 ? (totalBonus / totalAll) * 100 : 0;
+    return `${top.name} memiliki payout tertinggi periode ${periodLabelForInsight} senilai ${formatCurrency(top.total)}. Dari total payout ${commissionByPersonData.length} sales rep (${formatCurrency(totalAll)}), sekitar ${bonusShare.toFixed(0)}% berasal dari bonus performa.`;
+  })();
+
+  const payoutStatusInsight = (() => {
+    const total = statusDistributionData.reduce((sum, s) => sum + s.value, 0);
+    if (total === 0) return `Belum ada komisi tercatat untuk periode ${periodLabelForInsight}.`;
+    const dominant = statusDistributionData.reduce((max, s) => (s.value > max.value ? s : max), statusDistributionData[0]);
+    const dominantPct = (dominant.value / total) * 100;
+    const pending = statusDistributionData.find((s) => s.name === 'Pending');
+    const pendingValue = stats.pending;
+    const pendingNote = pending && pending.value > 0 ? ` ${pending.value} komisi (${formatCurrency(pendingValue)}) di antaranya masih menunggu persetujuan.` : '';
+    return `Dari ${total} komisi periode ${periodLabelForInsight}, status ${dominant.name} paling dominan (${dominant.value} komisi, ${dominantPct.toFixed(0)}%).${pendingNote}`;
+  })();
+
+  // Bab 66 (27 Sep 2026): "perbaiki kalkulasi proyeksi" -- logika tier
+  // progresif dipindah ke fungsi murni (bisa dipakai ulang), supaya grafik
+  // "Kalkulasi Proyeksi" di bawah bisa dihitung dari rumus & `tiers` yang
+  // SAMA PERSIS dipakai simulator ini, bukan dua sumber kebenaran yang
+  // bisa saling menyimpang.
+  const computeCommissionForAmount = (amount: number, tierList: CommissionTier[]): { base: number; rate: number } => {
     let total = 0;
     let rate = 0;
-    for (const tier of tiers) {
+    for (const tier of tierList) {
       if (amount >= tier.minAmount) {
         const applicable = Math.min(amount, tier.maxAmount) - tier.minAmount;
         total += (applicable * tier.rate) / 100;
@@ -294,9 +331,38 @@ export function CommissionCalculator() {
         if (amount <= tier.maxAmount) break;
       }
     }
-    setSimResults({ base: total, tier: rate });
+    return { base: total, rate };
+  };
+
+  const calculateSim = () => {
+    const amount = parseFloat(simAmount);
+    if (isNaN(amount)) return;
+    const { base, rate } = computeCommissionForAmount(amount, tiers);
+    setSimResults({ base, tier: rate });
     toast.success('Simulasi kalkulasi selesai');
   };
+
+  // Bab 66: grafik proyeksi dulu array literal hardcode (5 titik statis,
+  // tidak pernah diperbarui) -- kelas bug yang sama seperti Math.random()
+  // di Dampak Revenue (Discount Approval, Bab 60): tampilan bisa diam-diam
+  // menyimpang dari kalkulasi yang sebenarnya kalau skema tier di atas
+  // berubah. Sekarang titik-titiknya dihasilkan dari batas tiap tier +
+  // titik hasil input simulasi user saat ini (kalau berupa angka valid),
+  // supaya grafik selalu sinkron dengan tiers & mencerminkan simulasi yang
+  // sedang dilihat user.
+  const projectionData = useMemo(() => {
+    const finiteBoundaries = tiers.map((t) => t.maxAmount).filter((m) => m < 999999999999);
+    const topBoundary = finiteBoundaries.length > 0 ? Math.max(...finiteBoundaries) : 500000000;
+    const breakpoints = new Set<number>([0, ...tiers.map((t) => t.minAmount), ...finiteBoundaries, topBoundary * 2]);
+    const simAmountNum = parseFloat(simAmount);
+    if (!isNaN(simAmountNum) && simAmountNum > 0) breakpoints.add(simAmountNum);
+    return Array.from(breakpoints)
+      .sort((a, b) => a - b)
+      .map((sales) => ({ sales, comm: computeCommissionForAmount(sales, tiers).base }));
+  }, [tiers, simAmount]);
+
+  const simAmountForChart = parseFloat(simAmount);
+  const simPointForChart = simResults && !isNaN(simAmountForChart) ? { sales: simAmountForChart, comm: simResults.base } : null;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -501,13 +567,7 @@ export function CommissionCalculator() {
               <Card className="border-none shadow-sm overflow-hidden h-[380px]">
                 <CardContent className="p-6">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={[
-                      { sales: 0, comm: 0 },
-                      { sales: 100000000, comm: 2500000 },
-                      { sales: 250000000, comm: 7750000 },
-                      { sales: 500000000, comm: 20250000 },
-                      { sales: 1000000000, comm: 55250000 },
-                    ]}>
+                    <AreaChart data={projectionData}>
                       <defs>
                         <linearGradient id="colorComm" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor={CHART_PRIMARY} stopOpacity={AREA_GRADIENT_STOPS.from}/>
@@ -523,10 +583,25 @@ export function CommissionCalculator() {
                         contentStyle={CHART_TOOLTIP_STYLE}
                       />
                       <Area type="monotone" dataKey="comm" stroke={CHART_PRIMARY} strokeWidth={3} fillOpacity={1} fill="url(#colorComm)" />
+                      {simPointForChart && (
+                        <ReferenceDot
+                          x={simPointForChart.sales}
+                          y={simPointForChart.comm}
+                          r={6}
+                          fill="#fff"
+                          stroke={CHART_PRIMARY}
+                          strokeWidth={3}
+                          isFront
+                        />
+                      )}
                     </AreaChart>
                   </ResponsiveContainer>
                   <div className="text-center mt-4">
-                    <p className="text-xs font-medium text-gray-500 italic">Visualisasi pertumbuhan komisi eksponensial berdasarkan sistem tiering</p>
+                    <p className="text-xs font-medium text-gray-500 italic">
+                      {simPointForChart
+                        ? `Titik bulat menandai simulasi terakhir Anda: ${formatCurrency(simPointForChart.sales)} penjualan -> ${formatCurrency(simPointForChart.comm)} komisi.`
+                        : 'Kurva dihitung langsung dari skema tier di tabmenu Structure & Tiers -- masukkan estimasi penjualan di sebelah kiri untuk menandai posisi Anda.'}
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -601,21 +676,30 @@ export function CommissionCalculator() {
                 <CardTitle className="text-xl">Payout Distribution by Sales Rep</CardTitle>
                 <CardDescription>Perbandingan antara komisi dasar dan akumulasi bonus</CardDescription>
               </CardHeader>
-              <CardContent className="h-[350px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={commissionByPersonData} layout="vertical" margin={{ left: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={CHART_GRID} />
-                    <XAxis type="number" hide />
-                    <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 700 }} />
-                    <Tooltip 
-                      formatter={(val: number) => formatCurrency(val)}
-                      contentStyle={CHART_TOOLTIP_STYLE}
-                    />
-                    <Legend iconType="circle" />
-                    <Bar dataKey="base" stackId="a" fill={CHART_COLORS[0]} name="Base Commission" radius={[0, 0, 0, 0]} barSize={24} />
-                    <Bar dataKey="bonus" stackId="a" fill={CHART_COLORS[1]} name="Total Bonuses" radius={[0, 4, 4, 0]} barSize={24} />
-                  </BarChart>
-                </ResponsiveContainer>
+              <CardContent className="p-6 space-y-4">
+                <div className="h-[300px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={commissionByPersonData} layout="vertical" margin={{ left: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={CHART_GRID} />
+                      <XAxis type="number" hide />
+                      <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 700 }} />
+                      <Tooltip 
+                        formatter={(val: number) => formatCurrency(val)}
+                        contentStyle={CHART_TOOLTIP_STYLE}
+                      />
+                      <Legend iconType="circle" />
+                      <Bar dataKey="base" stackId="a" fill={CHART_COLORS[0]} name="Base Commission" radius={[0, 0, 0, 0]} barSize={24} />
+                      <Bar dataKey="bonus" stackId="a" fill={CHART_COLORS[1]} name="Total Bonuses" radius={[0, 4, 4, 0]} barSize={24} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex items-start gap-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4">
+                  <Lightbulb className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                    <p className="text-xs font-semibold text-gray-700 leading-relaxed">{payoutDistributionInsight}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -624,32 +708,41 @@ export function CommissionCalculator() {
                 <CardTitle className="text-xl">Payout Status</CardTitle>
                 <CardDescription>Distribusi status pembayaran periode berjalan</CardDescription>
               </CardHeader>
-              <CardContent className="h-[350px] flex flex-col items-center justify-center">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={statusDistributionData}
-                      cx="50%"
-                      cy="45%"
-                      innerRadius={80}
-                      outerRadius={110}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {statusDistributionData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={index === 0 ? chartColor(0) : index === 1 ? chartColor(1) : chartColor(2)} />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="grid grid-cols-3 gap-4 w-full mt-4">
+              <CardContent className="p-6 space-y-4">
+                <div className="h-[240px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={statusDistributionData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={70}
+                        outerRadius={100}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {statusDistributionData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={index === 0 ? chartColor(0) : index === 1 ? chartColor(1) : chartColor(2)} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="grid grid-cols-3 gap-4 w-full">
                   {statusDistributionData.map((s, i) => (
                     <div key={i} className="text-center">
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{s.name}</p>
                       <p className="text-lg font-black" style={{ color: i === 0 ? chartColor(0) : i === 1 ? chartColor(1) : chartColor(2) }}>{s.value}</p>
                     </div>
                   ))}
+                </div>
+                <div className="flex items-start gap-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4">
+                  <Lightbulb className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                    <p className="text-xs font-semibold text-gray-700 leading-relaxed">{payoutStatusInsight}</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
