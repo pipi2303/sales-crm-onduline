@@ -5883,3 +5883,18 @@ ini) -- butuh `npm install` bersih (atau hapus `node_modules` +
 tidak dijalankan dari sandbox ini sesuai batasan yang berlaku (lihat
 insiden Bab 58). Tidak ada trailing whitespace baru pada kedua file
 yang diubah.
+
+**UPDATE (27 Sep 2026, sama hari)**: environment sudah diperbaiki user
+(`git checkout -- package.json package-lock.json` mengembalikan
+`@prisma/client` ke `6.19.3`, lalu `rm -rf node_modules && npm install`
+bersih) -- masalah `tsc` crash dan `@rollup/rollup-linux-arm64-gnu`
+hilang di atas SUDAH SELESAI, bukan lagi catatan terbuka. Verifikasi
+penuh diulang dengan cara normal (bukan workaround stack-size):
+`npx tsc --noEmit` sekarang selesai normal (89 error, SEMUANYA
+pre-existing di 22 file lain yang tidak disentuh chapter ini -- tidak
+ada satu pun di `CommissionCalculator.tsx` atau
+`loadAllDummyData.ts`); `npx vite build` sukses (`CommissionCalculator`
+chunk ter-bundle normal, 24.46 kB); `npx vitest run` 11/11 test lulus
+(termasuk test ErrorBoundary yang memang sengaja melempar error untuk
+menguji fallback UI-nya). Bab 65 & 66 di atas terkonfirmasi bersih
+dengan verifikasi standar penuh.
