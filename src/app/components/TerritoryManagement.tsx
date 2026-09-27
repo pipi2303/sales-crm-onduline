@@ -366,94 +366,99 @@ export function TerritoryManagement() {
             </Card>
           )}
 
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-4">
             {filteredTerritories.map((territory) => (
-              <Card key={territory.id} className="group hover:border-[#013E37]/50 hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden border-gray-100">
-                <CardHeader className="pb-4 bg-gray-50/30">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-xl font-black text-gray-900 group-hover:text-[#013E37] transition-colors flex items-center gap-2 uppercase tracking-tight">
-                        <MapPin className="h-5 w-5 text-[#013E37]" />
-                        {territory.name}
-                      </CardTitle>
-                      <CardDescription className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">REGION: {territory.region}</CardDescription>
+              <Card
+                key={territory.id}
+                className="group hover:border-[#013E37]/50 hover:shadow-lg transition-all duration-300 cursor-pointer overflow-hidden border-gray-100"
+                onClick={() => handleOpenDetail(territory)}
+              >
+                <CardContent className="p-5">
+                  <div className="flex flex-col lg:flex-row lg:items-center gap-5">
+                    <div className="flex items-center gap-3 lg:w-56 shrink-0">
+                      <div className="h-11 w-11 rounded-lg bg-gradient-to-br from-[#013E37] to-[#025C52] flex items-center justify-center shrink-0">
+                        <MapPin className="h-5 w-5 text-white" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{territory.region}</p>
+                        <h3 className="text-sm font-black text-gray-900 uppercase tracking-tight truncate group-hover:text-[#013E37] transition-colors">
+                          {territory.name}
+                        </h3>
+                      </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 ${territory.achievement >= 100 ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-[#013E37] hover:bg-[#028076]'}`}>
-                        {territory.achievement.toFixed(1)}% ATTAINMENT
-                      </Badge>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-6 space-y-6">
-                  <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-xl border border-gray-100">
-                    <div className="h-10 w-10 rounded-full bg-[#013E37] flex items-center justify-center text-white text-xs font-black">
-                      {getInitials(territory.assignedTo)}
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Territory Manager</p>
-                      <p className="text-sm font-bold text-gray-900 uppercase tracking-tight">{territory.assignedTo || 'Belum ditugaskan'}</p>
-                    </div>
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Commercial Metrics</p>
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-lg font-black text-gray-900">{territory.leads}</span>
-                        <span className="text-[9px] font-bold text-gray-400 uppercase">Leads</span>
+                    <div className="flex items-center gap-2 lg:w-48 shrink-0">
+                      <div className="h-8 w-8 rounded-full bg-[#013E37] flex items-center justify-center text-white text-[9px] font-black shrink-0">
+                        {getInitials(territory.assignedTo)}
                       </div>
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-lg font-black text-[#013E37]">{territory.opportunities}</span>
-                        <span className="text-[9px] font-bold text-gray-400 uppercase">Opportunities</span>
+                      <div className="min-w-0">
+                        <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Territory Manager</p>
+                        <p className="text-xs font-bold text-gray-900 uppercase tracking-tight truncate">{territory.assignedTo || 'Belum ditugaskan'}</p>
                       </div>
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Market Coverage</p>
-                      <div className="flex items-center gap-2">
-                        <span className="text-2xl font-black text-amber-600">{territory.coverage}%</span>
+
+                    <div className="flex items-center gap-5 lg:w-32 shrink-0">
+                      <div>
+                        <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Leads</p>
+                        <p className="text-sm font-black text-gray-900">{territory.leads}</p>
                       </div>
-                      <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                      <div>
+                        <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Opps</p>
+                        <p className="text-sm font-black text-[#013E37]">{territory.opportunities}</p>
+                      </div>
+                    </div>
+
+                    <div className="lg:w-28 shrink-0">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Coverage</p>
+                        <span className="text-xs font-black text-amber-600">{territory.coverage}%</span>
+                      </div>
+                      <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden mt-1">
                         <div className="bg-amber-500 h-full rounded-full transition-all" style={{ width: `${territory.coverage}%` }} />
                       </div>
                     </div>
-                  </div>
 
-                  <div className="pt-2 border-t border-gray-100">
-                    <div className="flex justify-between items-end mb-2">
-                      <div>
-                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Revenue Achievement</p>
-                        <p className="text-lg font-black text-[#013E37]">{formatCurrency(territory.revenue)}</p>
+                    <div className="flex-1 min-w-[180px]">
+                      <div className="flex justify-between items-baseline mb-1 gap-2">
+                        <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Revenue vs Quota</p>
+                        <Badge className={`text-[9px] font-black uppercase px-2 py-0 shrink-0 ${territory.achievement >= 100 ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-[#013E37] hover:bg-[#028076]'}`}>
+                          {territory.achievement.toFixed(1)}%
+                        </Badge>
                       </div>
-                      <div className="text-right">
-                        <p className="text-[9px] font-bold text-gray-400 uppercase">Quota: {formatCurrency(territory.target)}</p>
+                      <p className="text-sm font-black text-[#013E37] truncate">
+                        {formatCurrency(territory.revenue)}{' '}
+                        <span className="text-[9px] font-bold text-gray-400">/ {formatCurrency(territory.target)}</span>
+                      </p>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden mt-1 border border-gray-100">
+                        <div
+                          className={`h-full rounded-full transition-all duration-1000 ${territory.achievement >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 'bg-gradient-to-r from-[#013E37] to-[#028076]'}`}
+                          style={{ width: `${Math.min(territory.achievement, 100)}%` }}
+                        />
                       </div>
                     </div>
-                    <div className="h-3 bg-gray-100 rounded-full overflow-hidden p-0.5 border border-gray-100 shadow-inner">
-                      <div 
-                        className={`h-full rounded-full transition-all duration-1000 ${territory.achievement >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 'bg-gradient-to-r from-[#013E37] to-[#028076]'}`} 
-                        style={{ width: `${Math.min(territory.achievement, 100)}%` }} 
-                      />
-                    </div>
-                  </div>
 
-                  <div className="flex gap-2 pt-2">
-                    <Button 
-                      variant="outline" 
-                      className="flex-1 font-black text-[10px] uppercase tracking-widest border-gray-200 h-11 hover:bg-gray-50"
-                      onClick={() => handleOpenDetail(territory)}
-                    >
-                      <Eye className="h-4 w-4 mr-2" /> Detail Data
-                    </Button>
-                    {canManageTerritory && (
-                      <Button 
-                        variant="outline" 
-                        className="flex-1 font-black text-[10px] uppercase tracking-widest border-gray-200 h-11 hover:bg-gray-50"
-                        onClick={() => handleOpenEdit(territory)}
+                    <div className="flex gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-9 w-9 border-gray-200 hover:bg-gray-50"
+                        onClick={() => handleOpenDetail(territory)}
+                        title="Detail Data"
                       >
-                        <Edit className="h-4 w-4 mr-2" /> Edit Wilayah
+                        <Eye className="h-4 w-4" />
                       </Button>
-                    )}
+                      {canManageTerritory && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-9 w-9 border-gray-200 hover:bg-gray-50"
+                          onClick={() => handleOpenEdit(territory)}
+                          title="Edit Wilayah"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
