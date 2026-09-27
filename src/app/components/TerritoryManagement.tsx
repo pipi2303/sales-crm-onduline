@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, Users, Target, TrendingUp, Award, Plus, Search, Edit, Eye, ShieldCheck, Briefcase, BarChart3, Map as MapIcon } from 'lucide-react';
+import { MapPin, Users, Target, TrendingUp, Award, Plus, Search, Edit, Eye, ShieldCheck, Briefcase, BarChart3, Map as MapIcon, Lightbulb } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Badge } from '@/app/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
@@ -264,6 +264,30 @@ export function TerritoryManagement() {
     color: chartColor(idx),
   }));
 
+  // Bab 61 (27 Sep 2026): insight teks di bawah tiap grafik tabmenu
+  // Analitik, dihitung langsung dari `territories`/`regionData` yang
+  // sudah ada (bukan state terpisah) supaya otomatis ikut berubah kalau
+  // datanya berubah (mis. setelah tambah/edit wilayah).
+  const revenueVsTargetInsight = (() => {
+    if (territories.length === 0) return 'Belum ada data wilayah untuk dianalisis.';
+    const overallAchievement = stats.totalTarget > 0 ? (stats.totalRevenue / stats.totalTarget) * 100 : 0;
+    const weakest = territories.reduce((min, t) => (t.achievement < min.achievement ? t : min), territories[0]);
+    const strongest = stats.topPerformer;
+    const overallLine = `Total pencapaian seluruh wilayah ${overallAchievement.toFixed(1)}% dari target (${formatCurrency(stats.totalRevenue)} dari ${formatCurrency(stats.totalTarget)}).`;
+    if (weakest.id === strongest.id) {
+      return `${overallLine} ${strongest.name} adalah satu-satunya wilayah dengan pencapaian ${strongest.achievement.toFixed(1)}%.`;
+    }
+    return `${overallLine} ${strongest.name} jadi wilayah dengan pencapaian tertinggi (${strongest.achievement.toFixed(1)}%), sementara ${weakest.name} paling tertinggal (${weakest.achievement.toFixed(1)}%).`;
+  })();
+
+  const marketConcentrationInsight = (() => {
+    if (regionData.length === 0) return 'Belum ada data wilayah untuk dianalisis.';
+    const dominant = regionData.reduce((max, r) => (r.value > max.value ? r : max), regionData[0]);
+    const totalCount = regionData.reduce((sum, r) => sum + r.value, 0);
+    const share = totalCount > 0 ? (dominant.value / totalCount) * 100 : 0;
+    return `${dominant.name} adalah region dengan konsentrasi wilayah terbanyak (${dominant.value} dari ${totalCount} wilayah, ${share.toFixed(0)}%), tersebar di ${regionData.length} region berbeda.`;
+  })();
+
   // Bab 32/33 (24 Sep 2026): the search box used to set `searchQuery` but
   // nothing ever read it back -- the Wilayah tab always rendered the full
   // `territories` list regardless of what was typed (live-verified: typing
@@ -473,7 +497,7 @@ export function TerritoryManagement() {
                 <CardTitle className="text-lg font-black text-[#013E37] uppercase tracking-tight">Revenue vs Target</CardTitle>
                 <CardDescription className="text-xs font-bold uppercase tracking-widest text-gray-400">Perbandingan performa antar wilayah</CardDescription>
               </CardHeader>
-              <CardContent className="p-6">
+              <CardContent className="p-6 space-y-4">
                 <div className="h-80 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={territories} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
@@ -489,6 +513,13 @@ export function TerritoryManagement() {
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
+                <div className="flex items-start gap-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4">
+                  <Lightbulb className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                    <p className="text-xs font-semibold text-gray-700 leading-relaxed">{revenueVsTargetInsight}</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -497,7 +528,7 @@ export function TerritoryManagement() {
                 <CardTitle className="text-lg font-black text-[#013E37] uppercase tracking-tight">Market Concentration</CardTitle>
                 <CardDescription className="text-xs font-bold uppercase tracking-widest text-gray-400">Distribusi wilayah berdasarkan regional</CardDescription>
               </CardHeader>
-              <CardContent className="p-6">
+              <CardContent className="p-6 space-y-4">
                 <div className="h-80 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -520,6 +551,13 @@ export function TerritoryManagement() {
                       <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase'}} />
                     </PieChart>
                   </ResponsiveContainer>
+                </div>
+                <div className="flex items-start gap-3 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4">
+                  <Lightbulb className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Insight</p>
+                    <p className="text-xs font-semibold text-gray-700 leading-relaxed">{marketConcentrationInsight}</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
